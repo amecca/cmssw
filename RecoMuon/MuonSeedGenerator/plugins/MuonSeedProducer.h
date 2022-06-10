@@ -18,6 +18,10 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/ESGetToken.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
+
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/MuonReco/interface/MuonFwd.h"
 
 #include "DataFormats/TrajectorySeed/interface/TrajectorySeedCollection.h"
 #include "RecoMuon/DetLayers/interface/MuonDetLayerGeometry.h"
@@ -25,7 +29,7 @@
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 
-class MuonSeedBuilder;
+class MuonSeedBuilderA;
 
 class MuonSeedProducer : public edm::stream::EDProducer<> {
 public:
@@ -45,10 +49,12 @@ private:
   bool debug;
 
   /// Builder where seeds are formed
-  MuonSeedBuilder* muonSeedBuilder_;
+  MuonSeedBuilderA* muonSeedBuilder_;
 
   edm::ESGetToken<MuonDetLayerGeometry, MuonRecoGeometryRecord> muonLayersToken_;
   edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> magFieldToken_;
+
+  edm::EDGetTokenT<reco::MuonCollection> theMuonToken_;
 };
 
 #endif

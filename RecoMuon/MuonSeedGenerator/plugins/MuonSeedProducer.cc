@@ -5,7 +5,8 @@
  */
 
 #include "RecoMuon/MuonSeedGenerator/plugins/MuonSeedProducer.h"
-#include "RecoMuon/MuonSeedGenerator/src/MuonSeedBuilder.h"
+//#include "RecoMuon/MuonSeedGenerator/src/MuonSeedBuilder.h"
+#include "RecoMuon/MuonSeedGenerator/src/MuonSeedBuilderA.h"
 
 // Data Formats
 #include "DataFormats/TrajectorySeed/interface/TrajectorySeedCollection.h"
@@ -26,7 +27,9 @@
 /* 
  * Constructor
  */
-MuonSeedProducer::MuonSeedProducer(const edm::ParameterSet& pset) {
+MuonSeedProducer::MuonSeedProducer(const edm::ParameterSet& pset) :
+  theMuonToken_(consumes<reco::MuonCollection>(pset.getParameter<edm::InputTag>("muons")))
+ {
   // Register what this produces
   produces<TrajectorySeedCollection>();
 
@@ -36,7 +39,7 @@ MuonSeedProducer::MuonSeedProducer(const edm::ParameterSet& pset) {
   edm::ConsumesCollector iC = consumesCollector();
 
   // Builder which returns seed collection
-  muonSeedBuilder_ = new MuonSeedBuilder(pset, iC);
+  muonSeedBuilder_ = new MuonSeedBuilderA(pset, iC);
 
   muonLayersToken_ = esConsumes<MuonDetLayerGeometry, MuonRecoGeometryRecord>();
   magFieldToken_ = esConsumes<MagneticField, IdealMagneticFieldRecord>();
@@ -61,13 +64,17 @@ void MuonSeedProducer::produce(edm::Event& event, const edm::EventSetup& eSetup)
   const MagneticField* theField = &*field;
   muonSeedBuilder_->setBField(theField);
 
+  // Reco muon for post-global standalone [experimental]
+  edm::Handle<reco::MuonCollection> muons;
+  event.getByToken(theMuonToken_, muons);
+
   // Create pointer to the seed container
 
   auto output = std::make_unique<TrajectorySeedCollection>();
 
   //UNUED:  int nSeeds = 0;
   //UNUSED: nSeeds =
-  muonSeedBuilder_->build(event, eSetup, *output);
+  muonSeedBuilder_->build(event, eSetup, muons, *output);
 
   // Append muon seed collection to event
   event.put(std::move(output));
