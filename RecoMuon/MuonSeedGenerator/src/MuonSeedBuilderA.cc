@@ -57,16 +57,18 @@
 MuonSeedBuilderA::MuonSeedBuilderA(const edm::ParameterSet& pset, edm::ConsumesCollector& iC){
   // Local Debug flag
   debug = pset.getParameter<bool>("DebugMuonSeed");
+  scaleInnerStateError = pset.exists("scaleInnerStateError") ? pset.getParameter<double>("scaleInnerStateError") : 1.;
+  edm::LogInfo("MuonSeedBuilderA") << "Building MuonSeedBuilderA with scaleInnerStateError = " << scaleInnerStateError;
   
   edm::ParameterSet serviceParameters = pset.getParameter<edm::ParameterSet>("ServiceParameters");
   propagatorName = serviceParameters.getParameter<std::string>("Propagator");
   serviceParameters.addUntrackedParameter("Propagators", std::vector<std::string>({propagatorName}));  // It wants a list of propagators to load
-  theService = std::make_unique<MuonServiceProxy>(serviceParameters, std::move(iC));  // edm::ConsumesCollector());
+  theService = std::make_unique<MuonServiceProxy>(serviceParameters, edm::ConsumesCollector(iC));  // edm::ConsumesCollector());
   // thePatternRecognition->setServiceProxy(theService);
   
   // Class for forming muon seeds
   // muonSeedCreate_ = new MuonSeedCreator(pset);
-  // muonSeedClean_ = new MuonSeedCleaner(pset, edm::ConsumesCollector(iC));
+  muonSeedClean_ = new MuonSeedCleaner(pset, std::move(iC));
 }
 
 /*
@@ -74,7 +76,7 @@ MuonSeedBuilderA::MuonSeedBuilderA(const edm::ParameterSet& pset, edm::ConsumesC
  */
 MuonSeedBuilderA::~MuonSeedBuilderA() {
   // delete muonSeedCreate_;
-  // delete muonSeedClean_;
+  delete muonSeedClean_;
 }
 
 /* 
@@ -88,6 +90,7 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
   // edm::LogInfo("MuonSeedBuilderA") << "Start build()";
   // Pass the Magnetic Field to where the seed is create
   // muonSeedCreate_->setBField(BField);
+  std::ostringstream eventInfo;  // collect information for a single LogInfo at the end of this function
   
   // Update the service
   theService->update(eventSetup);
@@ -102,22 +105,22 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
   }
   
   // Create temporary collection of seeds which will be cleaned up to remove combinatorics
-  std::vector<TrajectorySeed> rawSeeds;
+  std::vector<TrajectorySeed> seedsFromAllSdAHits, seedsFromValidSdAHits;
   std::vector<float> etaOfSeed;
   std::vector<float> phiOfSeed;
   std::vector<int> nSegOnSeed;
-
+  
   size_t nMuonsWithInner = 0;
   for(const reco::Muon& muon : *muons){
     reco::TrackRef inner = muon.innerTrack();
     if(inner.isNull()){
-      edm::LogInfo("MuonSeedBuilderA")<<"Discarding muon with null track";
+      eventInfo << "Discarding muon with null track\n";
       continue;
     }
     // TODO update with same requirement as tracker muons
     if(! (inner->chi2() / inner->ndof() <= 2.5 && inner->numberOfValidHits() >= 5 && inner->hitPattern().numberOfValidPixelHits() >= 2 && inner->quality(reco::TrackBase::highPurity)) ){
-      edm::LogInfo("MuonSeedBuilderA")<<"Discarding track with: chi2/ndof = "<<inner->chi2()/inner->ndof()<<"  valid_hits = "<<inner->numberOfValidHits()
-				      <<"  inner_valid_hits = "<<inner->hitPattern().numberOfValidPixelHits()<<"  quality_mask = "<<inner->qualityMask();
+      eventInfo << "Discarding track with: chi2/ndof = "<<inner->chi2()/inner->ndof()<<"  valid_hits = "<<inner->numberOfValidHits()
+	        << "  inner_valid_hits = "<<inner->hitPattern().numberOfValidPixelHits()<<"  quality_mask = "<<inner->qualityMask() << '\n';
       continue;
     }
     
@@ -132,14 +135,18 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
     			       inner->outerMomentum().z());
     int charge = inner->charge();
     const reco::Track::CovarianceMatrix outerStateCovariance = inner->outerStateCovariance();
-    DetId outerDetId = DetId(inner->outerDetId());
+    DetId trackerOuterDetID = DetId(inner->outerDetId());
     
     // construct the information necessary to make a TrajectoryStateOnSurface
     GlobalTrajectoryParameters globalTrajParams(outerPosition, outerMomentum, charge, magneticField.product());
     CurvilinearTrajectoryError curviError(outerStateCovariance);
     
     // starting point for propagation into the muon system
-    TrajectoryStateOnSurface tracker_tsos = TrajectoryStateOnSurface(globalTrajParams, curviError, trackingGeometry->idToDet(outerDetId)->surface());
+    TrajectoryStateOnSurface tracker_tsos = TrajectoryStateOnSurface(globalTrajParams, curviError, trackingGeometry->idToDet(trackerOuterDetID)->surface());
+    if(! tracker_tsos.isValid()){
+      eventInfo << "Invlid tracker TSOS!";
+      continue;
+    }
     
     // propagate the TSOS to muon system. Which one?
     
@@ -150,16 +157,55 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
     //      - alternatively, get track.seed() and feed its segments to the pattern recognition; only initial state from propagated inner
     //   2. look for segments "nearby": exaustveTrajectoryBuilder --> efficiency increase?
     //   3. if no segments, use standAloneTrajectoryBuilder --> efficiency increase?
+    
     reco::TrackRef outer = muon.outerTrack();
-    if(! outer.isNull() ){
-      DetId innerSdADetId = DetId(outer->innerDetId());
+    if(! outer.isNull() ){  // We already have a SdA: use it at least to choose where to propagate the state
+      DetId sdaInnerDetID = DetId(outer->innerDetId());  // the INNERmost DetId of the outer (SdA) track
+      TrajectoryStateOnSurface propagated_tsos = propagator->propagate(tracker_tsos, trackingGeometry->idToDet(sdaInnerDetID)->surface());
+      eventInfo << "Extrapolated from " << std::hex << trackerOuterDetID() << " to " << sdaInnerDetID() << " - Status: " << (propagated_tsos.isValid() ?"success":"invalid") << std::dec << '\t';
+      propagated_tsos.rescaleError(scaleInnerStateError);
+      
+      // Use the hits from the outer track to build seed, but with the initial state extrapolated from the inner track
+      if(! outer->recHits().empty()){
+    	PTrajectoryStateOnDet const& PTraj = trajectoryStateTransform::persistentState(propagated_tsos, sdaInnerDetID.rawId());
+	
+    	edm::OwnVector<TrackingRecHit> allSdAHits, validSdAHits;
+    	for(const auto& hit : outer->recHits()){
+    	  DetId id = hit->geographicalId();
+    	  if(! (id.det() == DetId::Muon && (id.subdetId() == MuonSubdetId::DT || id.subdetId() == MuonSubdetId::CSC)) )
+	    continue;  // Use only segments from DT/CSC to build the seeds
+
+	  allSdAHits.push_back(hit->clone());
+	  
+    	  TrajectoryStateOnSurface extrapolation = propagator->propagate(tracker_tsos, trackingGeometry->idToDet(id)->surface());
+	  if(extrapolation.isValid())
+	    validSdAHits.push_back(hit->clone());
+	  else
+	    eventInfo << "\tPropagation of inner track to outer hit failed.\n";
+	}
+	
+	TrajectorySeed trajectorySeedAllSdA  (PTraj, allSdAHits, PropagationDirection::alongMomentum);
+	seedsFromAllSdAHits.push_back  (trajectorySeedAllSdA);	
+	// TrajectorySeed trajectorySeedValidSdA(PTraj, allSdAHits, PropagationDirection::alongMomentum);
+	// seedsFromValidSdAHits.push_back(trajectorySeedValidSdA);
+	
+	eventInfo << "DT/CSC hits from SdA: " << allSdAHits.size() << ( validSdAHits.size()==allSdAHits.size() ? "\n" : Form(" (valid: %zu)\n",validSdAHits.size()) );
+      }
+    }
+    
+    else{ // outer.isNull()
+      eventInfo << "This muon has no outer track.\n";
+      // TODO: in this case, run MuonSeedBuilder (standard) to re-create all the seeds
+      //for(const DetLayer* pDetLayer : trackingGeometry->allDTLayers())
+      //for(const auto& hit :  )
     }
 
-  }
+  } // end loop on muons
+  
   if(muons->size() != nMuonsWithInner)
-    edm::LogInfo("MuonSeedBuilderA") << "Muons: "<<muons->size()<<" - Muons with inner track: "<<nMuonsWithInner;
+    eventInfo << "Muons: " << muons->size()<<" - Muons with inner track: "<<nMuonsWithInner << '\n';
   else
-    edm::LogInfo("MuonSeedBuilderA") << "All "<< nMuonsWithInner <<" muons accepted";
+    eventInfo << "All " << nMuonsWithInner << " muons accepted.\n";
   
   // Instantiate the accessor (get the segments: DT + CSC but not RPC=false)
   // MuonDetLayerMeasurements muonMeasurements(enableDTMeasurement,enableCSCMeasurement,false,
@@ -282,24 +328,18 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
    * Clean up raw seed collection and pass to master collection
    * *********************************************************************************************************************/
 
-  if (debug)
-    std::cout << "*** CLEAN UP " << std::endl;
-  if (debug)
-    std::cout << "Number of seeds BEFORE " << rawSeeds.size() << std::endl;
+  int NGoodSeeds = 0;
 
-  int goodSeeds = 0;
+  theSeeds = muonSeedClean_->seedCleaner(eventSetup, seedsFromAllSdAHits);
+  NGoodSeeds = theSeeds.size();
+  
+  eventInfo << " === Before cleaning: " << seedsFromAllSdAHits.size() << " => After: " << NGoodSeeds << '\n';
 
-  // theSeeds = muonSeedClean_->seedCleaner(eventSetup, rawSeeds);
-  goodSeeds = theSeeds.size();
-
-  //std::cout << " === Before Cleaning : " << rawSeeds.size() <<std::endl;
-  //std::cout << " => AFTER :" << goodSeeds << std::endl;
-
-  if (debug)
-    std::cout << "Number of seeds AFTER " << goodSeeds << std::endl;
-
+  std::string eventInfoStr = eventInfo.str();
+  eventInfoStr.pop_back();
+  edm::LogInfo("MuonSeedBuilderA") << eventInfoStr;
   // edm::LogInfo("MuonSeedBuilderA") << "End build()";
-  return goodSeeds;
+  return NGoodSeeds;
 }
 
 /* *********************************************************************************************************************
