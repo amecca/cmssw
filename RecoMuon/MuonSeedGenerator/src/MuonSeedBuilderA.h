@@ -100,7 +100,7 @@ private:
   
   /// Create seed according to region (CSC, DT, Overlap)
   // MuonSeedCreator* muonSeedCreate_;
-  // MuonSeedCleaner* muonSeedClean_;
+  MuonSeedCleaner* muonSeedClean_;
 
   // Service for propagator
   std::unique_ptr<MuonServiceProxy> theService;
@@ -119,6 +119,7 @@ private:
   float maxPhiResolutionDT;
   float maxPhiResolutionCSC;
   float theMinMomentum;
-
+  
+  float scaleInnerStateError;
 };
 #endif

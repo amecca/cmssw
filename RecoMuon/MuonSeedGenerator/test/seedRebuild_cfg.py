@@ -22,7 +22,9 @@ process.load('Configuration.StandardSequences.MagneticField_cff')
 process.load('Configuration.StandardSequences.Reconstruction_cff')
 process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
-#process.load('RecoMuon.TrackingTools.MuonServiceProxy_cff')
+# process.load('RecoMuon.Configuration.RecoMuonPPonly_cff')
+process.load('RecoMuon.StandAloneMuonProducer.standAloneMuons_cff')
+# process.load('RecoMuon.TrackingTools.MuonServiceProxy_cff')
 
 process.MessageLogger = cms.Service("MessageLogger",
                         destinations   = cms.untracked.vstring(
@@ -42,7 +44,7 @@ process.MessageLogger = cms.Service("MessageLogger",
 
 process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(-1),
-    output = cms.untracked.int32(10),#cms.optional.untracked.allowed(cms.int32,cms.PSet)
+    output = cms.untracked.int32(50),#cms.optional.untracked.allowed(cms.int32,cms.PSet)
 )
 
 # Input source
@@ -117,14 +119,23 @@ process.configurationMetadata = cms.untracked.PSet(
 process.seedFromGlobalMuons = cms.EDProducer("MuonSeedProducer",
                                              muons                = cms.InputTag("muons"),
                                              DebugMuonSeed        = cms.bool(False),
+                                             scaleInnerStateError = cms.double(10.),
                                              ServiceParameters = cms.PSet(
                                                  Propagator = cms.string('SteppingHelixPropagatorAlong'),  # To test if this causes failures
                                                  RPCLayers  = cms.bool(True),
                                                  CSCLayers  = cms.bool(True),
                                                  GEMLayers  = cms.bool(True),
                                                  ME0Layers  = cms.bool(True)
-                                             )
-)
+                                             ),
+                                             EnableDTMeasurement  = cms.bool(True),
+                                             DTSegmentLabel       = cms.InputTag("dt4DSegments"),
+                                             EnableCSCMeasurement = cms.bool(True),
+                                             CSCSegmentLabel      = cms.InputTag("cscSegments"),
+                                         )
+
+process.standAloneMuons.InputObjects = "seedFromGlobalMuons"
+
+# process.refittedStandAloneMuons = process.standAloneMuons.clone()
 
 # Output definition
 
@@ -133,10 +144,12 @@ process.RECOSIMoutput = cms.OutputModule("PoolOutputModule",
         dataTier = cms.untracked.string('RECO'),
         filterName = cms.untracked.string('')
     ),
-    fileName = cms.untracked.string('seedAgain_RECO.root'),
+    fileName = cms.untracked.string('seedRebuild_RECO.root'),
     outputCommands = process.RECOSIMEventContent.outputCommands,
     splitLevel = cms.untracked.int32(0)
 )
+
+process.RECOSIMoutput.outputCommands.append('keep *_seedFromGlobalMuons_*_*')
 
 # Additional output definition
 
@@ -146,7 +159,7 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:run3_mc_FULL', '')
 
 # Path and EndPath definitions
 #process.reconstruction_step = cms.Path(process.reconstruction_fromRECO)
-process.reconstruction_step = cms.Path(process.seedFromGlobalMuons)  # process.rebuildSeeds + process.standAloneMuons
+process.reconstruction_step = cms.Path(process.seedFromGlobalMuons + process.standAloneMuons)
 process.endjob_step = cms.EndPath(process.endOfProcess)
 process.RECOSIMoutput_step = cms.EndPath(process.RECOSIMoutput)
 
