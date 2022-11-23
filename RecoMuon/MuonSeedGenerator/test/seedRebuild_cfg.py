@@ -11,6 +11,14 @@ from RecoMuon.TrackingTools.MuonServiceProxy_cff import *
 
 process = cms.Process('RESTA',Run3)
 
+theFiles = {
+    "RelVal": ['/store/relval/CMSSW_12_4_0_pre2/RelValSingleMuPt100/GEN-SIM-RECO/123X_mcRun3_2021_realistic_v12_TEST_alma-v2/10000/b08a880d-c9b8-4a64-83f6-33b15658a0db.root'],
+    "test": ['root://cmsxrootd.fnal.gov///store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/ce019d4a-2b92-4b95-a195-004714f910e2.root',
+             'root://cmsxrootd.fnal.gov///store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/906b79a4-570d-41ae-b4e1-0e5d3c613cba.root'],
+    "local" : ['file:ce019d4a-2b92-4b95-a195-004714f910e2.root'], #/store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/ce019d4a-2b92-4b95-a195-004714f910e2.root
+}
+
+
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
@@ -43,14 +51,14 @@ process.MessageLogger = cms.Service("MessageLogger",
 )
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1),
-    output = cms.untracked.int32(50),#cms.optional.untracked.allowed(cms.int32,cms.PSet)
+    input = cms.untracked.int32(10),
+    output = cms.untracked.int32(-1),  #cms.optional.untracked.allowed(cms.int32,cms.PSet)
 )
 
 # Input source
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('/store/relval/CMSSW_12_4_0_pre2/RelValSingleMuPt100/GEN-SIM-RECO/123X_mcRun3_2021_realistic_v12_TEST_alma-v2/10000/b08a880d-c9b8-4a64-83f6-33b15658a0db.root'),
-    secondaryFileNames = cms.untracked.vstring()
+                            fileNames = cms.untracked.vstring(*theFiles["local"]),
+                            secondaryFileNames = cms.untracked.vstring()
 )
 
 process.options = cms.untracked.PSet(
@@ -58,7 +66,7 @@ process.options = cms.untracked.PSet(
     IgnoreCompletely = cms.untracked.vstring(),
     Rethrow = cms.untracked.vstring(),
     SkipEvent = cms.untracked.vstring(),
-    accelerators = cms.untracked.vstring('*'),
+    #accelerators = cms.untracked.vstring('*'),
     allowUnscheduled = cms.obsolete.untracked.bool,
     canDeleteEarly = cms.untracked.vstring(),
     deleteNonConsumedUnscheduledModules = cms.untracked.bool(True),
@@ -90,68 +98,47 @@ process.configurationMetadata = cms.untracked.PSet(
     version = cms.untracked.string('$Revision: 1.19 $')
 )
 
-# Modules
-# process.rebuildSeeds = cms.EDProducer("MuonSeedProducer",
-#                                       muons                = cms.InputTag("globalMuons"),
-#                                       DebugMuonSeed        = cms.bool(False),
-#                                       EnableDTMeasurement  = cms.bool(False),
-#                                       DTSegmentLabel       = cms.InputTag("dt4DSegments"),
-#                                       EnableCSCMeasurement = cms.bool(False),
-#                                       CSCSegmentLabel      = cms.InputTag("cscSegments"),
-#                                       minCSCHitsPerSegment = cms.int32(0),
-#                                       maxDeltaEtaCSC      = cms.double(0.),
-#                                       maxDeltaPhiCSC      = cms.double(0.),
-#                                       maxDeltaEtaOverlap  = cms.double(0.),
-#                                       maxDeltaPhiOverlap  = cms.double(0.),
-#                                       minDTHitsPerSegment = cms.int32(0),
-#                                       maxDeltaEtaDT       = cms.double(0.),
-#                                       maxDeltaPhiDT       = cms.double(0.),
-#                                       maxEtaResolutionDT  = cms.double(0.),
-#                                       maxPhiResolutionDT  = cms.double(0.),
-#                                       maxEtaResolutionCSC = cms.double(0.),
-#                                       maxPhiResolutionCSC = cms.double(0.),
-                                      
-#                                       minimumSeedPt       = cms.double(0.),
-#                                       maximumSeedPt       = cms.double(0.),
-#                                       defaultSeedPt       = cms.double(0.)                                      
-# )
-
+##### Modules #####
+### Make Seed from existing muon tracks ###
 process.seedFromGlobalMuons = cms.EDProducer("MuonSeedProducer",
                                              muons                = cms.InputTag("muons"),
                                              DebugMuonSeed        = cms.bool(False),
-                                             scaleInnerStateError = cms.double(10.),
+                                             scaleInnerStateError = cms.double(1.),
                                              ServiceParameters = cms.PSet(
                                                  Propagator = cms.string('SteppingHelixPropagatorAlong'),  # To test if this causes failures
                                                  RPCLayers  = cms.bool(True),
                                                  CSCLayers  = cms.bool(True),
                                                  GEMLayers  = cms.bool(True),
                                                  ME0Layers  = cms.bool(True)
-                                             ),
-                                             EnableDTMeasurement  = cms.bool(True),
-                                             DTSegmentLabel       = cms.InputTag("dt4DSegments"),
-                                             EnableCSCMeasurement = cms.bool(True),
-                                             CSCSegmentLabel      = cms.InputTag("cscSegments"),
+                                             )
                                          )
 
+### Fit StandAlone tracks from new seeds
 process.standAloneMuons.InputObjects = "seedFromGlobalMuons"
 
-# process.refittedStandAloneMuons = process.standAloneMuons.clone()
+################################################################################
 
 # Output definition
 
-process.RECOSIMoutput = cms.OutputModule("PoolOutputModule",
-    dataset = cms.untracked.PSet(
-        dataTier = cms.untracked.string('RECO'),
-        filterName = cms.untracked.string('')
-    ),
-    fileName = cms.untracked.string('seedRebuild_RECO.root'),
-    outputCommands = process.RECOSIMEventContent.outputCommands,
+process.output = cms.OutputModule("PoolOutputModule",
+    fileName = cms.untracked.string('seedRebuild.root'),
+    outputCommands = process.AODSIMEventContent.outputCommands,
     splitLevel = cms.untracked.int32(0)
 )
 
-process.RECOSIMoutput.outputCommands.append('keep *_seedFromGlobalMuons_*_*')
-
 # Additional output definition
+process.output.outputCommands.append('drop *_*_*_RECO')
+process.output.outputCommands.append('drop *_*_*_HLT')
+process.output.outputCommands.append('keep *_*_*_RESTA')
+process.output.outputCommands.append('keep *_genParticles_*_HLT')
+process.output.outputCommands.append('keep *_hltTriggerSummaryAOD_*_HLT')
+# process.output.outputCommands.append('keep *_ak4GenJets_*_HLT')
+# process.output.outputCommands.append('keep *_ak8GenJets_*_HLT')
+process.output.outputCommands.append('keep *_addPileupInfo_*_*')
+process.output.outputCommands.append('keep *_seedFromGlobalMuons_*_*')
+process.output.outputCommands.append('keep *_standAloneMuons_*_*')
+# process.output.outputCommands.append('keep *_globalMuons_*_*')
+
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -161,13 +148,12 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:run3_mc_FULL', '')
 #process.reconstruction_step = cms.Path(process.reconstruction_fromRECO)
 process.reconstruction_step = cms.Path(process.seedFromGlobalMuons + process.standAloneMuons)
 process.endjob_step = cms.EndPath(process.endOfProcess)
-process.RECOSIMoutput_step = cms.EndPath(process.RECOSIMoutput)
+process.output_step = cms.EndPath(process.output)
 
 # Schedule definition
-process.schedule = cms.Schedule(process.reconstruction_step,process.endjob_step,process.RECOSIMoutput_step)
+process.schedule = cms.Schedule(process.reconstruction_step, process.endjob_step, process.output_step)
 from PhysicsTools.PatAlgos.tools.helpers import associatePatAlgosToolsTask
 associatePatAlgosToolsTask(process)
-
 
 
 # Customisation from command line

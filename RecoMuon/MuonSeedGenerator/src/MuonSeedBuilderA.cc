@@ -79,6 +79,10 @@ MuonSeedBuilderA::~MuonSeedBuilderA() {
   delete muonSeedClean_;
 }
 
+
+TrajectorySeed seedFromSdA    (const reco::Muon&, const TrajectoryStateOnSurface&, const edm::ESHandle<Propagator>&, const edm::ESHandle<GlobalTrackingGeometry>&, double scaleInnerStateError);
+TrajectorySeed seedFromTracker(const reco::Muon&, const TrajectoryStateOnSurface&, const edm::ESHandle<Propagator>&, const edm::ESHandle<GlobalTrackingGeometry>&, double scaleInnerStateError);
+
 /* 
  * build
  *
@@ -105,7 +109,7 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
   }
   
   // Create temporary collection of seeds which will be cleaned up to remove combinatorics
-  std::vector<TrajectorySeed> seedsFromAllSdAHits, seedsFromValidSdAHits;
+  std::vector<TrajectorySeed> seedsFromValidSdAHits; //seedsFromAllSdAHits
   std::vector<float> etaOfSeed;
   std::vector<float> phiOfSeed;
   std::vector<int> nSegOnSeed;
@@ -158,187 +162,33 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
     //   2. look for segments "nearby": exaustveTrajectoryBuilder --> efficiency increase?
     //   3. if no segments, use standAloneTrajectoryBuilder --> efficiency increase?
     
-    reco::TrackRef outer = muon.outerTrack();
-    if(! outer.isNull() ){  // We already have a SdA: use it at least to choose where to propagate the state
-      DetId sdaInnerDetID = DetId(outer->innerDetId());  // the INNERmost DetId of the outer (SdA) track
-      TrajectoryStateOnSurface propagated_tsos = propagator->propagate(tracker_tsos, trackingGeometry->idToDet(sdaInnerDetID)->surface());
-      eventInfo << "Extrapolated from " << std::hex << trackerOuterDetID() << " to " << sdaInnerDetID() << " - Status: " << (propagated_tsos.isValid() ?"success":"invalid") << std::dec << '\t';
-      propagated_tsos.rescaleError(scaleInnerStateError);
-      
-      // Use the hits from the outer track to build seed, but with the initial state extrapolated from the inner track
-      if(! outer->recHits().empty()){
-    	PTrajectoryStateOnDet const& PTraj = trajectoryStateTransform::persistentState(propagated_tsos, sdaInnerDetID.rawId());
-	
-    	edm::OwnVector<TrackingRecHit> allSdAHits, validSdAHits;
-    	for(const auto& hit : outer->recHits()){
-    	  DetId id = hit->geographicalId();
-    	  if(! (id.det() == DetId::Muon && (id.subdetId() == MuonSubdetId::DT || id.subdetId() == MuonSubdetId::CSC)) )
-	    continue;  // Use only segments from DT/CSC to build the seeds
-
-	  allSdAHits.push_back(hit->clone());
-	  
-    	  TrajectoryStateOnSurface extrapolation = propagator->propagate(tracker_tsos, trackingGeometry->idToDet(id)->surface());
-	  if(extrapolation.isValid())
-	    validSdAHits.push_back(hit->clone());
-	  else
-	    eventInfo << "\tPropagation of inner track to outer hit failed.\n";
-	}
-	
-	TrajectorySeed trajectorySeedAllSdA  (PTraj, allSdAHits, PropagationDirection::alongMomentum);
-	seedsFromAllSdAHits.push_back  (trajectorySeedAllSdA);	
-	// TrajectorySeed trajectorySeedValidSdA(PTraj, allSdAHits, PropagationDirection::alongMomentum);
-	// seedsFromValidSdAHits.push_back(trajectorySeedValidSdA);
-	
-	eventInfo << "DT/CSC hits from SdA: " << allSdAHits.size() << ( validSdAHits.size()==allSdAHits.size() ? "\n" : Form(" (valid: %zu)\n",validSdAHits.size()) );
-      }
+    TrajectorySeed seedSdA     =     seedFromSdA(muon, tracker_tsos, propagator, trackingGeometry, scaleInnerStateError);
+    if(seedSdA.nHits() > 0){
+      eventInfo << "Made seed from SdA hits.\n";
+      seedsFromValidSdAHits.push_back(seedSdA);
+      continue;
     }
-    
-    else{ // outer.isNull()
-      eventInfo << "This muon has no outer track.\n";
-      // TODO: in this case, run MuonSeedBuilder (standard) to re-create all the seeds
-      //for(const DetLayer* pDetLayer : trackingGeometry->allDTLayers())
-      //for(const auto& hit :  )
+    TrajectorySeed seedTracker = seedFromTracker(muon, tracker_tsos, propagator, trackingGeometry, scaleInnerStateError);
+    if(seedTracker.nHits() > 0){
+      eventInfo << "Made seed from segments associated to inner track.\n";
+      seedsFromValidSdAHits.push_back(seedTracker);
+      continue;
     }
+    eventInfo << "No hits associated, resort to standAloneTrajectoryBuilder.\n";
 
   } // end loop on muons
   
-  if(muons->size() != nMuonsWithInner)
-    eventInfo << "Muons: " << muons->size()<<" - Muons with inner track: "<<nMuonsWithInner << '\n';
-  else
-    eventInfo << "All " << nMuonsWithInner << " muons accepted.\n";
+  size_t NGoodSeeds = seedsFromValidSdAHits.size();
+  eventInfo << "Seeds/Muons with inner/total: " << NGoodSeeds << '/' << nMuonsWithInner << '/' << muons->size() << '\n';
   
-  // Instantiate the accessor (get the segments: DT + CSC but not RPC=false)
-  // MuonDetLayerMeasurements muonMeasurements(enableDTMeasurement,enableCSCMeasurement,false,
-  //                                          theDTSegmentLabel.label(),theCSCSegmentLabel.label());
-
-  // // 1) Get the various stations and store segments in containers for each station (layers)
-
-  // // 1a. get the DT segments by stations (layers):
-  // std::vector<const DetLayer*> dtLayers = muonLayers->allDTLayers();
-
-  // SegmentContainer DTlist4 = muonMeasurements->recHits(dtLayers[3], event);
-  // SegmentContainer DTlist3 = muonMeasurements->recHits(dtLayers[2], event);
-  // SegmentContainer DTlist2 = muonMeasurements->recHits(dtLayers[1], event);
-  // SegmentContainer DTlist1 = muonMeasurements->recHits(dtLayers[0], event);
-
-  // // Initialize flags that a given segment has been allocated to a seed
-  // BoolContainer usedDTlist4(DTlist4.size(), false);
-  // BoolContainer usedDTlist3(DTlist3.size(), false);
-  // BoolContainer usedDTlist2(DTlist2.size(), false);
-  // BoolContainer usedDTlist1(DTlist1.size(), false);
-
-  // if (debug) {
-  //   std::cout << "*** Number of DT segments is: " << DTlist4.size() + DTlist3.size() + DTlist2.size() + DTlist1.size()
-  //             << std::endl;
-  //   std::cout << "In MB1: " << DTlist1.size() << std::endl;
-  //   std::cout << "In MB2: " << DTlist2.size() << std::endl;
-  //   std::cout << "In MB3: " << DTlist3.size() << std::endl;
-  //   std::cout << "In MB4: " << DTlist4.size() << std::endl;
-  // }
-
-  // // 1b. get the CSC segments by stations (layers):
-  // // 1b.1 Global z < 0
-  // std::vector<const DetLayer*> cscBackwardLayers = muonLayers->backwardCSCLayers();
-  // SegmentContainer CSClist4B = muonMeasurements->recHits(cscBackwardLayers[4], event);
-  // SegmentContainer CSClist3B = muonMeasurements->recHits(cscBackwardLayers[3], event);
-  // SegmentContainer CSClist2B = muonMeasurements->recHits(cscBackwardLayers[2], event);
-  // SegmentContainer CSClist1B = muonMeasurements->recHits(cscBackwardLayers[1], event);  // ME1/2 and 1/3
-  // SegmentContainer CSClist0B = muonMeasurements->recHits(cscBackwardLayers[0], event);  // ME11
-
-  // BoolContainer usedCSClist4B(CSClist4B.size(), false);
-  // BoolContainer usedCSClist3B(CSClist3B.size(), false);
-  // BoolContainer usedCSClist2B(CSClist2B.size(), false);
-  // BoolContainer usedCSClist1B(CSClist1B.size(), false);
-  // BoolContainer usedCSClist0B(CSClist0B.size(), false);
-
-  // // 1b.2 Global z > 0
-  // std::vector<const DetLayer*> cscForwardLayers = muonLayers->forwardCSCLayers();
-  // SegmentContainer CSClist4F = muonMeasurements->recHits(cscForwardLayers[4], event);
-  // SegmentContainer CSClist3F = muonMeasurements->recHits(cscForwardLayers[3], event);
-  // SegmentContainer CSClist2F = muonMeasurements->recHits(cscForwardLayers[2], event);
-  // SegmentContainer CSClist1F = muonMeasurements->recHits(cscForwardLayers[1], event);
-  // SegmentContainer CSClist0F = muonMeasurements->recHits(cscForwardLayers[0], event);
-
-  // BoolContainer usedCSClist4F(CSClist4F.size(), false);
-  // BoolContainer usedCSClist3F(CSClist3F.size(), false);
-  // BoolContainer usedCSClist2F(CSClist2F.size(), false);
-  // BoolContainer usedCSClist1F(CSClist1F.size(), false);
-  // BoolContainer usedCSClist0F(CSClist0F.size(), false);
-
-  // if (debug) {
-  //   std::cout << "*** Number of CSC segments is "
-  //             << CSClist4F.size() + CSClist3F.size() + CSClist2F.size() + CSClist1F.size() + CSClist0F.size() +
-  //                    CSClist4B.size() + CSClist3B.size() + CSClist2B.size() + CSClist1B.size() + CSClist0B.size()
-  //             << std::endl;
-  //   std::cout << "In ME11: " << CSClist0F.size() + CSClist0B.size() << std::endl;
-  //   std::cout << "In ME12: " << CSClist1F.size() + CSClist1B.size() << std::endl;
-  //   std::cout << "In ME2 : " << CSClist2F.size() + CSClist2B.size() << std::endl;
-  //   std::cout << "In ME3 : " << CSClist3F.size() + CSClist3B.size() << std::endl;
-  //   std::cout << "In ME4 : " << CSClist4F.size() + CSClist4B.size() << std::endl;
-  // }
+  // IMPORTANT: fill the output collection
+  theSeeds = std::move(seedsFromValidSdAHits);
   
-  
-
-  /* ******************************************************************************************************************
-   * Form seeds in barrel region
-   *
-   * Proceed from inside -> out
-   * ******************************************************************************************************************/
-
-  // Loop over all possible MB1 segment to form seeds:
-  // int index = -1;
-  // for (SegmentContainer::iterator it = DTlist1.begin(); it != DTlist1.end(); ++it) {
-    // TrajectorySeed thisSeed;
-    // thisSeed = muonSeedCreate_->createSeed(3, protoTrack, layers, NShowers, NShowerSeg);
-    
-    // Add the seeds to master collection
-    // rawSeeds.push_back(thisSeed);
-    // etaOfSeed.push_back(eta_temp);
-    // phiOfSeed.push_back(phi_temp);
-    // nSegOnSeed.push_back(protoTrack.size());
-
-    // Marked segment as used
-    // usedDTlist1[index] = true;
-  // }
-
-  // Loop over all possible MB2 segment to form seeds:
-  // Loop over all possible MB3 segment to form seeds:
-  
-  /* *********************************************************************************************************************
-   * Form seeds from backward endcap
-   *
-   * Proceed from inside -> out
-   * *********************************************************************************************************************/
-
-  // Loop over all possible ME11 segment to form seeds:
-  // Loop over all possible ME1/2 ME1/3 segment to form seeds:
-  // Loop over all possible ME2 segment to form seeds:
-  // Loop over all possible ME3 segment to form seeds:
-
-  /* *****************************************************************************************************************
-   * Form seeds from forward endcap
-   *
-   * Proceed from inside -> out
-   * *****************************************************************************************************************/
-
-  // Loop over all possible ME11 segment to form seeds:
-  // Loop over all possible ME2 segment to form seeds:
-
-  /* *********************************************************************************************************************
-   * Clean up raw seed collection and pass to master collection
-   * *********************************************************************************************************************/
-
-  int NGoodSeeds = 0;
-
-  theSeeds = muonSeedClean_->seedCleaner(eventSetup, seedsFromAllSdAHits);
-  NGoodSeeds = theSeeds.size();
-  
-  eventInfo << " === Before cleaning: " << seedsFromAllSdAHits.size() << " => After: " << NGoodSeeds << '\n';
-
   std::string eventInfoStr = eventInfo.str();
-  eventInfoStr.pop_back();
+  eventInfoStr.pop_back();  // remove last '\n'
   edm::LogInfo("MuonSeedBuilderA") << eventInfoStr;
   // edm::LogInfo("MuonSeedBuilderA") << "End build()";
+  
   return NGoodSeeds;
 }
 
@@ -351,3 +201,73 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
  * *********************************************************************************************************************/
 
 ///                                                   segment for seeding         , segments collection
+
+TrajectorySeed seedFromSdA(const reco::Muon& muon, const TrajectoryStateOnSurface& tracker_tsos, const edm::ESHandle<Propagator>& propagator, const edm::ESHandle<GlobalTrackingGeometry>& trackingGeometry, double scaleInnerStateError){
+  reco::TrackRef outer = muon.outerTrack();
+  if(outer.isNull())
+    return TrajectorySeed();
+  
+  // We already have a SdA: use it at least to choose where to propagate the state
+  DetId sdaInnerDetID = DetId(outer->innerDetId());  // the INNERmost DetId of the outer (SdA) track
+  TrajectoryStateOnSurface propagated_tsos = propagator->propagate(tracker_tsos, trackingGeometry->idToDet(sdaInnerDetID)->surface());
+  // eventInfo << "Extrapolated from " << std::hex << trackerOuterDetID() << " to " << sdaInnerDetID() << " - Status: " << (propagated_tsos.isValid() ?"success":"invalid") << std::dec << '\t';
+  propagated_tsos.rescaleError(scaleInnerStateError);
+  
+  // Use the hits from the outer track to build seed, but with the initial state extrapolated from the inner track
+  if(outer->recHits().empty())
+    return TrajectorySeed();
+  
+  PTrajectoryStateOnDet const& PTraj = trajectoryStateTransform::persistentState(propagated_tsos, sdaInnerDetID.rawId());
+  
+  edm::OwnVector<TrackingRecHit> validSdAHits; //allSdAHits
+  for(const auto& hit : outer->recHits()){
+    DetId id = hit->geographicalId();
+    if(! (id.det() == DetId::Muon && (id.subdetId() == MuonSubdetId::DT || id.subdetId() == MuonSubdetId::CSC)) )
+      continue;  // Use only segments from DT/CSC to build the seeds
+    // if(! hit->isValid())
+    //   continue;  // Exclude invalid hits since they may lack some information and make the pattern recognition crash
+    
+    validSdAHits.push_back(hit->clone());
+  }
+  
+  return TrajectorySeed(PTraj, validSdAHits, PropagationDirection::alongMomentum);
+}
+
+
+TrajectorySeed seedFromTracker(const reco::Muon& muon, const TrajectoryStateOnSurface& tracker_tsos, const edm::ESHandle<Propagator>& propagator, const edm::ESHandle<GlobalTrackingGeometry>& trackingGeometry, double scaleInnerStateError){
+  TrajectoryStateOnSurface propagated_tsos;
+  DetId propagatedChamberID;
+  bool propagatedToChambers = false;
+  edm::OwnVector<TrackingRecHit> hitsForSeed;
+
+  for(const reco::MuonChamberMatch& match : muon.matches()){
+    DetId chamberID = match.id;
+    bool isDT  = chamberID.subdetId() == MuonSubdetId::DT;
+    bool isCSC = chamberID.subdetId() == MuonSubdetId::CSC;
+    
+    for(const reco::MuonSegmentMatch& segmentMatch : match.segmentMatches){
+      if(isDT)
+	hitsForSeed.push_back(segmentMatch.dtSegmentRef->clone());
+      else if(isCSC)
+	hitsForSeed.push_back(segmentMatch.cscSegmentRef->clone());
+    }
+	
+    if( ! propagatedToChambers){
+      TrajectoryStateOnSurface extrapolation = propagator->propagate(tracker_tsos, trackingGeometry->idToDet(chamberID)->surface());
+      // eventInfo << "Extrapolated from " << std::hex << trackerOuterDetID() << " to " << chamberID() << " - Status: " << (propagated_tsos.isValid() ?"success":"invalid") << std::dec << '\n';
+      if(extrapolation.isValid()){
+	extrapolation.rescaleError(scaleInnerStateError);
+	propagated_tsos = std::move(extrapolation);
+	propagatedChamberID = chamberID;
+	propagatedToChambers = true;
+      }
+    }
+  }  // end loop on MuonChamberMatch
+  
+  if(propagatedToChambers && hitsForSeed.size() > 0){
+    PTrajectoryStateOnDet const& PTraj = trajectoryStateTransform::persistentState(propagated_tsos, propagatedChamberID.rawId());
+    return TrajectorySeed(PTraj, hitsForSeed, PropagationDirection::alongMomentum);
+  }
+  else
+    return TrajectorySeed();
+}
