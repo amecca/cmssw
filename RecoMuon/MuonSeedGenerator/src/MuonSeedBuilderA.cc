@@ -92,8 +92,7 @@ TrajectorySeed seedFromTracker(const reco::Muon&, const TrajectoryStateOnSurface
  */
 int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup, const edm::Handle<reco::MuonCollection>& muons, TrajectorySeedCollection& theSeeds){
   // edm::LogInfo("MuonSeedBuilderA") << "Start build()";
-  // Pass the Magnetic Field to where the seed is create
-  // muonSeedCreate_->setBField(BField);
+  
   std::ostringstream eventInfo;  // collect information for a single LogInfo at the end of this function
   
   // Update the service
@@ -121,11 +120,18 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
       eventInfo << "Discarding muon with null track\n";
       continue;
     }
-    // TODO update with same requirement as tracker muons
-    if(! (inner->chi2() / inner->ndof() <= 2.5 && inner->numberOfValidHits() >= 5 && inner->hitPattern().numberOfValidPixelHits() >= 2 && inner->quality(reco::TrackBase::highPurity)) ){
-      eventInfo << "Discarding track with: chi2/ndof = "<<inner->chi2()/inner->ndof()<<"  valid_hits = "<<inner->numberOfValidHits()
-	        << "  inner_valid_hits = "<<inner->hitPattern().numberOfValidPixelHits()<<"  quality_mask = "<<inner->qualityMask() << '\n';
-      continue;
+    
+    if(debug){
+      if(muon.outerTrack().isAvailable()){
+	std::cout<<"Muon #"<<std::distance(&muon, &*muons->begin())<<" - ";
+	edm::RefToBase<TrajectorySeed> seedRef_outer = muon.outerTrack()->seedRef();
+	if(! seedRef_outer.isAvailable()){
+	  std::cout<<"seeRef NOT available\n";
+	}
+	else{
+	  std::cout<<seedRef_outer.get()<<'\n';
+	}
+      }
     }
     
     nMuonsWithInner++;

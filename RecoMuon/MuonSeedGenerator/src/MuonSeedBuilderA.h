@@ -33,6 +33,8 @@ class MuonSeedCleaner;
 
 typedef std::vector<TrajectorySeed> SeedContainer;
 
+int matchingHits(const reco::TrackRef& t1, const reco::TrackRef& t2, bool (*recHitCondition)(const TrackingRecHit& h));
+
 class MuonSeedBuilderA {
 public:
   typedef MuonTransientTrackingRecHit::MuonRecHitContainer SegmentContainer;
@@ -55,40 +57,12 @@ public:
   /// Build seed collection
   int build(edm::Event& event, const edm::EventSetup& eventSetup, const edm::Handle<reco::MuonCollection>& muons, TrajectorySeedCollection& seeds);
 
-  std::vector<int> badSeedLayer;
-
 private:
   /// cleaning the seeds
   // std::vector<TrajectorySeed> seedCleaner(const edm::EventSetup& eventSetup, std::vector<TrajectorySeed>& seeds);
 
   /// calculate the eta error from global R error
   double etaError(const GlobalPoint gp, double rErr);
-
-  /// group the seeds
-  //std::vector<SeedContainer> GroupSeeds( std::vector<TrajectorySeed>& seeds );
-  /// pick the seed by better parameter error
-  //TrajectorySeed BetterDirection( std::vector<TrajectorySeed>& seeds ) ;
-  //TrajectorySeed BetterChi2( std::vector<TrajectorySeed>& seeds );
-  /// filter out the bad pt seeds, if all are bad pt seeds then keep all
-  //bool MomentumFilter(std::vector<TrajectorySeed>& seeds );
-
-  /// collect long seeds
-  //SeedContainer LengthFilter(std::vector<TrajectorySeed>& seeds );
-  /// pick the seeds w/ 1st layer information and w/ more than 1 segments
-  //SeedContainer SeedCandidates( std::vector<TrajectorySeed>& seeds, bool good );
-  /// check overlapping segment for seeds
-  //unsigned int OverlapSegments( TrajectorySeed seed1, TrajectorySeed seed2 );
-
-  /// retrieve number of rechits& normalized chi2 of associated segments of a seed
-  //int NRecHitsFromSegment( const TrackingRecHit& rhit );
-  //int NRecHitsFromSegment( MuonTransientTrackingRecHit *rhit );
-  //int NRecHitsFromSegment( const MuonTransientTrackingRecHit& rhit );
-  //double NChi2OfSegment( const TrackingRecHit& rhit );
-
-  /// retrieve seed global position
-  //GlobalPoint SeedPosition( TrajectorySeed seed );
-  /// retrieve seed global momentum
-  //GlobalVector SeedMomentum( TrajectorySeed seed );
 
   // This Producer private debug flag
   bool debug;
