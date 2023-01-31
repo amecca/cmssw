@@ -116,17 +116,40 @@ process.seedFromGlobalMuons = cms.EDProducer("MuonSeedProducer",
 ### Fit StandAlone tracks from new seeds
 process.standAloneMuons.InputObjects = "seedFromGlobalMuons"
 
-################################################################################
+### Make Global Muons ###
+process.load('RecoMuon.Configuration.RecoMuonPPonly_cff')
+
+process.globalmuontrackingTask = cms.Task(process.globalMuons, process.tevMuons)  # removed displacedGlobalMuonTrackingTask
+
+muonrecoTask = cms.Task(
+    process.globalmuontrackingTask,
+    process.muonIdProducerTask
+)  # removed displacedMuonIdProducerTask
+process.muonreco = cms.Sequence(muonrecoTask)
+
+#RecoMuon/GlobalMuonProducer/python/tevMuons_cfi.py
+process.tevMuons.MuonCollectionLabel = cms.InputTag("globalMuons", "", "RESTA")
+
+#RecoMuon/GlobalMuonProducer/python/globalMuons_cfi.py
+process.globalMuons.MuonCollectionLabel = cms.InputTag("standAloneMuons", "UpdatedAtVtx", "RESTA")
+
+process.muons1stStep.fillShowerDigis = cms.bool(False)
+# process.muons1stStep.ShowerDigiFillerParameters.dtDigiCollectionLabel = cms.InputTag("simMuonDTDigis")
+# process.muons1stStep.ShowerDigiFillerParameters.cscDigiCollectionLabel = cms.InputTag("simMuonCSCDigi:MuonCSCStripDigi")
+#########################
 
 # Output definition
 
 process.output = cms.OutputModule("PoolOutputModule",
+    # dataset = cms.untracked.PSet(
+    #     dataTier = cms.untracked.string('RECO'),
+    #     filterName = cms.untracked.string('')
+    # ),
     fileName = cms.untracked.string('seedRebuild.root'),
     outputCommands = process.AODSIMEventContent.outputCommands,
     splitLevel = cms.untracked.int32(0)
 )
 
-# Additional output definition
 process.output.outputCommands.append('drop *_*_*_RECO')
 process.output.outputCommands.append('drop *_*_*_HLT')
 process.output.outputCommands.append('keep *_*_*_RESTA')
@@ -137,16 +160,20 @@ process.output.outputCommands.append('keep *_hltTriggerSummaryAOD_*_HLT')
 process.output.outputCommands.append('keep *_addPileupInfo_*_*')
 process.output.outputCommands.append('keep *_seedFromGlobalMuons_*_*')
 process.output.outputCommands.append('keep *_standAloneMuons_*_*')
-# process.output.outputCommands.append('keep *_globalMuons_*_*')
+process.output.outputCommands.append('keep *_globalMuons_*_*')
+process.output.outputCommands.append('keep *_muonSimClassifier_toPrimaries_*')  # Keep the GenParticleMatch (aka edm::Association<std::vector<GenParticle>>)
 
+# Additional output definition
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:run3_mc_FULL', '')
 
 # Path and EndPath definitions
-#process.reconstruction_step = cms.Path(process.reconstruction_fromRECO)
-process.reconstruction_step = cms.Path(process.seedFromGlobalMuons + process.standAloneMuons)
+process.reconstruction_step = cms.Path(process.seedFromGlobalMuons
+                                       + process.standAloneMuons
+                                       + process.muonreco
+)
 process.endjob_step = cms.EndPath(process.endOfProcess)
 process.output_step = cms.EndPath(process.output)
 
@@ -154,6 +181,7 @@ process.output_step = cms.EndPath(process.output)
 process.schedule = cms.Schedule(process.reconstruction_step, process.endjob_step, process.output_step)
 from PhysicsTools.PatAlgos.tools.helpers import associatePatAlgosToolsTask
 associatePatAlgosToolsTask(process)
+
 
 
 # Customisation from command line
