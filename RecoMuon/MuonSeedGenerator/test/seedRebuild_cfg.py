@@ -51,7 +51,7 @@ process.MessageLogger = cms.Service("MessageLogger",
 )
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(10),
+    input = cms.untracked.int32(1000),
     output = cms.untracked.int32(-1),  #cms.optional.untracked.allowed(cms.int32,cms.PSet)
 )
 
@@ -161,6 +161,9 @@ process.output.outputCommands.append('keep *_addPileupInfo_*_*')
 process.output.outputCommands.append('keep *_seedFromGlobalMuons_*_*')
 process.output.outputCommands.append('keep *_standAloneMuons_*_*')
 process.output.outputCommands.append('keep *_globalMuons_*_*')
+process.output.outputCommands.append('keep recoMuons_muons_*_*')
+process.output.outputCommands.append('keep recoTracks_*_*_*')
+process.output.outputCommands.append('keep recoTrackExtras_*_*_*')
 process.output.outputCommands.append('keep *_muonSimClassifier_toPrimaries_*')  # Keep the GenParticleMatch (aka edm::Association<std::vector<GenParticle>>)
 
 # Additional output definition
