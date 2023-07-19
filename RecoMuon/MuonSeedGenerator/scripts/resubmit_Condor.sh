@@ -2,22 +2,23 @@
 
 # (Re)submit all the chunks in a directory
 
-# Make the grid proxy available in ~, if existing and valid
+# Make the grid proxy available in $HOME, if existing and valid
 uid=$(id -u)
+proxy_name="x509up_u${uid}"
 proxy_valid=$(voms-proxy-info --timeleft)
 if [ $proxy_valid -gt 10 ] ; then
    echo "GRID proxy found, validity: $proxy_valid s"
    if [ -n "$X509_USER_PROXY" ] ; then
-       [ "${X509_USER_PROXY}" = "~/x509up_u${uid}" ] || cp $X509_USER_PROXY ~/x509up_u${uid}
-   elif [ -e /tmp/x509up_u${uid} ] ; then
-     cp /tmp/x509up_u${uid} ~/
+       [ "${X509_USER_PROXY}" = "$HOME/${proxy_name}" ] || cp $X509_USER_PROXY $HOME/${proxy_name}
+   elif [ -e /tmp/${proxy_name} ] ; then
+     cp /tmp/${proxy_name} $HOME/
    fi
-else # Last attempt: Try to see if a valid proxy already exists in ~
-   if [ -e ~/x509up_u${uid} ] ; then
-      export X509_USER_PROXY=~/x509up_u${uid}
-      proxy_valid=`voms-proxy-info --timeleft`
+else # Last attempt: Try to see if a valid proxy already exists in $HOME
+   if [ -e $HOME/${proxy_name} ] ; then
+      export X509_USER_PROXY=$HOME/${proxy_name}
+      proxy_valid=$(voms-proxy-info --timeleft)
       if [ $proxy_valid -gt 10 ] ; then
-         echo "GRID proxy found in ~, validity: $proxy_valid s"
+         echo "GRID proxy found in $HOME, validity: $proxy_valid s"
       fi
    fi
 
@@ -30,6 +31,7 @@ fi
 if [ $# -ge 1 ] ; then
     cd ${1%condor.sub}
 fi
+echo 'INFO: queuing jobs in' $(pwd)
 
 queue='-queue directory in'
 
