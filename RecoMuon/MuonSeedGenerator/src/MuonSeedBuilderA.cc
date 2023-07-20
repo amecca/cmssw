@@ -97,7 +97,6 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
   
   // Update the service
   theService->update(eventSetup);
-  edm::ESHandle<MagneticField>          magneticField    = theService->magneticField();
   edm::ESHandle<GlobalTrackingGeometry> trackingGeometry = theService->trackingGeometry();
   
   // Get the propagator from the (updated) service
@@ -148,7 +147,7 @@ int MuonSeedBuilderA::build(edm::Event& event, const edm::EventSetup& eventSetup
     DetId trackerOuterDetID = DetId(inner->outerDetId());
     
     // construct the information necessary to make a TrajectoryStateOnSurface
-    GlobalTrajectoryParameters globalTrajParams(outerPosition, outerMomentum, charge, magneticField.product());
+    GlobalTrajectoryParameters globalTrajParams(outerPosition, outerMomentum, charge, BField);
     CurvilinearTrajectoryError curviError(outerStateCovariance);
     
     // starting point for propagation into the muon system
