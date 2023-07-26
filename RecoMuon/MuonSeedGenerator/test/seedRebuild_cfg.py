@@ -162,8 +162,9 @@ process.output.outputCommands.append('keep *_seedFromGlobalMuons_*_*')
 process.output.outputCommands.append('keep *_standAloneMuons_*_*')
 process.output.outputCommands.append('keep *_globalMuons_*_*')
 process.output.outputCommands.append('keep recoMuons_muons_*_*')
-process.output.outputCommands.append('keep recoTracks_*_*_*')
-process.output.outputCommands.append('keep recoTrackExtras_*_*_*')
+process.output.outputCommands.append('keep *_generalTracks_*_*')
+process.output.outputCommands.append('keep *_dt4DSegments_*_*')
+process.output.outputCommands.append('keep *_cscSegments_*_*')
 process.output.outputCommands.append('keep *_muonSimClassifier_toPrimaries_*')  # Keep the GenParticleMatch (aka edm::Association<std::vector<GenParticle>>)
 
 # Additional output definition
