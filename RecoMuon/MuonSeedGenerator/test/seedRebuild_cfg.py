@@ -15,7 +15,7 @@ theFiles = {
     "RelVal": ['/store/relval/CMSSW_12_4_0_pre2/RelValSingleMuPt100/GEN-SIM-RECO/123X_mcRun3_2021_realistic_v12_TEST_alma-v2/10000/b08a880d-c9b8-4a64-83f6-33b15658a0db.root'],
     "test": ['root://cmsxrootd.fnal.gov///store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/ce019d4a-2b92-4b95-a195-004714f910e2.root',
              'root://cmsxrootd.fnal.gov///store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/906b79a4-570d-41ae-b4e1-0e5d3c613cba.root'],
-    "local" : ['file:ce019d4a-2b92-4b95-a195-004714f910e2.root'], #/store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/ce019d4a-2b92-4b95-a195-004714f910e2.root
+    "local" : ['file:/eos/home-a/amecca/Muons_samples/cb841ba0-da2d-4ef2-8c5e-c9845180e616.root'] #/store/mc/Run3Summer21DRPremix/ZToMuMu_M-50To120_TuneCP5_14TeV-powheg-pythia8/GEN-SIM-RECO/120X_mcRun3_2021_realistic_v6-v2/80000/ce019d4a-2b92-4b95-a195-004714f910e2.root
 }
 
 
