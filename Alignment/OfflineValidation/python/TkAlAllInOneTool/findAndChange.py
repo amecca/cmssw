@@ -22,32 +22,31 @@ def digest_path(path):
     protocol = ""
     if "://" in path_expanded:
         protocol = path_expanded.split("://")[0]+"://"
-        path_s = path_expanded.split("://")[1].split(os.sep)
+        path_d = path_expanded.split("://")[1]
+    elif ":" in path_expanded:
+        protocol = path_expanded.split(":")[0]+':'
+        path_d = ":".join(path_expanded.split(":")[1:])
+        # Similar to just `split(':')[1]`, but handles the case in which the rest of the path contains one or more ':'
     else:
-        path_s = path_expanded.split(os.sep)
+        path_d = path_expanded
 
-    path_d_s = []
+    path_s = path_d.split(os.sep)
+
     placeholderIdx = []
     for ipart,part in enumerate(path_s):
         # Look for {} placeholder to be replaced internally 
         if "{}" in part:
             placeholderIdx.append(ipart)
-            path_d_s.append(part)
-        else:
-            path_d_s.append(part)
 
     # re-join folders into full path 
     # only check path up to first placeholder occurence
-    path_d = os.path.join(*path_d_s)
     if len(placeholderIdx) > 0:
-        path_to_check = os.path.join(*path_d_s[:placeholderIdx[0]])
+        path_to_check = os.path.join(*path_s[:placeholderIdx[0]])
+        # re add front / if needed
+        if path_d.startswith(os.sep):
+            path_to_check = os.sep + path_to_check
     else:
         path_to_check = path_d
-
-    # re add front / if needed
-    if path_expanded.startswith(os.sep):
-        path_d = os.sep + path_d
-        path_to_check = os.sep + path_to_check
 
     # check for path to exist
     if not os.path.exists(path_to_check) and "." in os.path.splitext(path_to_check)[-1]:
