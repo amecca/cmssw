@@ -16,23 +16,21 @@ def digest_path(path):
     if not isinstance(path, str):
         return path
 
+    path_expanded = os.path.expandvars(path)
+
     # split path in folders
     protocol = ""
-    if "://" in path:
-        protocol = path.split("://")[0]+"://"
-        path_s = path.split("://")[1].split(os.sep)
+    if "://" in path_expanded:
+        protocol = path_expanded.split("://")[0]+"://"
+        path_s = path_expanded.split("://")[1].split(os.sep)
     else:
-        path_s = path.split(os.sep)    
+        path_s = path_expanded.split(os.sep)
 
     path_d_s = []
     placeholderIdx = []
     for ipart,part in enumerate(path_s):
-        # Look for environment variables such as $CMSSW_BASE
-        if part.startswith('$'):
-            env_var = part[1:].replace('{', '').replace('}', '')
-            path_d_s.append(os.environ[env_var])
         # Look for {} placeholder to be replaced internally 
-        elif "{}" in part:
+        if "{}" in part:
             placeholderIdx.append(ipart)
             path_d_s.append(part)
         else:
@@ -47,7 +45,7 @@ def digest_path(path):
         path_to_check = path_d
 
     # re add front / if needed
-    if path.startswith(os.sep):
+    if path_expanded.startswith(os.sep):
         path_d = os.sep + path_d
         path_to_check = os.sep + path_to_check
 
