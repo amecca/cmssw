@@ -1,5 +1,6 @@
 import os
 from FWCore.ParameterSet.pfnInPath import pfnInPath
+import ROOT
 
 ##############################################
 def digest_path(path):
@@ -60,6 +61,17 @@ def digest_path(path):
 
     # if all is OK return path to directory or file
     return path_d
+
+#########################################
+def get_root_color(value):
+#########################################
+    """
+       Returns an integer correspondig to the ROOT color
+    """
+    if(isinstance(value, str)):
+        return getattr(ROOT.EColor, value)
+    else:
+        return value
 
 #########################################
 def get_all_keys(var):
