@@ -69,9 +69,18 @@ def get_root_color(value):
        Returns an integer correspondig to the ROOT color
     """
     if(isinstance(value, str)):
-        return getattr(ROOT.EColor, value)
+        if(value.isdigit()):
+            return int(value)
+        elif('-' in value):
+            pre, op, post = value.partition('-')
+            return get_root_color(pre) - get_root_color(post)
+        elif('+' in value):
+            pre, op, post = value.partition('+')
+            return get_root_color(pre) + get_root_color(post)
+        else:
+            return getattr(ROOT.EColor, value)
     else:
-        return value
+        return int(value)
 
 #########################################
 def get_all_keys(var):
