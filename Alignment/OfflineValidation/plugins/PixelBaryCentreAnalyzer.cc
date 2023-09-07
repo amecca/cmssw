@@ -246,23 +246,23 @@ void PixelBaryCentreAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
 
     phase_ = -1;
 
-    const TrackerGeometry* tkGeo = &iSetup.getData(trackerGeometryToken_);
-    const TrackerTopology* tkTopo = &iSetup.getData(trackerTopologyToken_);
+    const TrackerGeometry& tkGeom = iSetup.getData(trackerGeometryToken_);
+    const TrackerTopology& tkTopo = iSetup.getData(trackerTopologyToken_);
 
-    if (tkGeo->isThere(GeomDetEnumerators::PixelBarrel) && tkGeo->isThere(GeomDetEnumerators::PixelEndcap)) {
+    if (tkGeom.isThere(GeomDetEnumerators::PixelBarrel) && tkGeom.isThere(GeomDetEnumerators::PixelEndcap)) {
       phase_ = 0;
-    } else if (tkGeo->isThere(GeomDetEnumerators::P1PXB) && tkGeo->isThere(GeomDetEnumerators::P1PXEC)) {
+    } else if (tkGeom.isThere(GeomDetEnumerators::P1PXB) && tkGeom.isThere(GeomDetEnumerators::P1PXEC)) {
       phase_ = 1;
     }
 
     // pixel quality
-    const SiPixelQuality* badPixelInfo = &iSetup.getData(siPixelQualityToken_);
+    const SiPixelQuality& badPixelInfo = iSetup.getData(siPixelQualityToken_);
 
     // Tracker global position
-    const AlignTransform glbCoord = align::DetectorGlobalPosition(iSetup.getData(gprToken_), DetId(DetId::Tracker));
-
-    // Convert AlignTransform::Translation to GlobalVector using the appropriate constructor
-    GlobalVector globalTkPosition(glbCoord.translation().x(), glbCoord.translation().y(), glbCoord.translation().z());
+    const Alignments& globalAlignments = iSetup.getData(gprToken_);
+    const AlignTransform& globalCoordinates = align::DetectorGlobalPosition(globalAlignments, DetId(DetId::Tracker));
+    GlobalVector globalTkPosition(
+        globalCoordinates.translation().x(), globalCoordinates.translation().y(), globalCoordinates.translation().z());
 
     // loop over bclabels
     for (const auto& label : bcLabels_) {
@@ -270,8 +270,8 @@ void PixelBaryCentreAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
       PixelBaryCentreAnalyzer::initBC();
 
       // Get TkAlign from EventSetup:
-      const Alignments* alignments = &iSetup.getData(tkAlignTokens_[label]);
-      std::vector<AlignTransform> tkAlignments = alignments->m_align;
+      const Alignments& alignments = iSetup.getData(tkAlignTokens_[label]);
+      std::vector<AlignTransform> tkAlignments = alignments.m_align;
 
       // PIX
       GlobalVector barycentre_PIX(0.0, 0.0, 0.0);
@@ -295,7 +295,7 @@ void PixelBaryCentreAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
         //DetId
         const DetId& detId = DetId(ali.rawId());
         // remove bad module
-        if (usePixelQuality_ && badPixelInfo->IsModuleBad(detId))
+        if (usePixelQuality_ && badPixelInfo.IsModuleBad(detId))
           continue;
 
         // alignment for a given module
@@ -308,8 +308,8 @@ void PixelBaryCentreAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
           barycentre_BPIX += ali_translation;
           barycentre_PIX += ali_translation;
 
-          int layer = tkTopo->pxbLayer(detId);
-          int ladder = tkTopo->pxbLadder(detId);
+          int layer = tkTopo.pxbLayer(detId);
+          int ladder = tkTopo.pxbLadder(detId);
           nmodules_bpix[layer][ladder] += 1;
           barycentre_bpix[layer][ladder] += ali_translation;
 
@@ -321,16 +321,16 @@ void PixelBaryCentreAnalyzer::analyze(const edm::Event& iEvent, const edm::Event
           barycentre_FPIX += ali_translation;
           barycentre_PIX += ali_translation;
 
-          int disk = tkTopo->pxfDisk(detId);
-          int quadrant = PixelEndcapName(detId, tkTopo, phase_).halfCylinder();
+          int disk = tkTopo.pxfDisk(detId);
+          int quadrant = PixelEndcapName(detId, &tkTopo, phase_).halfCylinder();
           if (quadrant < 3)
             disk *= -1;
 
           int ring = -9999;
           if (phase_ == 0) {
-            ring = 1 + (tkTopo->pxfPanel(detId) + tkTopo->pxfModule(detId.rawId()) > 3);
+            ring = 1 + (tkTopo.pxfPanel(detId) + tkTopo.pxfModule(detId.rawId()) > 3);
           } else if (phase_ == 1) {
-            ring = PixelEndcapName(detId, tkTopo, phase_).ringName();
+            ring = PixelEndcapName(detId, &tkTopo, phase_).ringName();
           }
 
           nmodules_fpix[disk][ring] += 1;
