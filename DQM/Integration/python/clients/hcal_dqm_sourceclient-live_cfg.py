@@ -33,9 +33,7 @@ if 'unitTest=True' in sys.argv:
 from DQM.Integration.config.online_customizations_cfi import *
 if useOfflineGT:
 	process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
-	process.GlobalTag.globaltag = '106X_dataRun3_HLT_Candidate_2019_11_26_14_48_16'
-	#process.GlobalTag.globaltag = '106X_dataRun2_PromptLike_Candidate_2019_05_04_08_47_47'
-	#process.GlobalTag.globaltag = '100X_dataRun2_HLT_Candidate_2018_01_31_16_04_35'
+	process.GlobalTag.globaltag = autoCond['run3_data_prompt'] 
 else:
 	process.load('DQM.Integration.config.FrontierCondition_GT_cfi')
 if unitTest:
@@ -153,18 +151,7 @@ process.load('DQM.HcalTasks.ZDCTask')
 #process.load('DQM.HcalTasks.QIE11Task') # 2018: integrate QIE11Task into DigiTask
 process.load('DQM.HcalTasks.HcalOnlineHarvesting')
 process.load('DQM.HcalTasks.HcalQualityTests')
-
-#-------------------------------------
-#	To force using uTCA
-#	Will not be here for Online DQM
-#-------------------------------------
-if useMap:
-    process.GlobalTag.toGet.append(cms.PSet(
-		record = cms.string("HcalElectronicsMapRcd"),
-        #tag = cms.string("HcalElectronicsMap_v7.05_hlt"),
-        tag = cms.string("HcalElectronicsMap_v9.0_hlt"),
-        )
-    )    
+process.load('DQM.HcalTasks.hcalMLTask_cfi')
 
 #-------------------------------------
 #	For Debugginb
@@ -206,6 +193,7 @@ process.tasksPath = cms.Path(
 		#+process.qie11Task
 		#ZDC to be removed after 2018 PbPb run
 		+process.zdcQIE10Task
+		+process.hcalMLTask
 )
 
 if isHeavyIon:
@@ -220,7 +208,7 @@ process.harvestingPath = cms.Path(
 #-------------------------------------
 process.preRecoPath = cms.Path(
 		process.hcalDigis
-		*process.castorDigis
+		#*process.castorDigis # not in Run3
 		*process.emulTPDigis
 		*process.emulTPDigisNoTDCCut
 		*process.L1TRawToDigi

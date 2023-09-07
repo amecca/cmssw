@@ -68,6 +68,7 @@ private:
 
   // number of objects of each type
   int m_nrL1Mu;
+  int m_nrL1MuShower;
   int m_nrL1EG;
   int m_nrL1Tau;
 
@@ -97,9 +98,6 @@ private:
   const std::vector<std::vector<double>>* m_prescaleFactorsAlgoTrig;
   std::vector<std::vector<double>> m_initialPrescaleFactorsAlgoTrig;
 
-  /// CSV file for prescales
-  std::string m_prescalesFile;
-
   uint m_currentLumi;
 
   /// trigger masks & veto masks
@@ -117,19 +115,23 @@ private:
 
   std::unique_ptr<l1t::GlobalBoard> m_uGtBrd;
 
-  /// input tag for muon collection from GMT
+  /// input tag for muon collection from the Global Muon Trigger (GMT)
   edm::InputTag m_muInputTag;
+  edm::InputTag m_muShowerInputTag;
   edm::EDGetTokenT<BXVector<l1t::Muon>> m_muInputToken;
+  edm::EDGetTokenT<BXVector<l1t::MuonShower>> m_muShowerInputToken;
 
-  /// input tag for calorimeter collections from GCT
+  /// input tag for calorimeter collections from Calo Layer 2 (GCT) or Zero Degree Calorimeter (ZDC)
   edm::InputTag m_egInputTag;
   edm::InputTag m_tauInputTag;
   edm::InputTag m_jetInputTag;
   edm::InputTag m_sumInputTag;
+  edm::InputTag m_sumZdcInputTag;
   edm::EDGetTokenT<BXVector<l1t::EGamma>> m_egInputToken;
   edm::EDGetTokenT<BXVector<l1t::Tau>> m_tauInputToken;
   edm::EDGetTokenT<BXVector<l1t::Jet>> m_jetInputToken;
   edm::EDGetTokenT<BXVector<l1t::EtSum>> m_sumInputToken;
+  edm::EDGetTokenT<BXVector<l1t::EtSum>> m_sumZdcInputToken;
 
   /// input tag for external conditions
   edm::InputTag m_extInputTag;
@@ -185,6 +187,16 @@ private:
   edm::ESGetToken<L1TGlobalParameters, L1TGlobalParametersRcd> m_l1GtStableParToken;
   edm::ESGetToken<L1TUtmTriggerMenu, L1TUtmTriggerMenuRcd> m_l1GtMenuToken;
   edm::ESGetToken<L1TGlobalPrescalesVetosFract, L1TGlobalPrescalesVetosFractRcd> m_l1GtPrescaleVetosToken;
+
+  // disables resetting the prescale counters each lumisection (needed for offline)
+  bool m_resetPSCountersEachLumiSec;
+
+  // initialise prescale counters with a semi-random value in the range [0, prescale*10^precision - 1];
+  // if false, the prescale counters are initialised to zero
+  bool m_semiRandomInitialPSCounters;
+
+  // switch to load muon showers in the global board
+  bool m_useMuonShowers;
 };
 
-#endif /*L1TGlobalProducer_h*/
+#endif  // L1TGlobalProducer_h

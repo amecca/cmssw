@@ -49,6 +49,8 @@ SiPixelSimBlock = cms.PSet(
     SiPixelQualityLabel = cms.string(''),
     KillBadFEDChannels = cms.bool(False),
     UseReweighting = cms.bool(False),
+    applyLateReweighting = cms.bool(False),
+    store_SimHitEntryExitPoints = cms.bool(False),
     PrintClusters = cms.bool(False),
     PrintTemplates = cms.bool(False),
     DoPixelAging = cms.bool(False),
@@ -71,6 +73,7 @@ SiPixelSimBlock = cms.PSet(
     ThresholdSmearing_BPix_L2 = cms.double(245.0),
     NoiseInElectrons = cms.double(175.0),
     MissCalibrate = cms.bool(True),
+    MissCalInLateCR = cms.bool(True),
     FPix_SignalResponse_p0 = cms.double(0.0043),
     FPix_SignalResponse_p1 = cms.double(1.31),
     FPix_SignalResponse_p2 = cms.double(93.6),
@@ -86,6 +89,7 @@ SiPixelSimBlock = cms.PSet(
     ElectronPerAdc = cms.double(135.0),
     TofUpperCut = cms.double(12.5),
     AdcFullScale = cms.int32(255),
+    AdcFullScLateCR = cms.int32(255),
     TofLowerCut = cms.double(-12.5),
     TanLorentzAnglePerTesla_FPix = cms.double(0.106),
     TanLorentzAnglePerTesla_BPix = cms.double(0.106),
@@ -116,10 +120,8 @@ from Configuration.Eras.Modifier_phase1Pixel_cff import phase1Pixel
 phase1Pixel.toModify( SiPixelSimBlock, func=_modifyPixelDigitizerForPhase1Pixel )
 
 # use Label 'forDigitizer' for years >= 2018
-from CalibTracker.SiPixelESProducers.SiPixelQualityESProducer_cfi import siPixelQualityESProducer
 from Configuration.Eras.Modifier_run2_SiPixel_2018_cff import run2_SiPixel_2018
-run2_SiPixel_2018.toModify(siPixelQualityESProducer,siPixelQualityLabel = 'forDigitizer',)
-run2_SiPixel_2018.toModify(SiPixelSimBlock, SiPixelQualityLabel = 'forDigitizer',)
+run2_SiPixel_2018.toModify(SiPixelSimBlock, SiPixelQualityLabel = 'forDigitizer')
 
 # change the digitizer threshold for Run3
 # - new layer1 installed: expected improvement in timing alignment of L1 and L2

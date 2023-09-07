@@ -8,14 +8,13 @@ from Configuration.Geometry.GeometryDD4hepExtended2026D86_cff import *
 # tracker
 from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *
 from RecoTracker.GeometryESProducer.TrackerRecoGeometryESProducer_cfi import *
-from Geometry.TrackerGeometryBuilder.TrackerAdditionalParametersPerDet_cfi import *
 from Geometry.TrackerGeometryBuilder.trackerParameters_cff import *
 from Geometry.TrackerNumberingBuilder.trackerTopology_cfi import *
 from Geometry.TrackerGeometryBuilder.idealForDigiTrackerGeometry_cff import *
-trackerGeometry.applyAlignment = cms.bool(False)
+trackerGeometry.applyAlignment = True
 
 # calo
-from Geometry.CaloEventSetup.HGCalV9Topology_cfi import *
+from Geometry.CaloEventSetup.HGCalTopology_cfi import *
 from Geometry.HGCalGeometry.HGCalGeometryESProducer_cfi import *
 from Geometry.CaloEventSetup.CaloTopology_cfi import *
 from Geometry.CaloEventSetup.CaloGeometryBuilder_cfi import *
@@ -42,12 +41,12 @@ from Geometry.EcalMapping.EcalMappingRecord_cfi import *
 # muon
 from Geometry.MuonNumbering.muonNumberingInitialization_cfi import *
 from RecoMuon.DetLayers.muonDetLayerGeometry_cfi import *
-from Geometry.GEMGeometryBuilder.gemGeometry_cfi import *
+from Geometry.GEMGeometryBuilder.gemGeometry_cff import *
 from Geometry.CSCGeometryBuilder.idealForDigiCscGeometry_cff import *
 from Geometry.DTGeometryBuilder.idealForDigiDtGeometry_cff import *
 
 # forward
-from Geometry.ForwardGeometry.ForwardGeometry_cfi import *
+from Geometry.ForwardGeometry.ZdcGeometry_cfi import *
 
 # timing
 from RecoMTD.DetLayers.mtdDetLayerGeometry_cfi import *
@@ -56,5 +55,5 @@ from Geometry.MTDNumberingBuilder.mtdNumberingGeometry_cff import *
 from Geometry.MTDNumberingBuilder.mtdTopology_cfi import *
 from Geometry.MTDGeometryBuilder.mtdGeometry_cfi import *
 from Geometry.MTDGeometryBuilder.idealForDigiMTDGeometry_cff import *
-mtdGeometry.applyAlignment = cms.bool(False)
+mtdGeometry.applyAlignment = False
 

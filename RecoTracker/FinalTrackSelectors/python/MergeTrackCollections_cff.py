@@ -3,6 +3,7 @@ import FWCore.ParameterSet.Config as cms
 from RecoTracker.FinalTrackSelectors.DuplicateTrackMerger_cfi import *
 from RecoTracker.FinalTrackSelectors.DuplicateListMerger_cfi import *
 from RecoTracker.FinalTrackSelectors.trackAlgoPriorityOrder_cfi import trackAlgoPriorityOrder
+from RecoLocalTracker.SiPixelRecHits.SiPixelTemplateStoreESProducer_cfi import SiPixelTemplateStoreESProducer
 
 from TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi import Chi2MeasurementEstimator as _Chi2MeasurementEstimator
 duplicateTrackCandidatesChi2Est = _Chi2MeasurementEstimator.clone(
@@ -74,3 +75,7 @@ conversionStepTracks = RecoTracker.FinalTrackSelectors.trackListMerger_cfi.track
     copyExtras = True,
     makeReKeyedSeeds = cms.untracked.bool(False),
 )
+
+from Configuration.Eras.Modifier_phase2_timing_layer_cff import phase2_timing_layer
+phase2_timing_layer.toModify(mergedDuplicateTracks, TrajectoryInEvent = True)
+phase2_timing_layer.toModify(generalTracks, copyTrajectories = True)

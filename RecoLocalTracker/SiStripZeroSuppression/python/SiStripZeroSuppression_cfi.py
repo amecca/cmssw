@@ -28,3 +28,9 @@ phase2_tracker.toModify(siStripZeroSuppression, # FIXME
                            'simSiStripDigis:ProcessedRaw',
                            'simSiStripDigis:ScopeMode' ]
 )
+
+# For the HI RAW' workflow
+siStripZeroSuppressionHLT = siStripZeroSuppression.clone(
+    RawDigiProducersList =[("hltSiStripRawToDigi","VirginRaw"), ("hltSiStripRawToDigi","ProcessedRaw"), ("hltSiStripRawToDigi","ScopeMode")]
+)
+    

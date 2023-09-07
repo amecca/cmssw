@@ -84,6 +84,10 @@ namespace edm {
     // If the TypeID for the wrapped type is already available,
     // it is faster to call getContainedTypeFromWrapper directly.
     TypeID getContainedType(TypeID const& typeID);
+
+    bool typeIsViewCompatible(TypeID const& requestedViewType,
+                              TypeID const& wrappedtypeID,
+                              std::string const& className);
   }  // namespace productholderindexhelper
 
   class ProductResolverIndexHelper {
@@ -132,7 +136,6 @@ namespace edm {
 
       ProductResolverIndex index(unsigned int i) const;
       unsigned int numberOfMatches() const { return numberOfMatches_; }
-      bool isFullyResolved(unsigned int i) const;
       char const* moduleLabel(unsigned int i) const;
       char const* productInstanceName(unsigned int i) const;
       char const* processName(unsigned int i) const;
@@ -182,7 +185,7 @@ namespace edm {
                                 char const* instance,
                                 char const* process,
                                 TypeID const& containedTypeID,
-                                std::vector<TypeWithDict>* baseTypesOfContainedType);
+                                std::vector<TypeID>* baseTypesOfContainedType);
 
     ProductResolverIndex insert(TypeID const& typeID,
                                 char const* moduleLabel,

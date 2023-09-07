@@ -18,8 +18,8 @@
 #include "CondCore/CondDB/interface/Types.h"
 #include "CondCore/CondDB/interface/Utils.h"
 
-#include "CondCore/ESSources/interface/ProxyFactory.h"
-#include "CondCore/ESSources/interface/DataProxy.h"
+#include "CondCore/ESSources/interface/ProductResolverFactory.h"
+#include "CondCore/ESSources/interface/ProductResolver.h"
 
 #include "CondCore/CondDB/interface/PayloadProxy.h"
 #include "FWCore/Catalog/interface/SiteLocalConfig.h"
@@ -48,22 +48,22 @@ namespace {
    */
   class CondGetterFromESSource : public cond::persistency::CondGetter {
   public:
-    CondGetterFromESSource(CondDBESSource::ProxyMap const& ip) : m_proxies(ip) {}
+    CondGetterFromESSource(CondDBESSource::ResolverMap const& ip) : m_resolvers(ip) {}
     ~CondGetterFromESSource() override {}
 
     cond::persistency::IOVProxy get(std::string name) const override {
-      CondDBESSource::ProxyMap::const_iterator p = m_proxies.find(name);
-      if (p != m_proxies.end())
+      CondDBESSource::ResolverMap::const_iterator p = m_resolvers.find(name);
+      if (p != m_resolvers.end())
         return (*p).second->iovProxy();
       return cond::persistency::IOVProxy();
     }
 
-    CondDBESSource::ProxyMap const& m_proxies;
+    CondDBESSource::ResolverMap const& m_resolvers;
   };
 
   // This needs to be re-design and implemented...
-  // dump the state of a DataProxy
-  void dumpInfo(std::ostream& out, std::string const& recName, cond::DataProxyWrapperBase const& proxy) {
+  // dump the state of a ProductResolver
+  void dumpInfo(std::ostream& out, std::string const& recName, cond::ProductResolverWrapperBase const& proxy) {
     //cond::SequenceState state(proxy.proxy()->iov().state());
     out << recName << " / " << proxy.label() << ": " << proxy.connString() << ", " << proxy.tag()
         << "\n  "
@@ -90,7 +90,7 @@ namespace {
 /*
  *  config Param
  *  RefreshEachRun: if true will refresh the IOV at each new run (or lumiSection)
- *  DumpStat: if true dump the statistics of all DataProxy (currently on cout)
+ *  DumpStat: if true dump the statistics of all ProductResolver (currently on cout)
  *  DBParameters: configuration set of the connection
  *  globaltag: The GlobalTag
  *  toGet: list of record label tag connection-string to add/overwrite the content of the global-tag
@@ -184,7 +184,7 @@ CondDBESSource::CondDBESSource(const edm::ParameterSet& iConfig)
         tagSnapshotTime = boost::posix_time::time_from_string(itToGet->getParameter<std::string>("snapshotTime"));
       if (itToGet->exists("refreshTime")) {
         cond::Time_t refreshTime = itToGet->getParameter<unsigned long long>("refreshTime");
-        m_refreshTimeForRecord.insert(std::make_pair(recordname, refreshTime));
+        m_refreshTimeForRecord.insert(std::make_pair(recordname, std::make_pair(refreshTime, true)));
       }
 
       std::string recordLabelKey = joinRecordAndLabel(recordname, labelname);
@@ -220,27 +220,27 @@ CondDBESSource::CondDBESSource(const edm::ParameterSet& iConfig)
 
   std::map<std::string, cond::persistency::Session> sessions;
 
-  /* load DataProxy Plugin (it is strongly typed due to EventSetup ideosyncrasis)
+  /* load ProductResolver Plugin (it is strongly typed due to EventSetup ideosyncrasis)
    * construct proxy
    * contrary to EventSetup the "object-name" is not used as identifier: multiple entries in a record are
    * dinstinguished only by their label...
-   * done in two step: first create ProxyWrapper loading ALL required dictionaries
+   * done in two step: first create ResolverWrapper loading ALL required dictionaries
    * this will allow to initialize POOL in one go for each "database"
-   * The real initialization of the Data-Proxies is done in the second loop 
+   * The real initialization of the Data-Resolvers is done in the second loop 
    */
-  std::vector<std::unique_ptr<cond::DataProxyWrapperBase>> proxyWrappers(m_tagCollection.size());
+  std::vector<std::unique_ptr<cond::ProductResolverWrapperBase>> resolverWrappers(m_tagCollection.size());
   size_t ipb = 0;
   for (it = itBeg; it != itEnd; ++it) {
     size_t ind = ipb++;
-    proxyWrappers[ind] = std::unique_ptr<cond::DataProxyWrapperBase>{
-        cond::ProxyFactory::get()->tryToCreate(buildName(it->second.recordName()))};
-    if (!proxyWrappers[ind].get()) {
+    resolverWrappers[ind] = std::unique_ptr<cond::ProductResolverWrapperBase>{
+        cond::ProductResolverFactory::get()->tryToCreate(buildName(it->second.recordName()))};
+    if (!resolverWrappers[ind].get()) {
       edm::LogWarning("CondDBESSource") << "Plugin for Record " << it->second.recordName() << " has not been found.";
     }
   }
 
   // now all required libraries have been loaded
-  // init sessions and DataProxies
+  // init sessions and DataResolvers
   ipb = 0;
   for (it = itBeg; it != itEnd; ++it) {
     std::string connStr = m_connectionString;
@@ -269,10 +269,10 @@ CondDBESSource::CondDBESSource(const edm::ParameterSet& iConfig)
       nsess = (*p).second;
 
     // ownership...
-    ProxyP proxy(std::move(proxyWrappers[ipb++]));
+    ResolverP resolver(std::move(resolverWrappers[ipb++]));
     //  instert in the map
-    if (proxy.get()) {
-      m_proxies.insert(std::make_pair(it->second.recordName(), proxy));
+    if (resolver.get()) {
+      m_resolvers.insert(std::make_pair(it->second.recordName(), resolver));
       // initialize
       boost::posix_time::ptime tagSnapshotTime = snapshotTime;
       auto tagSnapshotIter = specialSnapshots.find(it->first);
@@ -282,14 +282,14 @@ CondDBESSource::CondDBESSource(const edm::ParameterSet& iConfig)
       if (tagSnapshotTime == boost::posix_time::time_from_string(std::string(cond::time::MAX_TIMESTAMP)))
         tagSnapshotTime = boost::posix_time::ptime();
 
-      proxy->lateInit(nsess, tag, tagSnapshotTime, it->second.recordLabel(), connStr, &m_queue, &m_mutex);
+      resolver->lateInit(nsess, tag, tagSnapshotTime, it->second.recordLabel(), connStr, &m_queue, &m_mutex);
     }
   }
 
   // one loaded expose all other tags to the Proxy!
-  CondGetterFromESSource visitor(m_proxies);
-  ProxyMap::iterator b = m_proxies.begin();
-  ProxyMap::iterator e = m_proxies.end();
+  CondGetterFromESSource visitor(m_resolvers);
+  ResolverMap::iterator b = m_resolvers.begin();
+  ResolverMap::iterator e = m_resolvers.end();
   for (; b != e; b++) {
     (*b).second->proxy(0)->loadMore(visitor);
 
@@ -301,7 +301,7 @@ CondDBESSource::CondDBESSource(const edm::ParameterSet& iConfig)
     }
   }
 
-  m_stats.nData = m_proxies.size();
+  m_stats.nData = m_resolvers.size();
 }
 
 void CondDBESSource::fillList(const std::string& stringList,
@@ -326,14 +326,14 @@ CondDBESSource::~CondDBESSource() {
   //dump info FIXME: find a more suitable place...
   if (m_doDump) {
     std::cout << "CondDBESSource Statistics" << std::endl
-              << "DataProxy " << m_stats.nData << " setInterval " << m_stats.nSet << " Runs " << m_stats.nRun
+              << "ProductResolver " << m_stats.nData << " setInterval " << m_stats.nSet << " Runs " << m_stats.nRun
               << " Lumis " << m_stats.nLumi << " Refresh " << m_stats.nRefresh << " Actual Refresh "
               << m_stats.nActualRefresh << " Reconnect " << m_stats.nReconnect << " Actual Reconnect "
               << m_stats.nActualReconnect;
     std::cout << std::endl;
 
-    ProxyMap::iterator b = m_proxies.begin();
-    ProxyMap::iterator e = m_proxies.end();
+    ResolverMap::iterator b = m_resolvers.begin();
+    ResolverMap::iterator e = m_resolvers.end();
     for (; b != e; b++) {
       dumpInfo(std::cout, (*b).first, *(*b).second);
       std::cout << "\n" << std::endl;
@@ -353,14 +353,14 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
                                     edm::ValidityInterval& oInterval) {
   std::string recordname = iKey.name();
 
-  edm::LogInfo("CondDBESSource") << "Getting data for record \"" << recordname << "\" to be consumed by "
-                                 << iTime.eventID() << ", timestamp: " << iTime.time().value()
-                                 << "; from CondDBESSource::setIntervalFor";
+  edm::LogInfo("CondDBESSource") << "Getting data for record \"" << recordname
+                                 << "\" to be consumed on Run: " << iTime.eventID().run()
+                                 << " - Lumiblock:" << iTime.luminosityBlockNumber()
+                                 << " - Timestamp: " << iTime.time().value() << "; from CondDBESSource::setIntervalFor";
 
   std::lock_guard<std::mutex> guard(m_mutex);
   m_stats.nSet++;
-  //{
-  // not really required, keep here for the time being
+
   if (iTime.eventID().run() != m_lastRun) {
     m_lastRun = iTime.eventID().run();
     m_stats.nRun++;
@@ -369,40 +369,36 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
     m_lastLumi = iTime.luminosityBlockNumber();
     m_stats.nLumi++;
   }
-  //}
-  cond::Time_t lastTime = m_lastRun;
-  cond::Time_t defaultIovSize = cond::time::MAX_VAL;
-  cond::Time_t minDiffTime = 1;
-  bool refreshThisRecord = false;
-  if (m_policy != REFRESH_ALWAYS) {
-    auto iR = m_refreshTimeForRecord.find(recordname);
-    refreshThisRecord = (iR != m_refreshTimeForRecord.end());
-    if (refreshThisRecord) {
-      lastTime = cond::time::lumiTime(m_lastRun, m_lastLumi);
-      defaultIovSize = iR->second;
-      minDiffTime = defaultIovSize;
-    }
-  }
+
   bool doRefresh = false;
-  if (m_policy == REFRESH_EACH_RUN || m_policy == RECONNECT_EACH_RUN || refreshThisRecord) {
+  cond::Time_t defaultIovSize = cond::time::MAX_VAL;
+  bool refreshThisRecord = false;
+  bool reconnectThisRecord = false;
+
+  auto iR = m_refreshTimeForRecord.find(recordname);
+  refreshThisRecord = iR != m_refreshTimeForRecord.end();
+  if (refreshThisRecord) {
+    defaultIovSize = iR->second.first;
+    reconnectThisRecord = iR->second.second;
+    iR->second.second = false;
+  }
+
+  if (m_policy == REFRESH_EACH_RUN || m_policy == RECONNECT_EACH_RUN) {
     // find out the last run number for the proxy of the specified record
-    std::map<std::string, cond::Time_t>::iterator iRec = m_lastRecordRuns.find(recordname);
+    std::map<std::string, unsigned int>::iterator iRec = m_lastRecordRuns.find(recordname);
     if (iRec != m_lastRecordRuns.end()) {
       cond::Time_t lastRecordRun = iRec->second;
-      cond::Time_t diffTime = lastTime - lastRecordRun;
-      if (lastRecordRun > lastTime)
-        diffTime = lastRecordRun - lastTime;
-      if (diffTime >= minDiffTime) {
+      if (lastRecordRun != m_lastRun) {
         // a refresh is required!
         doRefresh = true;
-        iRec->second = lastTime;
+        iRec->second = m_lastRun;
         edm::LogInfo("CondDBESSource") << "Preparing refresh for record \"" << recordname
                                        << "\" since there has been a transition from run/lumi " << lastRecordRun
-                                       << " to run/lumi " << lastTime << "; from CondDBESSource::setIntervalFor";
+                                       << " to run/lumi " << m_lastRun << "; from CondDBESSource::setIntervalFor";
       }
     } else {
       doRefresh = true;
-      m_lastRecordRuns.insert(std::make_pair(recordname, lastTime));
+      m_lastRecordRuns.insert(std::make_pair(recordname, m_lastRun));
       edm::LogInfo("CondDBESSource") << "Preparing refresh for record \"" << recordname << "\" for " << iTime.eventID()
                                      << ", timestamp: " << iTime.time().value()
                                      << "; from CondDBESSource::setIntervalFor";
@@ -426,15 +422,15 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
   bool userTime = true;
 
   //FIXME use equal_range
-  ProxyMap::const_iterator pmBegin = m_proxies.lower_bound(recordname);
-  ProxyMap::const_iterator pmEnd = m_proxies.upper_bound(recordname);
+  ResolverMap::const_iterator pmBegin = m_resolvers.lower_bound(recordname);
+  ResolverMap::const_iterator pmEnd = m_resolvers.upper_bound(recordname);
   if (pmBegin == pmEnd) {
-    edm::LogInfo("CondDBESSource") << "No DataProxy (Pluging) found for record \"" << recordname
+    edm::LogInfo("CondDBESSource") << "No ProductResolver (Pluging) found for record \"" << recordname
                                    << "\"; from CondDBESSource::setIntervalFor";
     return;
   }
 
-  for (ProxyMap::const_iterator pmIter = pmBegin; pmIter != pmEnd; ++pmIter) {
+  for (ResolverMap::const_iterator pmIter = pmBegin; pmIter != pmEnd; ++pmIter) {
     edm::LogInfo("CondDBESSource") << "Processing record \"" << recordname << "\" and label \""
                                    << pmIter->second->label() << "\" for " << iTime.eventID()
                                    << ", timestamp: " << iTime.time().value()
@@ -448,7 +444,7 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
     if (userTime)
       return;  //  oInterval invalid to avoid that make is called...
 
-    if (doRefresh) {
+    if (doRefresh || refreshThisRecord) {
       std::string recKey = joinRecordAndLabel(recordname, pmIter->second->label());
       TagCollection::const_iterator tcIter = m_tagCollection.find(recKey);
       if (tcIter == m_tagCollection.end()) {
@@ -458,14 +454,15 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
       }
 
       // first reconnect if required
-      if (m_policy == RECONNECT_EACH_RUN || refreshThisRecord) {
+      if (m_policy == RECONNECT_EACH_RUN || reconnectThisRecord) {
         edm::LogInfo("CondDBESSource")
             << "Checking if the session must be closed and re-opened for getting correct conditions"
             << "; from CondDBESSource::setIntervalFor";
-        std::stringstream transId;
-        transId << lastTime;
-        if (!m_frontierKey.empty()) {
-          transId << "_" << m_frontierKey;
+        std::string transId;
+        if (!reconnectThisRecord) {
+          transId = std::to_string(abtime);
+        } else {
+          transId = cond::time::transactionIdForLumiTime(abtime, defaultIovSize, m_frontierKey);
         }
         std::string connStr = m_connectionString;
         std::pair<std::string, std::string> tagParams = cond::persistency::parseTag(tcIter->second.tagName());
@@ -478,22 +475,21 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
         auto iSess = sessionPool->find(connStr);
         bool reopen = false;
         if (iSess != sessionPool->end()) {
-          if (iSess->second.second != transId.str()) {
+          if (iSess->second.second != transId) {
             // the available session is open for a different run: reopen
             reopen = true;
-            iSess->second.second = transId.str();
+            iSess->second.second = transId;
           }
         } else {
           // no available session: probably first run analysed...
           iSess =
-              sessionPool->insert(std::make_pair(connStr, std::make_pair(cond::persistency::Session(), transId.str())))
-                  .first;
+              sessionPool->insert(std::make_pair(connStr, std::make_pair(cond::persistency::Session(), transId))).first;
           reopen = true;
         }
         if (reopen) {
-          iSess->second.first = m_connection.createReadOnlySession(connStr, transId.str());
+          iSess->second.first = m_connection.createReadOnlySession(connStr, transId);
           edm::LogInfo("CondDBESSource") << "Re-opening the session with connection string " << connStr
-                                         << " and new transaction Id " << transId.str()
+                                         << " and new transaction Id " << transId
                                          << "; from CondDBESSource::setIntervalFor";
         }
 
@@ -504,10 +500,6 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
                                        << "; from CondDBESSource::setIntervalFor";
         pmIter->second->session() = iSess->second.first;
         pmIter->second->reload();
-        //if( isSizeIncreased )
-        //edm::LogInfo( "CondDBESSource" ) << "After reconnecting, an increased size of the IOV sequence labeled by tag \"" << tcIter->second.tag
-        //				 << "\" was found; from CondDBESSource::setIntervalFor";
-        //m_stats.nActualReconnect += isSizeIncreased;
         m_stats.nReconnect++;
       } else {
         edm::LogInfo("CondDBESSource") << "Refreshing IOV sequence labeled by tag \"" << tcIter->second.tagName()
@@ -516,25 +508,12 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
                                        << ", timestamp: " << iTime.time().value()
                                        << "; from CondDBESSource::setIntervalFor";
         pmIter->second->reload();
-        //if( isSizeIncreased )
-        //  edm::LogInfo( "CondDBESSource" ) << "After refreshing, an increased size of the IOV sequence labeled by tag \"" << tcIter->second.tag
-        //				   << "\" was found; from CondDBESSource::setIntervalFor";
-        //m_stats.nActualRefresh += isSizeIncreased;
         m_stats.nRefresh++;
       }
     }
 
-    /*
-      // make oInterval valid For Ever
-    {
-     oInterval = edm::ValidityInterval(cond::toIOVSyncValue(recordValidity.first,  cond::runnumber, true), 
-                                       cond::toIOVSyncValue(recordValidity.second, cond::runnumber, false));
-     return;
-    }    
-    */
-
     //query the IOVSequence
-    cond::ValidityInterval validity = (*pmIter).second->setIntervalFor(abtime, defaultIovSize);
+    cond::ValidityInterval validity = (*pmIter).second->setIntervalFor(abtime);
 
     edm::LogInfo("CondDBESSource") << "Validity coming from IOV sequence for record \"" << recordname
                                    << "\" and label \"" << pmIter->second->label() << "\": (" << validity.first << ", "
@@ -543,6 +522,14 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
 
     recordValidity.first = std::max(recordValidity.first, validity.first);
     recordValidity.second = std::min(recordValidity.second, validity.second);
+    if (refreshThisRecord && recordValidity.second == cond::TIMELIMIT) {
+      iR->second.second = true;
+      if (defaultIovSize)
+        recordValidity.second = cond::time::tillTimeForIOV(abtime, defaultIovSize, timetype);
+      else {
+        recordValidity.second = 0;
+      }
+    }
   }
 
   if (m_policy == REFRESH_OPEN_IOVS) {
@@ -555,7 +542,6 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
   }
 
   // to force refresh we set end-value to the minimum such an IOV can extend to: current run or lumiblock
-
   if ((!userTime) && recordValidity.second != 0) {
     edm::IOVSyncValue start = cond::time::toIOVSyncValue(recordValidity.first, timetype, true);
     edm::IOVSyncValue stop = doRefresh ? cond::time::limitedIOVSyncValue(iTime, timetype)
@@ -576,35 +562,35 @@ void CondDBESSource::setIntervalFor(const EventSetupRecordKey& iKey,
 }
 
 //required by EventSetup System
-edm::eventsetup::DataProxyProvider::KeyedProxiesVector CondDBESSource::registerProxies(
+edm::eventsetup::ESProductResolverProvider::KeyedResolversVector CondDBESSource::registerResolvers(
     const EventSetupRecordKey& iRecordKey, unsigned int iovIndex) {
-  KeyedProxiesVector keyedProxiesVector;
+  KeyedResolversVector keyedResolversVector;
 
   std::string recordname = iRecordKey.name();
 
-  ProxyMap::const_iterator b = m_proxies.lower_bound(recordname);
-  ProxyMap::const_iterator e = m_proxies.upper_bound(recordname);
+  ResolverMap::const_iterator b = m_resolvers.lower_bound(recordname);
+  ResolverMap::const_iterator e = m_resolvers.upper_bound(recordname);
   if (b == e) {
-    edm::LogInfo("CondDBESSource") << "No DataProxy (Pluging) found for record \"" << recordname
-                                   << "\"; from CondDBESSource::registerProxies";
-    return keyedProxiesVector;
+    edm::LogInfo("CondDBESSource") << "No ProductResolver (Pluging) found for record \"" << recordname
+                                   << "\"; from CondDBESSource::registerResolvers";
+    return keyedResolversVector;
   }
 
-  for (ProxyMap::const_iterator p = b; p != e; ++p) {
+  for (ResolverMap::const_iterator p = b; p != e; ++p) {
     if (nullptr != (*p).second.get()) {
       edm::eventsetup::TypeTag type = (*p).second->type();
       DataKey key(type, edm::eventsetup::IdTags((*p).second->label().c_str()));
-      keyedProxiesVector.emplace_back(key, (*p).second->edmProxy(iovIndex));
+      keyedResolversVector.emplace_back(key, (*p).second->esResolver(iovIndex));
     }
   }
-  return keyedProxiesVector;
+  return keyedResolversVector;
 }
 
 void CondDBESSource::initConcurrentIOVs(const EventSetupRecordKey& key, unsigned int nConcurrentIOVs) {
   std::string recordname = key.name();
-  ProxyMap::const_iterator b = m_proxies.lower_bound(recordname);
-  ProxyMap::const_iterator e = m_proxies.upper_bound(recordname);
-  for (ProxyMap::const_iterator p = b; p != e; ++p) {
+  ResolverMap::const_iterator b = m_resolvers.lower_bound(recordname);
+  ResolverMap::const_iterator e = m_resolvers.upper_bound(recordname);
+  for (ResolverMap::const_iterator p = b; p != e; ++p) {
     if (p->second) {
       p->second->initConcurrentIOVs(nConcurrentIOVs);
     }

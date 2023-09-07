@@ -249,7 +249,7 @@ void EcalPedestalHistory::beginRun(edm::Run const&, edm::EventSetup const& c) {
         std::map<EcalLogicID, MonPedestalsDat> dataset_mon;
         econn->fetchDataSet(&dataset_mon, &mon_run_vec[kr]);
         std::cout << "OMDS record for run " << irun << " is made of " << dataset_mon.size() << std::endl;
-        int nEB = 0, nEE = 0, nEBbad = 0, nEEbad = 0;
+        int nEB = 0, nEE = 0;
         typedef std::map<EcalLogicID, MonPedestalsDat>::const_iterator CImon;
         EcalLogicID ecid_xt;
         MonPedestalsDat rd_ped;
@@ -280,12 +280,8 @@ void EcalPedestalHistory::beginRun(edm::Run const&, edm::EventSetup const& c) {
           }
           if (ecid_xt.getName() == "EB_crystal_number") {
             nEB++;
-            if (!result)
-              nEBbad++;
           } else {
             nEE++;
-            if (!result)
-              nEEbad++;
           }
         }  // end loop over pedestal data
         // ok or bad? A bad run is for more than 5% bad channels
@@ -355,20 +351,21 @@ void EcalPedestalHistory::beginRun(edm::Run const&, edm::EventSetup const& c) {
 }  //beginRun
 
 //========================================================================
+void EcalPedestalHistory::endRun(edm::Run const&, edm::EventSetup const& c) {
+  //========================================================================
+
+}  //endRun
+
+//========================================================================
 void EcalPedestalHistory::beginJob() {
   ///========================================================================
 
-  cout << "Entering beginJob" << endl;
-
-  cout << "Exiting beginJob" << endl;
 }  //beginJob
 
 //========================================================================
 void EcalPedestalHistory::endJob() {
   //========================================================================
 
-  cout << "Entering endJob" << endl;
-  cout << "Exiting endJob" << endl;
 }  //endJob
 
 //
@@ -401,7 +398,6 @@ void EcalPedestalHistory::analyze(const edm::Event& iEvent, const edm::EventSetu
   }
   cnt_evt_++;
 
-  cout << "Exiting analyze" << endl;
 }  //analyze
 
 //define this as a plug-in

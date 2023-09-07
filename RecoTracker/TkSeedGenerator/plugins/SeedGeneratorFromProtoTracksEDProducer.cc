@@ -19,7 +19,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 
-#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include <vector>
 
 using namespace edm;
@@ -46,6 +45,7 @@ void SeedGeneratorFromProtoTracksEDProducer::fillDescriptions(edm::Configuration
   desc.add<std::string>("TTRHBuilder", "TTRHBuilderWithoutAngle4PixelTriplets");
   desc.add<bool>("usePV", false);
   desc.add<bool>("includeFourthHit", false);
+  desc.add<bool>("produceComplement", false);
 
   edm::ParameterSetDescription psd0;
   psd0.add<std::string>("ComponentName", std::string("SeedFromConsecutiveHitsCreator"));
@@ -68,16 +68,21 @@ SeedGeneratorFromProtoTracksEDProducer::SeedGeneratorFromProtoTracksEDProducer(c
       useEventsWithNoVertex(cfg.getParameter<bool>("useEventsWithNoVertex")),
       usePV_(cfg.getParameter<bool>("usePV")),
       includeFourthHit_(cfg.getParameter<bool>("includeFourthHit")),
+      produceComplement_(cfg.getParameter<bool>("produceComplement")),
       theInputCollectionTag(consumes<reco::TrackCollection>(cfg.getParameter<InputTag>("InputCollection"))),
       theInputVertexCollectionTag(
           consumes<reco::VertexCollection>(cfg.getParameter<InputTag>("InputVertexCollection"))),
       seedCreator_(cfg.getParameter<edm::ParameterSet>("SeedCreatorPSet"), consumesCollector()),
       config_(consumesCollector()) {
   produces<TrajectorySeedCollection>();
+  if (produceComplement_) {
+    produces<reco::TrackCollection>();
+  }
 }
 
 void SeedGeneratorFromProtoTracksEDProducer::produce(edm::Event& ev, const edm::EventSetup& es) {
   auto result = std::make_unique<TrajectorySeedCollection>();
+  auto leftTracks = std::make_unique<reco::TrackCollection>();
   Handle<reco::TrackCollection> trks;
   ev.getByToken(theInputCollectionTag, trks);
 
@@ -118,6 +123,8 @@ void SeedGeneratorFromProtoTracksEDProducer::produce(edm::Event& ev, const edm::
         }
       }
     }
+    if (produceComplement_ and !keepTrack)
+      (*leftTracks).push_back(proto);
     if (!keepTrack)
       continue;
 
@@ -140,15 +147,15 @@ void SeedGeneratorFromProtoTracksEDProducer::produce(edm::Event& ev, const edm::
         GlobalTrackingRegion region(mom_perp, vtx, 0.2, 0.2);
 
         seedCreator_.init(region, es, nullptr);
-        seedCreator_.makeSeed(
-            *result,
-            SeedingHitSet(hits[0],
-                          hits[1],
-                          hits.size() > 2 ? hits[2] : SeedingHitSet::nullPtr(),
-                          (includeFourthHit_ && hits.size() > 3) ? hits[3] : SeedingHitSet::nullPtr()));
+        if (hits.size() > 3 and not includeFourthHit_)
+          seedCreator_.makeSeed(*result, {hits[0], hits[1], hits[2]});
+        else
+          seedCreator_.makeSeed(*result, hits);
       }
     }
   }
 
   ev.put(std::move(result));
+  if (produceComplement_)
+    ev.put(std::move(leftTracks));
 }

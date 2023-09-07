@@ -176,6 +176,17 @@ namespace l1t {
         // payload[0] = bits 0-15, payload[1] = 16-31, payload[3] = 32-47, etc.
         auto payload = block.payload();
 
+        // FW version is computed as (Year - 2000)*2^9 + Month*2^5 + Day (see Block.cc and EMTFBlockTrailers.cc)
+        bool useNNBits_ = getAlgoVersion() >= 11098;   // FW versions >= 26.10.2021
+        bool useMUSBits_ = getAlgoVersion() >= 11306;  // FW versions >= 10.01.2022
+        bool reducedDAQWindow =
+            (getAlgoVersion() >=
+             11656);  // Firmware from 08.12.22 which is used as a flag for new reduced readout window - EY 01.03.23
+
+        static constexpr int looseShower_ = 1;
+        static constexpr int nominalShower_ = 2;
+        static constexpr int tightShower_ = 4;
+
         // Check Format of Payload
         l1t::emtf::SP SP_;
         for (int err = 0; err < checkFormat(block); err++)
@@ -210,6 +221,10 @@ namespace l1t {
         res_cand = static_cast<EMTFCollections*>(coll)->getRegionalMuonCands();
         RegionalMuonCand mu_(0, 0, 0, 0, 0, 0, 0, tftype::emtf_pos);
 
+        RegionalMuonShowerBxCollection* res_shower;
+        res_shower = static_cast<EMTFCollections*>(coll)->getRegionalMuonShowers();
+        RegionalMuonShower muShower_(false, false, false, false, false, false);
+
         ///////////////////////////////////
         // Unpack the SP Output Data Record
         ///////////////////////////////////
@@ -221,12 +236,17 @@ namespace l1t {
         SP_.set_phi_GMT(TwosCompl(8, GetHexBits(SP1b, 0, 7)));
         SP_.set_quality_GMT(GetHexBits(SP1b, 8, 11));
         SP_.set_bc0(GetHexBits(SP1b, 12, 12));
-        SP_.set_se(GetHexBits(SP1b, 13, 13));
         SP_.set_vc(GetHexBits(SP1b, 14, 14));
 
         SP_.set_eta_GMT(TwosCompl(9, GetHexBits(SP1c, 0, 8)));
         SP_.set_mode(GetHexBits(SP1c, 9, 12));
-        SP_.set_bx(GetHexBits(SP1c, 13, 14));
+
+        if (useMUSBits_) {
+          SP_.set_mus(GetHexBits(SP1b, 13, 13, SP1c, 13, 14));
+        } else {
+          SP_.set_se(GetHexBits(SP1b, 13, 13));
+          SP_.set_bx(GetHexBits(SP1c, 13, 14));
+        }
 
         SP_.set_pt_GMT(GetHexBits(SP1d, 0, 8));
         SP_.set_me1_stub_num(GetHexBits(SP1d, 9, 9));
@@ -244,9 +264,18 @@ namespace l1t {
         SP_.set_me2_delay(GetHexBits(SP2b, 3, 5));
         SP_.set_me3_delay(GetHexBits(SP2b, 6, 8));
         SP_.set_me4_delay(GetHexBits(SP2b, 9, 11));
-        SP_.set_tbin(GetHexBits(SP2b, 12, 14));
+        if (reducedDAQWindow)  // reduced DAQ window is used only after run3 DAQ format
+          SP_.set_tbin(GetHexBits(SP2b, 12, 14) + 1);
+        else
+          SP_.set_tbin(GetHexBits(SP2b, 12, 14));
 
-        SP_.set_pt_LUT_addr(GetHexBits(SP2c, 0, 14, SP2d, 0, 14));
+        if (useNNBits_) {
+          SP_.set_pt_dxy_GMT(GetHexBits(SP2c, 0, 7));
+          SP_.set_dxy_GMT(GetHexBits(SP2c, 8, 10));
+          SP_.set_nn_pt_valid(GetHexBits(SP2c, 11, 11));
+        } else {
+          SP_.set_pt_LUT_addr(GetHexBits(SP2c, 0, 14, SP2d, 0, 14));
+        }
 
         // SP_.set_dataword     ( uint64_t dataword );
 
@@ -271,6 +300,10 @@ namespace l1t {
         mu_.setHwEta(SP_.Eta_GMT());
         mu_.setHwPhi(SP_.Phi_GMT());
         mu_.setHwPt(SP_.Pt_GMT());
+        if (useNNBits_) {
+          mu_.setHwPtUnconstrained(SP_.Pt_dxy_GMT());
+          mu_.setHwDXY(SP_.Dxy_GMT());
+        }
         mu_.setTFIdentifiers(Track_.Sector() - 1, (Track_.Endcap() == 1) ? emtf_pos : emtf_neg);
         mu_.setTrackSubAddress(RegionalMuonCand::kTrkNum, Track_.Track_num());
         // Truncated to 11 bits and offset by 25 from global event BX in EMTF firmware
@@ -280,6 +313,14 @@ namespace l1t {
         mu_.setTrackSubAddress(RegionalMuonCand::kBX, EMTF_kBX);
         // mu_.set_dataword   ( SP_.Dataword() );
         // Track_.set_GMT(mu_);
+
+        // Set Regional Muon Showers
+        if (useMUSBits_) {
+          muShower_.setTFIdentifiers(Track_.Sector() - 1, (Track_.Endcap() == 1) ? emtf_pos : emtf_neg);
+          muShower_.setOneLooseInTime(SP_.MUS() >= looseShower_ ? true : false);
+          muShower_.setOneNominalInTime(SP_.MUS() >= nominalShower_ ? true : false);
+          muShower_.setOneTightInTime(SP_.MUS() >= tightShower_ ? true : false);
+        }
 
         ///////////////////////
         // Match hits to tracks
@@ -544,13 +585,30 @@ namespace l1t {
         //   std::cout << "***********************************************************\n\n" << std::endl;
         // }
 
+        // Reject tracks with out-of-range BX values. This needs to be adjusted if we increase l1a_window parameter in EMTF config - EY 03.08.2022
+        if (Track_.BX() > 3 or Track_.BX() < -3) {
+          edm::LogWarning("L1T|EMTF") << "EMTF unpacked track with out-of-range BX! BX: " << Track_.BX()
+                                      << " endcap: " << (Track_.Endcap() == 1 ? 1 : 2) << " sector: " << Track_.Sector()
+                                      << " address: " << Track_.PtLUT().address << " mode: " << Track_.Mode()
+                                      << " eta: " << (Track_.GMT_eta() >= 0 ? Track_.GMT_eta() : Track_.GMT_eta() + 512)
+                                      << " phi: " << Track_.GMT_phi() << " charge: " << Track_.GMT_charge()
+                                      << " qual: " << Track_.GMT_quality() << " pt: " << Track_.Pt()
+                                      << " pt_dxy: " << Track_.Pt_dxy() << std::endl;
+          return true;
+        }
+
         (res->at(iOut)).push_SP(SP_);
 
-        res_track->push_back(Track_);
+        if (Track_.Mode() != 0) {  // Mode == 0 means no track was found (only muon shower)
+          res_track->push_back(Track_);
 
-        // TBIN_num can range from 0 through 7, i.e. BX = -3 through +4. - AWB 04.04.16
-        res_cand->setBXRange(-3, 4);
-        res_cand->push_back(SP_.TBIN() - 3, mu_);
+          // TBIN_num can range from 0 through 7, i.e. BX = -3 through +4. - AWB 04.04.16
+          res_cand->setBXRange(-3, 4);
+          res_cand->push_back(SP_.TBIN() - 3, mu_);
+        }
+
+        res_shower->setBXRange(-3, 4);
+        res_shower->push_back(SP_.TBIN() - 3, muShower_);
 
         // Finished with unpacking one SP Output Data Record
         return true;

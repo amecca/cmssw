@@ -61,6 +61,7 @@ public:
       return gcons;
     }
   }
+  int findDepth(const int& det, const int& eta, const int& phi, const int& zside, const int& lay) const;
   std::vector<int> getDepth(const int& det, const int& phi, const int& zside, const unsigned int& eta) const;
   std::vector<int> getDepth(const unsigned int& eta, const bool& extra) const;
   int getDepthEta16(const int& det, const int& iphi, const int& zside) const {
@@ -107,6 +108,7 @@ public:
   int getTriggerMode() const { return (((hpar->topologyMode) >> 8) & 0xFF); }
   std::vector<HcalCellType> HcalCellTypes(HcalSubdetector) const;
   bool isBH() const { return hcons.isBH(); }
+  bool isHE() const { return hcons.isHE(); }
   bool isPlan1(const HcalDetId& id) const { return detIdSp_.find(id) != detIdSp_.end(); };
   int maxHFDepth(int ieta, int iphi) const { return hcons.maxHFDepth(ieta, iphi); }
   bool mergedDepthList29(int ieta, int iphi, int depth) const;

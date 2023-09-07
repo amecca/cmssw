@@ -379,10 +379,12 @@ void pat::PATIsolatedTrackProducer::produce(edm::Event& iEvent, const edm::Event
 
     // fill ecal/hcal status vectors
     std::vector<uint32_t> crossedHcalStatus;
+    crossedHcalStatus.reserve(trackDetInfo.crossedHcalIds.size());
     for (auto const& did : trackDetInfo.crossedHcalIds) {
       crossedHcalStatus.push_back(hcalQ->getValues(did.rawId())->getValue());
     }
     std::vector<uint16_t> crossedEcalStatus;
+    crossedEcalStatus.reserve(trackDetInfo.crossedEcalIds.size());
     for (auto const& did : trackDetInfo.crossedEcalIds) {
       crossedEcalStatus.push_back(ecalS->find(did.rawId())->getStatusCode());
     }
@@ -722,7 +724,7 @@ float pat::PATIsolatedTrackProducer::getDeDx(const reco::DeDxHitInfo* hitInfo, b
       continue;
 
     // shape selection for strips
-    if (isStrip && !DeDxTools::shapeSelection(*(hitInfo->stripCluster(ih))))
+    if (isStrip && !deDxTools::shapeSelection(*(hitInfo->stripCluster(ih))))
       continue;
 
     float Norm = 0;

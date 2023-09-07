@@ -2,14 +2,18 @@ from __future__ import print_function
 import FWCore.ParameterSet.Config as cms
 
 import sys
-from Configuration.Eras.Era_Run3_cff import Run3
-process = cms.Process("SiStrpDQMLive", Run3)
+if 'runkey=hi_run' in sys.argv:
+  from Configuration.Eras.Era_Run3_pp_on_PbPb_approxSiStripClusters_cff import Run3_pp_on_PbPb_approxSiStripClusters
+  process = cms.Process("SiStripMonitor", Run3_pp_on_PbPb_approxSiStripClusters)
+else:
+  from Configuration.Eras.Era_Run3_cff import Run3
+  process = cms.Process("SiStripMonitor", Run3)
 
 process.MessageLogger = cms.Service("MessageLogger",
     debugModules = cms.untracked.vstring('siStripDigis',
                                          'siStripClusters',
                                          'siStripZeroSuppression',
-                                        'SiStripClusterizer'),
+                                         'SiStripClusterizer'),
     cout = cms.untracked.PSet(threshold = cms.untracked.string('ERROR')),
     destinations = cms.untracked.vstring('cout')
 )
@@ -88,7 +92,7 @@ elif(offlineTesting):
     process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
     from Configuration.AlCa.GlobalTag import GlobalTag as gtCustomise
     #you may need to set manually the GT in the line below
-    process.GlobalTag = gtCustomise(process.GlobalTag, 'auto:run2_data', '')
+    process.GlobalTag = gtCustomise(process.GlobalTag, 'auto:run3_data', '')
 
 #--------------------------------------------
 ## Patch to avoid using Run Info information in reconstruction
@@ -118,6 +122,10 @@ else:
 
 import RecoVertex.BeamSpotProducer.onlineBeamSpotESProducer_cfi as _mod
 process.BeamSpotESProducer = _mod.onlineBeamSpotESProducer.clone()
+
+# for running offline enhance the time validity of the online beamspot in DB
+if ((not live) or process.isDqmPlayback.value): 
+  process.BeamSpotESProducer.timeThreshold = cms.int32(int(1e6))
 
 import RecoVertex.BeamSpotProducer.BeamSpotOnline_cfi
 process.offlineBeamSpot = RecoVertex.BeamSpotProducer.BeamSpotOnline_cfi.onlineBeamSpotProducer.clone()
@@ -217,7 +225,10 @@ process.hltHighLevel.throw =  False
 # Scheduling
 #--------------------------
 process.SiStripSources_LocalReco = cms.Sequence(process.siStripFEDMonitor*process.SiStripMonitorDigi*process.SiStripMonitorClusterReal)
-process.DQMCommon                = cms.Sequence(process.stripQTester*process.trackingQTester*process.dqmEnv*process.dqmEnvTr*process.dqmSaver*process.dqmSaverPB)
+if (process.runType.getRunType() == process.runType.commissioning_run):
+    process.DQMCommon                = cms.Sequence(process.dqmEnv*process.dqmEnvTr*process.dqmSaver*process.dqmSaverPB)
+else:
+    process.DQMCommon                = cms.Sequence(process.stripQTester*process.trackingQTester*process.dqmEnv*process.dqmEnvTr*process.dqmSaver*process.dqmSaverPB)
 if (process.runType.getRunType() == process.runType.hi_run):
     process.RecoForDQM_LocalReco     = cms.Sequence(process.siPixelDigis*process.siStripDigis*process.trackerlocalreco)
 else :
@@ -300,7 +311,8 @@ if (process.runType.getRunType() == process.runType.commissioning_run):
     process.SiStripFedMonitor = cms.Sequence(process.siStripFEDMonitor)
     process.p = cms.Path(
         process.siStripFEDCheck *
-        process.SiStripFedMonitor
+        process.SiStripFedMonitor *
+        process.DQMCommon
     )
 
 #else :
@@ -382,7 +394,7 @@ if (process.runType.getRunType() == process.runType.pp_run or process.runType.ge
     from RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi import *
     process.PixelLayerTriplets.BPix.HitProducer = cms.string('siPixelRecHitsPreSplitting')
     process.PixelLayerTriplets.FPix.HitProducer = cms.string('siPixelRecHitsPreSplitting')
-    from RecoPixelVertexing.PixelTrackFitting.PixelTracks_cff import *
+    from RecoTracker.PixelTrackFitting.PixelTracks_cff import *
     process.pixelTracksHitTriplets.SeedComparitorPSet.clusterShapeCacheSrc = 'siPixelClusterShapeCachePreSplitting'
 
     process.RecoForDQM_TrkReco = cms.Sequence(process.offlineBeamSpot*process.MeasurementTrackerEventPreSplitting*process.siPixelClusterShapeCachePreSplitting*process.recopixelvertexing*process.InitialStepPreSplitting)
@@ -545,8 +557,6 @@ if (process.runType.getRunType() == process.runType.hi_run):
             'HLT_HIPhysics*'
             ]
 
-
-
     process.SiStripMonitorDigi.UseDCSFiltering = False
     process.SiStripMonitorClusterReal.UseDCSFiltering = False
 
@@ -615,9 +625,9 @@ if (process.runType.getRunType() == process.runType.hi_run):
     # Select events based on the pixel cluster multiplicity
     import  HLTrigger.special.hltPixelActivityFilter_cfi
     process.multFilter = HLTrigger.special.hltPixelActivityFilter_cfi.hltPixelActivityFilter.clone(
-        inputTag  = cms.InputTag('siPixelClusters'),
-        minClusters = cms.uint32(1),
-        maxClusters = cms.uint32(50000)
+        inputTag  = 'siPixelClusters',
+        minClusters = 1,
+        maxClusters = 50000
         )
 
     # BaselineValidator Module
@@ -630,7 +640,7 @@ if (process.runType.getRunType() == process.runType.hi_run):
     from RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi import *
     process.PixelLayerTriplets.BPix.HitProducer = 'siPixelRecHitsPreSplitting'
     process.PixelLayerTriplets.FPix.HitProducer = 'siPixelRecHitsPreSplitting'
-    from RecoPixelVertexing.PixelTrackFitting.PixelTracks_cff import *
+    from RecoTracker.PixelTrackFitting.PixelTracks_cff import *
     process.pixelTracksHitTriplets.SeedComparitorPSet.clusterShapeCacheSrc = 'siPixelClusterShapeCachePreSplitting'
 
     process.RecoForDQM_TrkReco = cms.Sequence(process.offlineBeamSpot*process.MeasurementTrackerEventPreSplitting*process.siPixelClusterShapeCachePreSplitting*process.recopixelvertexing*process.InitialStepPreSplitting)
@@ -658,6 +668,11 @@ if (process.runType.getRunType() == process.runType.hi_run):
         process.TrackingClient
     )
 
+    # append the approximate clusters monitoring for the HI run case
+    from DQM.SiStripMonitorApproximateCluster.SiStripMonitorApproximateCluster_cfi import SiStripMonitorApproximateCluster
+    process.siStripApproximateClusterComparator = SiStripMonitorApproximateCluster.clone(compareClusters = True,
+                                                                                         ClustersProducer = "hltSiStripClusterizerForRawPrime")
+    process.p.insert(process.p.index(process.TrackingClient)+1,process.siStripApproximateClusterComparator)
 
 ### process customizations included here
 from DQM.Integration.config.online_customizations_cfi import *

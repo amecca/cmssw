@@ -49,10 +49,18 @@ void HcalGeomParameters::loadGeometry(const DDFilteredView& _fv, HcalParameters&
     int nsiz = static_cast<int>(copy.size());
     if (nsiz > 0)
       lay = copy[nsiz - 1] / 10;
-    if (nsiz > 1)
+    if (nsiz > 6)
+      idet = copy[nsiz - 2] / 1000;
+    else if (nsiz > 4)
+      idet = copy[nsiz - 3] / 1000;
+    else if (nsiz > 1)
       idet = copy[nsiz - 2] / 1000;
 #ifdef EDM_ML_DEBUG
-    edm::LogVerbatim("HCalGeom") << "Name " << fv.logicalPart().solid().name() << " Copy " << copy.size();
+    std::ostringstream st1;
+    for (unsigned int k = 0; k < copy.size(); ++k)
+      st1 << " " << copy[k];
+    edm::LogVerbatim("HCalGeom") << "Name " << fv.logicalPart().solid().name() << " Copy " << copy.size() << ":"
+                                 << st1.str();
 #endif
     double dx = 0, dy = 0, dz = 0, dx1 = 0, dx2 = 0;
     double alp(0);
@@ -221,7 +229,14 @@ void HcalGeomParameters::loadGeometry(const DDFilteredView& _fv, HcalParameters&
         } else if (sol.shape() == DDSolidShape::ddtubs || sol.shape() == DDSolidShape::ddcons) {
           dzVcal_ = HcalGeomParameters::k_ScaleFromDDDToG4 * paras[0];
           hf = true;
+        } else if (sol.shape() == DDSolidShape::ddtrap) {
+          dzVcal_ = HcalGeomParameters::k_ScaleFromDDDToG4 * paras[0];
+          hf = true;
         }
+#ifdef EDM_ML_DEBUG
+        edm::LogVerbatim("HCalGeom") << "Sets for Detector " << idet << " for " << sol.name() << " Flag " << hf
+                                     << " DZ " << dzVcal_;
+#endif
       }
 #ifdef EDM_ML_DEBUG
     } else {
@@ -248,10 +263,17 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
     int nsiz = static_cast<int>(copy.size());
     if (nsiz > 0)
       lay = copy[0] / 10;
-    if (nsiz > 1)
+    if (nsiz > 6)
+      idet = copy[1] / 1000;
+    else if (nsiz > 4)
+      idet = copy[2] / 1000;
+    else if (nsiz > 1)
       idet = copy[1] / 1000;
 #ifdef EDM_ML_DEBUG
-    edm::LogVerbatim("HCalGeom") << "Name " << fv.name() << " Copy " << copy.size();
+    std::ostringstream st1;
+    for (unsigned int k = 0; k < copy.size(); ++k)
+      st1 << " " << copy[k];
+    edm::LogVerbatim("HCalGeom") << "Name " << fv.name() << " Copy " << copy.size() << ":" << st1.str();
     for (unsigned int n = 0; n < copy.size(); ++n)
       edm::LogVerbatim("HCalGeom") << "[" << n << "] " << copy[n];
     edm::LogVerbatim("HCalGeom") << "Detector " << idet << " Layer " << lay << " parameters: " << paras.size();
@@ -261,20 +283,20 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
     double dx = 0, dy = 0, dz = 0, dx1 = 0, dx2 = 0;
     double alp(0);
     if (dd4hep::isA<dd4hep::Box>(fv.solid())) {
-      dx = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[0];
-      dy = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[1];
-      dz = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[2];
+      dx = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[0];
+      dy = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[1];
+      dz = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[2];
     } else if (dd4hep::isA<dd4hep::Trap>(fv.solid())) {
-      dx1 = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[4];
-      dx2 = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[5];
-      dx = 0.25 * HcalGeomParameters::k_ScaleFromDD4HepToG4 * (paras[4] + paras[5] + paras[8] + paras[9]);
-      dy = 0.5 * HcalGeomParameters::k_ScaleFromDD4HepToG4 * (paras[3] + paras[7]);
-      dz = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[0];
+      dx1 = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[4];
+      dx2 = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[5];
+      dx = 0.25 * HcalGeomParameters::k_ScaleFromDD4hepToG4 * (paras[4] + paras[5] + paras[8] + paras[9]);
+      dy = 0.5 * HcalGeomParameters::k_ScaleFromDD4hepToG4 * (paras[3] + paras[7]);
+      dz = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[0];
       alp = 0.5 * (paras[6] + paras[10]);
     } else if (dd4hep::isA<dd4hep::Tube>(fv.solid())) {
-      dx = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[0];
-      dy = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[1];
-      dz = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[2];
+      dx = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[0];
+      dy = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[1];
+      dz = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[2];
     }
     if (idet == 3) {
       // HB
@@ -284,7 +306,7 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
 #endif
       if (lay >= 0 && lay < maxLayer_) {
         ib_[lay]++;
-        rb_[lay] += (HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho());
+        rb_[lay] += (HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho());
         if (thkb_[lay] <= 0) {
           if (lay < 17)
             thkb_[lay] = dx;
@@ -294,15 +316,15 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
         if (lay < 17) {
           bool found = false;
           for (double k : rxb_) {
-            if (std::abs(k - (HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho())) < 0.01) {
+            if (std::abs(k - (HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho())) < 0.01) {
               found = true;
               break;
             }
           }
           if (!found) {
-            rxb_.emplace_back(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho());
-            php.rhoxHB.emplace_back(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho() * std::cos(t.phi()));
-            php.zxHB.emplace_back(std::abs(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z()));
+            rxb_.emplace_back(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho());
+            php.rhoxHB.emplace_back(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho() * std::cos(t.phi()));
+            php.zxHB.emplace_back(std::abs(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z()));
             php.dyHB.emplace_back(2. * dy);
             php.dxHB.emplace_back(2. * dz);
             php.layHB.emplace_back(lay);
@@ -325,8 +347,8 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
           ifi = copy[2];
         if (nsiz > 3)
           ich = copy[3];
-        double z1 = std::abs((HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z()) + dz);
-        double z2 = std::abs((HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z()) - dz);
+        double z1 = std::abs((HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z()) + dz);
+        double z2 = std::abs((HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z()) - dz);
         if (std::abs(z1 - z2) < 0.01)
           z1 = 0;
         if (ifi == 1 && ich == 4) {
@@ -370,26 +392,26 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
 #endif
       if (lay >= 0 && lay < maxLayer_) {
         ie_[lay]++;
-        ze_[lay] += std::abs(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z());
+        ze_[lay] += std::abs(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z());
         if (thke_[lay] <= 0)
           thke_[lay] = dz;
-        double rinHE = HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho() * cos(alp) - dy;
-        double routHE = HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho() * cos(alp) + dy;
+        double rinHE = HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho() * cos(alp) - dy;
+        double routHE = HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho() * cos(alp) + dy;
         rminHE_[lay] += rinHE;
         rmaxHE_[lay] += routHE;
         bool found = false;
         for (double k : php.zxHE) {
-          if (std::abs(k - std::abs(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z())) < 0.01) {
+          if (std::abs(k - std::abs(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z())) < 0.01) {
             found = true;
             break;
           }
         }
         if (!found) {
-          php.zxHE.emplace_back(std::abs(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z()));
-          php.rhoxHE.emplace_back(HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho() * std::cos(t.phi()));
+          php.zxHE.emplace_back(std::abs(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z()));
+          php.rhoxHE.emplace_back(HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho() * std::cos(t.phi()));
           php.dyHE.emplace_back(dy * std::cos(t.phi()));
-          dx1 -= 0.5 * (HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho() - dy) * std::cos(t.phi()) * tan10deg;
-          dx2 -= 0.5 * (HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho() + dy) * std::cos(t.phi()) * tan10deg;
+          dx1 -= 0.5 * (HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho() - dy) * std::cos(t.phi()) * tan10deg;
+          dx2 -= 0.5 * (HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho() + dy) * std::cos(t.phi()) * tan10deg;
           php.dx1HE.emplace_back(-dx1);
           php.dx2HE.emplace_back(-dx2);
           php.layHE.emplace_back(lay);
@@ -411,26 +433,33 @@ void HcalGeomParameters::loadGeometry(const cms::DDCompactView& cpv, HcalParamet
 #ifdef EDM_ML_DEBUG
         edm::LogVerbatim("HCalGeom") << "HF " << fv.name() << " Shape "
                                      << cms::dd::name(cms::DDSolidShapeMap, fv.shape()) << " Z "
-                                     << HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z() << " with " << paras.size()
+                                     << HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z() << " with " << paras.size()
                                      << " Parameters";
         for (unsigned j = 0; j < paras.size(); j++)
           edm::LogVerbatim("HCalGeom") << "HF Parameter[" << j << "] = " << paras[j];
 #endif
         if (dd4hep::isA<dd4hep::Polycone>(fv.solid())) {
           int nz = (int)(paras.size()) - 3;
-          dzVcal_ = 0.5 * HcalGeomParameters::k_ScaleFromDD4HepToG4 * (paras[nz] - paras[3]);
+          dzVcal_ = 0.5 * HcalGeomParameters::k_ScaleFromDD4hepToG4 * (paras[nz] - paras[3]);
           hf = true;
         } else if (dd4hep::isA<dd4hep::Tube>(fv.solid()) || dd4hep::isA<dd4hep::ConeSegment>(fv.solid())) {
-          dzVcal_ = HcalGeomParameters::k_ScaleFromDD4HepToG4 * paras[2];
+          dzVcal_ = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[2];
+          hf = true;
+        } else if (dd4hep::isA<dd4hep::Trap>(fv.solid())) {
+          dzVcal_ = HcalGeomParameters::k_ScaleFromDD4hepToG4 * paras[0];
           hf = true;
         }
+#ifdef EDM_ML_DEBUG
+        edm::LogVerbatim("HCalGeom") << "Sets for Detector " << idet << " for " << fv.name() << " Flag " << hf << " DZ "
+                                     << dzVcal_;
+#endif
       }
 #ifdef EDM_ML_DEBUG
     } else {
       edm::LogVerbatim("HCalGeom") << "Unknown Detector " << idet << " for " << fv.name() << " Shape "
                                    << cms::dd::name(cms::DDSolidShapeMap, fv.shape()) << " R "
-                                   << (HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.Rho()) << " Z "
-                                   << (HcalGeomParameters::k_ScaleFromDD4HepToG4 * t.z());
+                                   << (HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.Rho()) << " Z "
+                                   << (HcalGeomParameters::k_ScaleFromDD4hepToG4 * t.z());
 #endif
     }
   }

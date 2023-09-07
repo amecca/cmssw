@@ -28,7 +28,7 @@ displacedGeneralStepTrackingRegions = _globalTrackingRegion.clone(
 
 #----------------------------------------- Triplet seeding
 
-from RecoPixelVertexing.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import ClusterShapeHitFilterESProducer as _ClusterShapeHitFilterESProducer
+from RecoTracker.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import ClusterShapeHitFilterESProducer as _ClusterShapeHitFilterESProducer
 displacedGeneralStepClusterShapeHitFilter = _ClusterShapeHitFilterESProducer.clone(
     ComponentName = 'displacedGeneralStepClusterShapeHitFilter',
     doStripShapeCut = cms.bool(False),
@@ -51,7 +51,7 @@ displacedGeneralStepHitTriplets = _multiHitFromChi2EDProducer.clone(
 
 
 from RecoTracker.TkSeedGenerator.seedCreatorFromRegionConsecutiveHitsTripletOnlyEDProducer_cff import seedCreatorFromRegionConsecutiveHitsTripletOnlyEDProducer as _seedCreatorFromRegionConsecutiveHitsTripletOnlyEDProducer
-from RecoPixelVertexing.PixelLowPtUtilities.StripSubClusterShapeSeedFilter_cfi import StripSubClusterShapeSeedFilter as _StripSubClusterShapeSeedFilter
+from RecoTracker.PixelLowPtUtilities.StripSubClusterShapeSeedFilter_cfi import StripSubClusterShapeSeedFilter as _StripSubClusterShapeSeedFilter
 displacedGeneralStepSeeds = _seedCreatorFromRegionConsecutiveHitsTripletOnlyEDProducer.clone(
     seedingHitSets = "displacedGeneralStepHitTriplets",
     SeedComparitorPSet = dict(
@@ -100,29 +100,27 @@ displacedGeneralStepChi2Est = RecoTracker.MeasurementDet.Chi2ChargeMeasurementEs
 
 #----------------------------------------- TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
-displacedGeneralStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
-    trajectoryFilter = cms.PSet(refToPSet_ = cms.string('displacedGeneralStepTrajectoryFilter')),
-    inOutTrajectoryFilter = cms.PSet(refToPSet_ = cms.string('displacedGeneralStepTrajectoryFilterInOut')),
+displacedGeneralStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilderIterativeDefault.clone(
+    trajectoryFilter = dict(refToPSet_ = 'displacedGeneralStepTrajectoryFilter'),
+    inOutTrajectoryFilter = dict(refToPSet_ = 'displacedGeneralStepTrajectoryFilterInOut'),
     useSameTrajFilter = False,
     minNrOfHitsForRebuild = 4,
     maxCand = 2,
     estimator = 'displacedGeneralStepChi2Est'
-    )
+)
 
 
 
 #----------------------------------------- MAKING OF TRACK CANDIDATES
 import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
-displacedGeneralStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
+displacedGeneralStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidatesIterativeDefault.clone(
     src = 'displacedGeneralStepSeeds',
     TrajectoryCleaner = 'displacedGeneralStepTrajectoryCleanerBySharedHits',
     ### these two parameters are relevant only for the CachingSeedCleanerBySharedInput
-    numHitsForSeedCleaner = cms.int32(50),
-    onlyPixelHitsForSeedCleaner = cms.bool(False),
-
-    TrajectoryBuilderPSet = cms.PSet(refToPSet_ = cms.string('displacedGeneralStepTrajectoryBuilder')),
-    clustersToSkip = cms.InputTag('displacedGeneralStepClusters'),
+    numHitsForSeedCleaner = 50,
+    onlyPixelHitsForSeedCleaner = False,
+    TrajectoryBuilderPSet = dict(refToPSet_ = 'displacedGeneralStepTrajectoryBuilder'),
+    clustersToSkip = 'displacedGeneralStepClusters',
     doSeedingRegionRebuilding = True,
     useHitsSplitting = True,
     cleanTrajectoryAfterInOut = True
@@ -147,7 +145,7 @@ displacedGeneralStepFitterSmoother = TrackingTools.TrackFitters.RungeKuttaFitter
     MinNumberOfHits = 8,
     Fitter = 'displacedGeneralStepRKFitter',
     Smoother = 'displacedGeneralStepRKSmoother'
-    )
+)
 
 
 
@@ -176,12 +174,12 @@ generalDisplacedFlexibleKFFittingSmoother = TrackingTools.TrackFitters.FlexibleK
 
 
 
-import RecoTracker.TrackProducer.TrackProducer_cfi
-displacedGeneralStepTracks = RecoTracker.TrackProducer.TrackProducer_cfi.TrackProducer.clone(
+import RecoTracker.TrackProducer.TrackProducerIterativeDefault_cfi
+displacedGeneralStepTracks = RecoTracker.TrackProducer.TrackProducerIterativeDefault_cfi.TrackProducerIterativeDefault.clone(
     src = 'displacedGeneralStepTrackCandidates',
     AlgorithmName = 'displacedGeneralStep',
     Fitter = 'generalDisplacedFlexibleKFFittingSmoother',
-    )
+)
 
 
 #---------------------------------------- TRACK SELECTION AND QUALITY FLAG SETTING.

@@ -1,9 +1,7 @@
 /** \file HLTExoticaPlotter.cc
  */
 
-#include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "FWCore/ServiceRegistry/interface/Service.h"
 
 #include "HLTriggerOffline/Exotica/interface/HLTExoticaPlotter.h"
 #include "HLTriggerOffline/Exotica/interface/HLTExoticaSubAnalysis.h"
@@ -249,7 +247,15 @@ void HLTExoticaPlotter::bookHist(DQMStore::IBooker &iBooker,
   }
 
   h->Sumw2();
-  _elements[name] = iBooker.book1D(name, h);
+
+  if (source == "gen") {
+    if (objType != "refittedStandAloneMuons") {
+      _elements[name] = iBooker.book1D(name, h);
+    }
+  } else {
+    _elements[name] = iBooker.book1D(name, h);
+  }
+
   //    LogDebug("ExoticaValidation") << "                        booked histo
   //    with name " << name << "\n"
   //				  << "                        at location " <<
@@ -267,6 +273,14 @@ void HLTExoticaPlotter::fillHist(const bool &passTrigger,
   std::string name = source + objType + variable + "_" + _hltPath;
 
   LogDebug("ExoticaValidation") << "In HLTExoticaPlotter::fillHist()" << name << " " << value;
-  _elements[name]->Fill(value);
+
+  if (source == "gen") {
+    if (objType != "refittedStandAloneMuons") {
+      _elements[name]->Fill(value);
+    }
+  } else {
+    _elements[name]->Fill(value);
+  }
+
   LogDebug("ExoticaValidation") << "In HLTExoticaPlotter::fillHist()" << name << " worked";
 }

@@ -29,15 +29,18 @@ namespace edm {
   class StreamID;
   class StreamContext;
   class ModuleRegistry;
+  class ModuleTypeResolverMaker;
   class PreallocationConfiguration;
   namespace eventsetup {
-    class ESRecordsToProxyIndices;
+    class ESRecordsToProductResolverIndices;
   }
   class WorkerManager {
   public:
     typedef std::vector<Worker*> AllWorkers;
 
-    WorkerManager(std::shared_ptr<ActivityRegistry> actReg, ExceptionToActionTable const& actions);
+    WorkerManager(std::shared_ptr<ActivityRegistry> actReg,
+                  ExceptionToActionTable const& actions,
+                  ModuleTypeResolverMaker const* typeResolverMaker);
     WorkerManager(WorkerManager&&) = default;
 
     WorkerManager(std::shared_ptr<ModuleRegistry> modReg,
@@ -49,7 +52,7 @@ namespace edm {
     void addToUnscheduledWorkers(ParameterSet& pset,
                                  ProductRegistry& preg,
                                  PreallocationConfiguration const* prealloc,
-                                 std::shared_ptr<ProcessConfiguration> processConfiguration,
+                                 std::shared_ptr<ProcessConfiguration const> processConfiguration,
                                  std::string label,
                                  std::set<std::string>& unscheduledLabels,
                                  std::vector<std::string>& shouldBeUsedLabels);
@@ -74,7 +77,7 @@ namespace edm {
     void setupOnDemandSystem(EventTransitionInfo const&);
 
     void beginJob(ProductRegistry const& iRegistry,
-                  eventsetup::ESRecordsToProxyIndices const&,
+                  eventsetup::ESRecordsToProductResolverIndices const&,
                   ProcessBlockHelperBase const&);
     void endJob();
     void endJob(ExceptionCollector& collector);
@@ -83,6 +86,7 @@ namespace edm {
     void endStream(StreamID iID, StreamContext& streamContext);
 
     AllWorkers const& allWorkers() const { return allWorkers_; }
+    AllWorkers const& unscheduledWorkers() const { return unscheduled_.workers(); }
 
     void addToAllWorkers(Worker* w);
 

@@ -26,7 +26,7 @@ PulseShapeFitOOTPileupCorrection::PulseShapeFitOOTPileupCorrection()
       timeMean_(0),
       timeSig_(0),
       pedMean_(0) {
-  hybridfitter = new PSFitter::HybridMinimizer(PSFitter::HybridMinimizer::kMigrad);
+  hybridfitter = new PSFitter::HybridMinimizer(ROOT::Minuit2::kMigrad);
   iniTimesArr = {{-100, -75, -50, -25, 0, 25, 50, 75, 100, 125}};
 }
 
@@ -261,7 +261,7 @@ void PulseShapeFitOOTPileupCorrection::fit(int iFit,
   const double *results = nullptr;
   for (int tries = 0; tries <= 3; ++tries) {
     if (fitTimes_ != 2 || tries != 1) {
-      hybridfitter->SetMinimizerType(PSFitter::HybridMinimizer::kMigrad);
+      hybridfitter->SetMinimizerType(ROOT::Minuit2::kMigrad);
       fitStatus = hybridfitter->Minimize();
     }
     double chi2valfit = hybridfitter->MinValue();
@@ -281,7 +281,7 @@ void PulseShapeFitOOTPileupCorrection::fit(int iFit,
       if (timeSig_ < 0 || pedSig_ < 0)
         break;
       if (tries == 0) {
-        hybridfitter->SetMinimizerType(PSFitter::HybridMinimizer::kScan);
+        hybridfitter->SetMinimizerType(ROOT::Minuit2::kScan);
         fitStatus = hybridfitter->Minimize();
       } else if (tries == 1) {
         hybridfitter->SetStrategy(1);
@@ -316,8 +316,8 @@ void PulseShapeFitOOTPileupCorrection::phase1Apply(const HBHEChannelInfo &channe
   double noiseADCArr[hcal::constants::maxSamples] = {};
   double noiseArrSq[hcal::constants::maxSamples] = {};
   double noisePHArr[hcal::constants::maxSamples] = {};
-  double tsTOT = 0, tstrig = 0;  // in fC
-  double tsTOTen = 0;            // in GeV
+  double tstrig = 0;   // in fC
+  double tsTOTen = 0;  // in GeV
 
   // go over the time slices
   for (unsigned int ip = 0; ip < cssize; ++ip) {
@@ -355,7 +355,6 @@ void PulseShapeFitOOTPileupCorrection::phase1Apply(const HBHEChannelInfo &channe
                      channelData.tsPedestalWidth(ip) * channelData.tsPedestalWidth(ip) +
                      noisePHArr[ip] * noisePHArr[ip];
 
-    tsTOT += charge - ped;
     tsTOTen += energy - peden;
     if (ip == soi || ip == soi + 1) {
       tstrig += charge - ped;

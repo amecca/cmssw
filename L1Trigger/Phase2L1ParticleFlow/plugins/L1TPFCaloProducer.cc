@@ -6,7 +6,6 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
@@ -23,7 +22,7 @@
 
 #include "DataFormats/Math/interface/deltaPhi.h"
 
-#include "L1Trigger/Phase2L1ParticleFlow/src/corrector.h"
+#include "L1Trigger/Phase2L1ParticleFlow/interface/corrector.h"
 #include "L1Trigger/Phase2L1ParticleFlow/interface/ParametricResolution.h"
 #include "L1Trigger/Phase2L1ParticleFlow/interface/CaloClusterer.h"
 

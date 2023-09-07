@@ -3,10 +3,10 @@
 // Package:    CalibTracker/SiPixelLorentzAnglePCLWorker
 // Class:      SiPixelLorentzAnglePCLWorker
 //
-/**\class SiPixelLorentzAnglePCLWorker SiPixelLorentzAnglePCLWorker.cc CalibTracker/SiPixelLorentzAnglePCLWorker/plugins/SiPixelLorentzAnglePCLWorker.cc
- Description: [one line class summary]
+/**\class SiPixelLorentzAnglePCLWorker SiPixelLorentzAnglePCLWorker.cc CalibTracker/SiPixelLorentzAnglePCLWorker/src/SiPixelLorentzAnglePCLWorker.cc
+ Description: generates the intermediate ALCAPROMPT dataset for the measurement of the SiPixel Lorentz Angle in the Prompt Calibration Loop
  Implementation:
-     [Notes on implementation]
+     Books and fills 2D histograms of the drift vs depth in bins of pixel module rings to be fed into the SiPixelLorentzAnglePCLHarvester
 */
 //
 // Original Author:  mmusich
@@ -14,7 +14,9 @@
 //
 //
 
+// system includes
 #include <string>
+#include <fmt/printf.h>
 
 // user include files
 #include "CalibTracker/Records/interface/SiPixelTemplateDBObjectESProducerRcd.h"
@@ -36,6 +38,7 @@
 #include "DataFormats/TrackerRecHit2D/interface/SiStripMatchedRecHit2D.h"
 #include "DataFormats/TrajectorySeed/interface/TrajectorySeedCollection.h"
 #include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/ESWatcher.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -45,15 +48,20 @@
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelTopologyMap.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
-#include "Geometry/TrackerGeometryBuilder/interface/phase1PixelTopology.h"
+#include "Geometry/CommonTopologies/interface/SimplePixelTopology.h"
 #include "RecoTracker/TransientTrackingRecHit/interface/TkTransientTrackingRecHitBuilder.h"
 #include "TrackingTools/PatternTools/interface/TrajTrackAssociation.h"
 #include "TrackingTools/Records/interface/TransientRecHitRecord.h"
 #include "TrackingTools/TrackFitters/interface/TrajectoryStateCombiner.h"
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+
+// ROOT includes
 #include <TTree.h>
 #include <TFile.h>
 #include <fstream>
+
 //
 // class declaration
 //
@@ -91,6 +99,8 @@ struct Rechit {
   float y;
 };
 
+enum LorentzAngleAnalysisTypeEnum { eGrazingAngle, eMinimumClusterSize };
+
 class SiPixelLorentzAnglePCLWorker : public DQMEDAnalyzer {
 public:
   explicit SiPixelLorentzAnglePCLWorker(const edm::ParameterSet&);
@@ -111,9 +121,16 @@ private:
   const std::pair<LocalPoint, LocalPoint> surface_deformation(const PixelTopology* topol,
                                                               TrajectoryStateOnSurface& tsos,
                                                               const SiPixelRecHit* recHitPix) const;
+  LorentzAngleAnalysisTypeEnum convertStringToLorentzAngleAnalysisTypeEnum(std::string type);
   // ------------ member data ------------
   SiPixelLorentzAngleCalibrationHistograms iHists;
 
+  // template stuff
+  edm::ESWatcher<SiPixelTemplateDBObjectESProducerRcd> watchSiPixelTemplateRcd_;
+  const SiPixelTemplateDBObject* templateDBobject_;
+  const std::vector<SiPixelTemplateStore>* thePixelTemp_ = nullptr;
+
+  LorentzAngleAnalysisTypeEnum analysisType_;
   std::string folder_;
   bool notInPCL_;
   std::string filename_;
@@ -163,8 +180,7 @@ private:
   // parameters from config file
   double ptmin_;
   double normChi2Max_;
-  int clustSizeYMin_;
-  int clustSizeYMinL4_;
+  std::vector<int> clustSizeYMin_;
   int clustSizeXMax_;
   double residualMax_;
   double clustChargeMaxPerLength_;
@@ -179,8 +195,10 @@ private:
   edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> geomEsToken_;
   edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoEsToken_;
   edm::ESGetToken<SiPixelTemplateDBObject, SiPixelTemplateDBObjectESProducerRcd> siPixelTemplateEsToken_;
+  edm::ESGetToken<std::vector<SiPixelTemplateStore>, SiPixelTemplateDBObjectESProducerRcd> siPixelTemplateStoreEsToken_;
   edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoPerEventEsToken_;
   edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> geomPerEventEsToken_;
+  edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> magneticFieldToken_;
 
   // event consumes
   edm::EDGetTokenT<TrajTrackAssociationCollection> t_trajTrack;
@@ -190,14 +208,14 @@ private:
 // constructors and destructor
 //
 SiPixelLorentzAnglePCLWorker::SiPixelLorentzAnglePCLWorker(const edm::ParameterSet& iConfig)
-    : folder_(iConfig.getParameter<std::string>("folder")),
+    : analysisType_(convertStringToLorentzAngleAnalysisTypeEnum(iConfig.getParameter<std::string>("analysisType"))),
+      folder_(iConfig.getParameter<std::string>("folder")),
       notInPCL_(iConfig.getParameter<bool>("notInPCL")),
       filename_(iConfig.getParameter<std::string>("fileName")),
       newmodulelist_(iConfig.getParameter<std::vector<std::string>>("newmodulelist")),
       ptmin_(iConfig.getParameter<double>("ptMin")),
       normChi2Max_(iConfig.getParameter<double>("normChi2Max")),
-      clustSizeYMin_(iConfig.getParameter<int>("clustSizeYMin")),
-      clustSizeYMinL4_(iConfig.getParameter<int>("clustSizeYMinL4")),
+      clustSizeYMin_(iConfig.getParameter<std::vector<int>>("clustSizeYMin")),
       clustSizeXMax_(iConfig.getParameter<int>("clustSizeXMax")),
       residualMax_(iConfig.getParameter<double>("residualMax")),
       clustChargeMaxPerLength_(iConfig.getParameter<double>("clustChargeMaxPerLength")),
@@ -205,14 +223,15 @@ SiPixelLorentzAnglePCLWorker::SiPixelLorentzAnglePCLWorker(const edm::ParameterS
       hist_drift_(iConfig.getParameter<int>("binsDrift")),
       geomEsToken_(esConsumes<edm::Transition::BeginRun>()),
       topoEsToken_(esConsumes<edm::Transition::BeginRun>()),
-      siPixelTemplateEsToken_(esConsumes()),
+      siPixelTemplateEsToken_(esConsumes<edm::Transition::BeginRun>()),
+      siPixelTemplateStoreEsToken_(esConsumes<edm::Transition::BeginRun>()),
       topoPerEventEsToken_(esConsumes()),
-      geomPerEventEsToken_(esConsumes()) {
+      geomPerEventEsToken_(esConsumes()),
+      magneticFieldToken_(esConsumes()) {
   t_trajTrack = consumes<TrajTrackAssociationCollection>(iConfig.getParameter<edm::InputTag>("src"));
 
   // now do what ever initialization is needed
   int bufsize = 64000;
-
   //    create tree structure
   //    Barrel pixel
   if (notInPCL_) {
@@ -300,21 +319,14 @@ SiPixelLorentzAnglePCLWorker::SiPixelLorentzAnglePCLWorker(const edm::ParameterS
 // ------------ method called for each event  ------------
 
 void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventSetup const& iSetup) {
-  // Retrieve template stuff
-  const SiPixelTemplateDBObject* templateDBobject_ = &iSetup.getData(siPixelTemplateEsToken_);
-  std::vector<SiPixelTemplateStore> thePixelTemp_;
-  SiPixelTemplate templ(thePixelTemp_);
-  if (!SiPixelTemplate::pushfile(*templateDBobject_, thePixelTemp_)) {
-    edm::LogError("SiPixelLorentzAnglePCLWorker")
-        << "\nERROR: Templates not filled correctly. Check the sqlite file."
-        << "Using SiPixelTemplateDBObject version " << (*templateDBobject_).version() << "\n\n";
-  }
-
   // Retrieve tracker topology from geometry
   const TrackerTopology* const tTopo = &iSetup.getData(topoPerEventEsToken_);
 
   // Retrieve track geometry
   const TrackerGeometry* tracker = &iSetup.getData(geomPerEventEsToken_);
+
+  // Retrieve magnetic field
+  const MagneticField* magField = &iSetup.getData(magneticFieldToken_);
 
   // get the association map between tracks and trajectories
   edm::Handle<TrajTrackAssociationCollection> trajTrackCollectionHandle;
@@ -352,14 +364,19 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
 
       if (pt_ < ptmin_)
         continue;
-      // iterate over trajectory measurements
+
+      iHists.h_trackEta_->Fill(eta_);
+      iHists.h_trackPhi_->Fill(phi_);
+      iHists.h_trackPt_->Fill(pt_);
+      iHists.h_trackChi2_->Fill(chi2_ / ndof_);
       iHists.h_tracks_->Fill(0);
       bool pixeltrack = false;
-      for (std::vector<TrajectoryMeasurement>::const_iterator itTraj = tmColl.begin(); itTraj != tmColl.end();
-           itTraj++) {
-        if (!itTraj->updatedState().isValid())
+
+      // iterate over trajectory measurements
+      for (const auto& itTraj : tmColl) {
+        if (!itTraj.updatedState().isValid())
           continue;
-        TransientTrackingRecHit::ConstRecHitPointer recHit = itTraj->recHit();
+        const TransientTrackingRecHit::ConstRecHitPointer& recHit = itTraj.recHit();
         if (!recHit->isValid() || recHit->geographicalId().det() != DetId::Tracker)
           continue;
         unsigned int subDetID = (recHit->geographicalId().subdetId());
@@ -379,7 +396,7 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           const PixelTopology* topol = &(theGeomDet->specificTopology());
 
           float ypitch_ = topol->pitch().second;
-          float width_ = 0.0285;
+          float width_ = theGeomDet->surface().bounds().thickness();
 
           if (!topol)
             continue;
@@ -415,9 +432,9 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           clust_.minPixelRow = cluster->minPixelRow();
 
           // fill the trackhit info
-          TrajectoryStateOnSurface tsos = itTraj->updatedState();
+          TrajectoryStateOnSurface tsos = itTraj.updatedState();
           if (!tsos.isValid()) {
-            edm::LogWarning("SiPixelLorentzAnglePCLWorker") << "tsos not valid" << std::endl;
+            edm::LogWarning("SiPixelLorentzAnglePCLWorker") << "tsos not valid";
             continue;
           }
           LocalVector trackdirection = tsos.localDirection();
@@ -433,38 +450,37 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           trackhit_.y = trackposition.y();
 
           // get qScale_ = templ.qscale() and  templ.r_qMeas_qTrue();
-
           float cotalpha = trackdirection.x() / trackdirection.z();
           float cotbeta = trackdirection.y() / trackdirection.z();
-          float cotbeta_min = clustSizeYMin_ * ypitch_ / width_;
-          if (fabs(cotbeta) <= cotbeta_min)
+          float cotbeta_min = clustSizeYMin_[layer_ - 1] * ypitch_ / width_;
+          if (std::abs(cotbeta) <= cotbeta_min)
             continue;
           double drdz = sqrt(1. + cotalpha * cotalpha + cotbeta * cotbeta);
           double clusterCharge_cut = clustChargeMaxPerLength_ * drdz;
 
-          float locBx = 1.;
-          if (cotbeta < 0.)
-            locBx = -1.;
-          float locBz = locBx;
-          if (cotalpha < 0.)
-            locBz = -locBx;
-
           auto detId = detIdObj.rawId();
-          bool Isnew = false;
           int DetId_index = -1;
-          for (int i = 0; i < (int)iHists.BPixnewDetIds_.size(); i++) {
-            if (detId == (unsigned int)iHists.BPixnewDetIds_[i])
-              Isnew = true;
-            DetId_index = i;
+
+          const auto& newModIt = (std::find(iHists.BPixnewDetIds_.begin(), iHists.BPixnewDetIds_.end(), detId));
+          bool isNewMod = (newModIt != iHists.BPixnewDetIds_.end());
+          if (isNewMod) {
+            DetId_index = std::distance(iHists.BPixnewDetIds_.begin(), newModIt);
           }
 
-          int TemplID = templateDBobject_->getTemplateID(detId);
-          templ.interpolate(TemplID, cotalpha, cotbeta, locBz, locBx);
-          qScale_ = templ.qscale();
-          rQmQt_ = templ.r_qMeas_qTrue();
+          if (notInPCL_) {
+            // fill the template from the store (from dqmBeginRun)
+            SiPixelTemplate theTemplate(*thePixelTemp_);
+
+            float locBx = (cotbeta < 0.) ? -1 : 1.;
+            float locBz = (cotalpha < 0.) ? -locBx : locBx;
+
+            int TemplID = templateDBobject_->getTemplateID(detId);
+            theTemplate.interpolate(TemplID, cotalpha, cotbeta, locBz, locBx);
+            qScale_ = theTemplate.qscale();
+            rQmQt_ = theTemplate.r_qMeas_qTrue();
+          }
 
           // Surface deformation
-
           const auto& lp_pair = surface_deformation(topol, tsos, recHitPix);
 
           LocalPoint lp_track = lp_pair.first;
@@ -479,6 +495,8 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
             SiPixelLorentzAngleTreeBarrel_->Fill();
           }
 
+          if (analysisType_ != eGrazingAngle)
+            continue;
           // is one pixel in cluster a large pixel ? (hit will be excluded)
           bool large_pix = false;
           for (int j = 0; j < pixinfo_.npix; j++) {
@@ -497,7 +515,7 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           double ylim1 = trackhitCorrY_ - width_ * cotbeta / 2.;
           double ylim2 = trackhitCorrY_ + width_ * cotbeta / 2.;
 
-          int clustSizeY_cut = layer_ < 4 ? clustSizeYMin_ : clustSizeYMinL4_;
+          int clustSizeY_cut = clustSizeYMin_[layer_ - 1];
 
           if (!large_pix && (chi2_ / ndof_) < normChi2Max_ && cluster->sizeY() >= clustSizeY_cut &&
               residualsq < residualMax_ * residualMax_ && cluster->charge() < clusterCharge_cut &&
@@ -518,25 +536,45 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
                 if (ylim1 < ypixhigh)
                   ypixhigh = ylim1;
               }
-              float ypixavg = 0.5 * (ypixlow + ypixhigh);
+              float ypixavg = 0.5f * (ypixlow + ypixhigh);
 
-              float changeUnit = 10000.;
-              float dx = (pixinfo_.x[j] - xlim1) * changeUnit;  // dx: in the unit of micrometer
-              float dy = (ypixavg - ylim1) * changeUnit;        // dy: in the unit of micrometer
+              float dx = (pixinfo_.x[j] - xlim1) * siPixelLACalibration::cmToum;  // dx: in the unit of micrometer
+              float dy = (ypixavg - ylim1) * siPixelLACalibration::cmToum;        // dy: in the unit of micrometer
               float depth = dy * tan(trackhit_.beta);
               float drift = dx - dy * tan(trackhit_.gamma);
 
-              if (Isnew == false) {
+              if (isNewMod == false) {
                 int i_index = module_ + (layer_ - 1) * iHists.nModules_[layer_ - 1];
-                iHists.h_drift_depth_adc_.at(i_index)->Fill(drift, depth, pixinfo_.adc[j]);
-                iHists.h_drift_depth_adc2_.at(i_index)->Fill(drift, depth, pixinfo_.adc[j] * pixinfo_.adc[j]);
-                iHists.h_drift_depth_noadc_.at(i_index)->Fill(drift, depth);
+                iHists.h_drift_depth_adc_[i_index]->Fill(drift, depth, pixinfo_.adc[j]);
+                iHists.h_drift_depth_adc2_[i_index]->Fill(drift, depth, pixinfo_.adc[j] * pixinfo_.adc[j]);
+                iHists.h_drift_depth_noadc_[i_index]->Fill(drift, depth, 1.);
+                iHists.h_bySectOccupancy_->Fill(i_index - 1);  // histogram starts at 0
+
+                if (tracker->getDetectorType(subDetID) == TrackerGeometry::ModuleType::Ph1PXB) {
+                  if ((module_ == 3 || module_ == 5) && (layer_ == 3 || layer_ == 4)) {
+                    int i_index_merge = i_index + 1;
+                    iHists.h_drift_depth_adc_[i_index_merge]->Fill(drift, depth, pixinfo_.adc[j]);
+                    iHists.h_drift_depth_adc2_[i_index_merge]->Fill(drift, depth, pixinfo_.adc[j] * pixinfo_.adc[j]);
+                    iHists.h_drift_depth_noadc_[i_index_merge]->Fill(drift, depth, 1.);
+                    iHists.h_bySectOccupancy_->Fill(i_index_merge - 1);
+                  }
+                  if ((module_ == 4 || module_ == 6) && (layer_ == 3 || layer_ == 4)) {
+                    int i_index_merge = i_index - 1;
+                    iHists.h_drift_depth_adc_[i_index_merge]->Fill(drift, depth, pixinfo_.adc[j]);
+                    iHists.h_drift_depth_adc2_[i_index_merge]->Fill(drift, depth, pixinfo_.adc[j] * pixinfo_.adc[j]);
+                    iHists.h_drift_depth_noadc_[i_index_merge]->Fill(drift, depth, 1.);
+                    iHists.h_bySectOccupancy_->Fill(i_index_merge - 1);
+                  }
+                }
+
               } else {
                 int new_index = iHists.nModules_[iHists.nlay - 1] +
                                 (iHists.nlay - 1) * iHists.nModules_[iHists.nlay - 1] + 1 + DetId_index;
-                iHists.h_drift_depth_adc_.at(new_index)->Fill(drift, depth, pixinfo_.adc[j]);
-                iHists.h_drift_depth_adc2_.at(new_index)->Fill(drift, depth, pixinfo_.adc[j] * pixinfo_.adc[j]);
-                iHists.h_drift_depth_noadc_.at(new_index)->Fill(drift, depth);
+
+                iHists.h_drift_depth_adc_[new_index]->Fill(drift, depth, pixinfo_.adc[j]);
+                iHists.h_drift_depth_adc2_[new_index]->Fill(drift, depth, pixinfo_.adc[j] * pixinfo_.adc[j]);
+                iHists.h_drift_depth_noadc_[new_index]->Fill(drift, depth, 1.);
+                iHists.h_bySectOccupancy_->Fill(new_index - 1);  // histogram starts at 0
               }
             }
           }
@@ -579,9 +617,9 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           clustF_.minPixelRow = cluster->minPixelRow();
 
           // fill the trackhit info
-          TrajectoryStateOnSurface tsos = itTraj->updatedState();
+          TrajectoryStateOnSurface tsos = itTraj.updatedState();
           if (!tsos.isValid()) {
-            edm::LogWarning("SiPixelLorentzAnglePCLWorker") << "tsos not valid" << std::endl;
+            edm::LogWarning("SiPixelLorentzAnglePCLWorker") << "tsos not valid";
             continue;
           }
           LocalVector trackdirection = tsos.localDirection();
@@ -599,22 +637,22 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           float cotalpha = trackdirection.x() / trackdirection.z();
           float cotbeta = trackdirection.y() / trackdirection.z();
 
-          float locBx = 1.;
-          if (cotbeta < 0.)
-            locBx = -1.;
-          float locBz = locBx;
-          if (cotalpha < 0.)
-            locBz = -locBx;
-
           auto detId = detIdObj.rawId();
 
-          int TemplID = templateDBobject_->getTemplateID(detId);
-          templ.interpolate(TemplID, cotalpha, cotbeta, locBz, locBx);
-          qScaleF_ = templ.qscale();
-          rQmQtF_ = templ.r_qMeas_qTrue();
+          if (notInPCL_) {
+            // fill the template from the store (from dqmBeginRun)
+            SiPixelTemplate theTemplate(*thePixelTemp_);
+
+            float locBx = (cotbeta < 0.) ? -1 : 1.;
+            float locBz = (cotalpha < 0.) ? -locBx : locBx;
+
+            int TemplID = templateDBobject_->getTemplateID(detId);
+            theTemplate.interpolate(TemplID, cotalpha, cotbeta, locBz, locBx);
+            qScaleF_ = theTemplate.qscale();
+            rQmQtF_ = theTemplate.r_qMeas_qTrue();
+          }
 
           // Surface deformation
-
           const auto& lp_pair = surface_deformation(topol, tsos, recHitPix);
 
           LocalPoint lp_track = lp_pair.first;
@@ -627,6 +665,58 @@ void SiPixelLorentzAnglePCLWorker::analyze(edm::Event const& iEvent, edm::EventS
           if (notInPCL_) {
             SiPixelLorentzAngleTreeForward_->Fill();
           }
+
+          if (analysisType_ != eMinimumClusterSize)
+            continue;
+
+          int theMagField = magField->nominalValue();
+          if (theMagField < 37 || theMagField > 39)
+            continue;
+
+          double chi2_ndof = chi2_ / ndof_;
+          if (chi2_ndof >= normChi2Max_)
+            continue;
+
+          //--- large pixel cut
+          bool large_pix = false;
+          for (int j = 0; j < pixinfoF_.npix; j++) {
+            int colpos = static_cast<int>(pixinfoF_.col[j]);
+            if (pixinfoF_.row[j] == 0 || pixinfoF_.row[j] == 79 || pixinfoF_.row[j] == 80 || pixinfoF_.row[j] == 159 ||
+                colpos % 52 == 0 || colpos % 52 == 51) {
+              large_pix = true;
+            }
+          }
+
+          if (large_pix)
+            continue;
+
+          //--- residual cut
+          double residual = sqrt(pow(trackhitCorrXF_ - rechitCorrF_.x, 2) + pow(trackhitCorrYF_ - rechitCorrF_.y, 2));
+
+          if (residual > residualMax_)
+            continue;
+
+          int ringIdx = bladeF_ <= 22 ? 0 : 1;
+          int panelIdx = panelF_ - 1;
+          int sideIdx = sideF_ - 1;
+          int idx = iHists.nSides_ * iHists.nPanels_ * ringIdx + iHists.nSides_ * panelIdx + sideIdx;
+          int idxBeta = iHists.betaStartIdx_ + idx;
+
+          double cotanAlpha = std::tan(M_PI / 2. - trackhitF_.alpha);
+          double cotanBeta = std::tan(M_PI / 2. - trackhitF_.beta);
+
+          LocalVector Bfield = theGeomDet->surface().toLocal(magField->inTesla(theGeomDet->surface().position()));
+          iHists.h_fpixMagField_[0][idx]->Fill(Bfield.x());
+          iHists.h_fpixMagField_[1][idx]->Fill(Bfield.y());
+          iHists.h_fpixMagField_[2][idx]->Fill(Bfield.z());
+
+          if (clustF_.size_y >= 2) {
+            iHists.h_fpixAngleSize_[idx]->Fill(cotanAlpha, clustF_.size_x);
+          }
+
+          if (clust_.size_x >= 0) {
+            iHists.h_fpixAngleSize_[idxBeta]->Fill(cotanBeta, clustF_.size_y);
+          }
         }
       }  //end iteration over trajectory measurements
     }    //end iteration over trajectories
@@ -638,12 +728,24 @@ void SiPixelLorentzAnglePCLWorker::dqmBeginRun(edm::Run const& run, edm::EventSe
   const TrackerGeometry* geom = &iSetup.getData(geomEsToken_);
   const TrackerTopology* tTopo = &iSetup.getData(topoEsToken_);
 
+  if (notInPCL_) {
+    // Initialize 1D templates
+    if (watchSiPixelTemplateRcd_.check(iSetup)) {
+      templateDBobject_ = &iSetup.getData(siPixelTemplateEsToken_);
+      thePixelTemp_ = &iSetup.getData(siPixelTemplateStoreEsToken_);
+    }
+  }
+
   PixelTopologyMap map = PixelTopologyMap(geom, tTopo);
   iHists.nlay = geom->numberOfLayers(PixelSubdetector::PixelBarrel);
   iHists.nModules_.resize(iHists.nlay);
   for (int i = 0; i < iHists.nlay; i++) {
     iHists.nModules_[i] = map.getPXBModules(i + 1);
   }
+
+  // list of modules already filled, then return (we already entered here)
+  if (!iHists.BPixnewDetIds_.empty() || !iHists.FPixnewDetIds_.empty())
+    return;
 
   if (!newmodulelist_.empty()) {
     for (auto const& modulename : newmodulelist_) {
@@ -669,63 +771,179 @@ void SiPixelLorentzAnglePCLWorker::dqmBeginRun(edm::Run const& run, edm::EventSe
 void SiPixelLorentzAnglePCLWorker::bookHistograms(DQMStore::IBooker& iBooker,
                                                   edm::Run const& run,
                                                   edm::EventSetup const& iSetup) {
-  iBooker.setCurrentFolder(folder_);
-  iHists.h_tracks_ = iBooker.book1D("h_tracks", "h_tracks", 2, 0., 2.);
+  std::string name;
+  std::string title;
+  if (analysisType_ == eGrazingAngle) {
+    // book the by partition monitoring
+    const auto maxSect = iHists.nlay * iHists.nModules_[iHists.nlay - 1] + (int)iHists.BPixnewDetIds_.size();
 
-  double min_depth_ = -100.;
-  double max_depth_ = 400.;
-  double min_drift_ = -1000.;
-  double max_drift_ = 1000.;
+    iBooker.setCurrentFolder(fmt::sprintf("%s/SectorMonitoring", folder_.data()));
+    iHists.h_bySectOccupancy_ = iBooker.book1D(
+        "h_bySectorOccupancy", "hit occupancy by sector;pixel sector;hits on track", maxSect, -0.5, maxSect - 0.5);
 
-  //book histograms
-  char name[128];
-  for (int i_layer = 1; i_layer <= iHists.nlay; i_layer++) {
-    for (int i_module = 1; i_module <= iHists.nModules_[i_layer - 1]; i_module++) {
-      unsigned int i_index = i_module + (i_layer - 1) * iHists.nModules_[i_layer - 1];
+    iBooker.setCurrentFolder(folder_);
+    static constexpr double min_depth_ = -100.;
+    static constexpr double max_depth_ = 400.;
+    static constexpr double min_drift_ = -500.;
+    static constexpr double max_drift_ = 500.;
 
-      sprintf(name, "h_drift_depth_adc_layer%i_module%i", i_layer, i_module);
-      iHists.h_drift_depth_adc_[i_index] =
-          iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+    // book the mean values projections and set the bin names of the by sector monitoring
+    for (int i_layer = 1; i_layer <= iHists.nlay; i_layer++) {
+      for (int i_module = 1; i_module <= iHists.nModules_[i_layer - 1]; i_module++) {
+        unsigned int i_index = i_module + (i_layer - 1) * iHists.nModules_[i_layer - 1];
+        std::string binName = fmt::sprintf("BPix Lay%i Mod%i", i_layer, i_module);
+        LogDebug("SiPixelLorentzAnglePCLWorker") << " i_index: " << i_index << " bin name: " << binName
+                                                 << " (i_layer: " << i_layer << " i_module:" << i_module << ")";
 
-      sprintf(name, "h_drift_depth_adc2_layer%i_module%i", i_layer, i_module);
-      iHists.h_drift_depth_adc2_[i_index] =
-          iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+        iHists.h_bySectOccupancy_->setBinLabel(i_index, binName);
 
-      sprintf(name, "h_drift_depth_noadc_layer%i_module%i", i_layer, i_module);
-      iHists.h_drift_depth_noadc_[i_index] =
-          iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
-
-      sprintf(name, "h_drift_depth_layer%i_module%i", i_layer, i_module);
-      iHists.h_drift_depth_[i_index] =
-          iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
-
-      sprintf(name, "h_mean_layer%i_module%i", i_layer, i_module);
-      iHists.h_mean_[i_index] = iBooker.book1D(name, name, hist_depth_, min_depth_, max_depth_);
+        name = fmt::sprintf("h_mean_layer%i_module%i", i_layer, i_module);
+        title = fmt::sprintf(
+            "average drift vs depth layer%i module%i; production depth [#mum]; #LTdrift#GT [#mum]", i_layer, i_module);
+        iHists.h_mean_[i_index] = iBooker.book1D(name, title, hist_depth_, min_depth_, max_depth_);
+      }
     }
-  }
+    for (int i = 0; i < (int)iHists.BPixnewDetIds_.size(); i++) {
+      name = fmt::sprintf("h_BPixnew_mean_%s", iHists.BPixnewmodulename_[i].c_str());
+      title = fmt::sprintf("average drift vs depth %s; production depth [#mum]; #LTdrift#GT [#mum]",
+                           iHists.BPixnewmodulename_[i].c_str());
+      int new_index = iHists.nModules_[iHists.nlay - 1] + (iHists.nlay - 1) * iHists.nModules_[iHists.nlay - 1] + 1 + i;
+      iHists.h_mean_[new_index] = iBooker.book1D(name, title, hist_depth_, min_depth_, max_depth_);
 
-  for (int i = 0; i < (int)iHists.BPixnewDetIds_.size(); i++) {
-    int new_index = iHists.nModules_[iHists.nlay - 1] + (iHists.nlay - 1) * iHists.nModules_[iHists.nlay - 1] + 1 + i;
+      LogDebug("SiPixelLorentzAnglePCLWorker")
+          << "i_index" << new_index << " bin name: " << iHists.BPixnewmodulename_[i];
 
-    sprintf(name, "h_BPixnew_drift_depth_adc_%s", iHists.BPixnewmodulename_[i].c_str());
-    iHists.h_drift_depth_adc_[new_index] =
-        iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+      iHists.h_bySectOccupancy_->setBinLabel(new_index, iHists.BPixnewmodulename_[i]);
+    }
 
-    sprintf(name, "h_BPixnew_drift_depth_adc2_%s", iHists.BPixnewmodulename_[i].c_str());
-    iHists.h_drift_depth_adc2_[new_index] =
-        iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+    //book the 2D histograms
+    for (int i_layer = 1; i_layer <= iHists.nlay; i_layer++) {
+      iBooker.setCurrentFolder(fmt::sprintf("%s/BPix/BPixLayer%i", folder_.data(), i_layer));
+      for (int i_module = 1; i_module <= iHists.nModules_[i_layer - 1]; i_module++) {
+        unsigned int i_index = i_module + (i_layer - 1) * iHists.nModules_[i_layer - 1];
 
-    sprintf(name, "h_BPixnew_drift_depth_noadc_%s", iHists.BPixnewmodulename_[i].c_str());
-    iHists.h_drift_depth_noadc_[new_index] =
-        iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+        name = fmt::sprintf("h_drift_depth_adc_layer%i_module%i", i_layer, i_module);
+        title = fmt::sprintf(
+            "depth vs drift (ADC) layer%i module%i; drift [#mum]; production depth [#mum]", i_layer, i_module);
+        iHists.h_drift_depth_adc_[i_index] =
+            iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
 
-    sprintf(name, "h_BPixnew_drift_depth_%s", iHists.BPixnewmodulename_[i].c_str());
-    iHists.h_drift_depth_[new_index] =
-        iBooker.book2D(name, name, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+        name = fmt::sprintf("h_drift_depth_adc2_layer%i_module%i", i_layer, i_module);
+        title = fmt::sprintf(
+            "depth vs drift (ADC^{2}) layer%i module%i; drift [#mum]; production depth [#mum]", i_layer, i_module);
+        iHists.h_drift_depth_adc2_[i_index] =
+            iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
 
-    sprintf(name, "h_BPixnew_mean_%s", iHists.BPixnewmodulename_[i].c_str());
-    iHists.h_mean_[new_index] = iBooker.book1D(name, name, hist_depth_, min_depth_, max_depth_);
-  }
+        name = fmt::sprintf("h_drift_depth_noadc_layer%i_module%i", i_layer, i_module);
+        title = fmt::sprintf(
+            "depth vs drift (no ADC) layer%i module%i; drift [#mum]; production depth [#mum]", i_layer, i_module);
+        iHists.h_drift_depth_noadc_[i_index] =
+            iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+
+        name = fmt::sprintf("h_drift_depth_layer%i_module%i", i_layer, i_module);
+        title =
+            fmt::sprintf("depth vs drift layer%i module%i; drift [#mum]; production depth [#mum]", i_layer, i_module);
+        iHists.h_drift_depth_[i_index] =
+            iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+      }
+    }
+
+    // book the "new" modules
+    iBooker.setCurrentFolder(fmt::sprintf("%s/BPix/NewModules", folder_.data()));
+    for (int i = 0; i < (int)iHists.BPixnewDetIds_.size(); i++) {
+      int new_index = iHists.nModules_[iHists.nlay - 1] + (iHists.nlay - 1) * iHists.nModules_[iHists.nlay - 1] + 1 + i;
+
+      name = fmt::sprintf("h_BPixnew_drift_depth_adc_%s", iHists.BPixnewmodulename_[i].c_str());
+      title = fmt::sprintf("depth vs drift (ADC) %s; drift [#mum]; production depth [#mum]",
+                           iHists.BPixnewmodulename_[i].c_str());
+      iHists.h_drift_depth_adc_[new_index] =
+          iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+
+      name = fmt::sprintf("h_BPixnew_drift_depth_adc2_%s", iHists.BPixnewmodulename_[i].c_str());
+      title = fmt::sprintf("depth vs drift (ADC^{2}) %s; drift [#mum]; production depth [#mum]",
+                           iHists.BPixnewmodulename_[i].c_str());
+      iHists.h_drift_depth_adc2_[new_index] =
+          iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+
+      name = fmt::sprintf("h_BPixnew_drift_depth_noadc_%s", iHists.BPixnewmodulename_[i].c_str());
+      title = fmt::sprintf("depth vs drift (no ADC)%s; drift [#mum]; production depth [#mum]",
+                           iHists.BPixnewmodulename_[i].c_str());
+      iHists.h_drift_depth_noadc_[new_index] =
+          iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+
+      name = fmt::sprintf("h_BPixnew_drift_depth_%s", iHists.BPixnewmodulename_[i].c_str());
+      title = fmt::sprintf("depth vs drift %s; drift [#mum]; production depth [#mum]",
+                           iHists.BPixnewmodulename_[i].c_str());
+      iHists.h_drift_depth_[new_index] =
+          iBooker.book2D(name, title, hist_drift_, min_drift_, max_drift_, hist_depth_, min_depth_, max_depth_);
+    }
+  }  // end if GrazinAngleAnalysis
+  else {
+    iBooker.setCurrentFolder(folder_);
+    std::string baseName;
+    std::string baseTitle;
+
+    for (int r = 0; r < iHists.nRings_; ++r) {
+      for (int p = 0; p < iHists.nPanels_; ++p) {
+        for (int s = 0; s < iHists.nSides_; ++s) {
+          baseName = fmt::sprintf("R%d_P%d_z%d", r + 1, p + 1, s + 1);
+          if (s == 0)
+            baseTitle = fmt::sprintf("Ring%d_Panel%d_z-", r + 1, p + 1);
+          else
+            baseTitle = fmt::sprintf("Ring%d_Panel%d_z+", r + 1, p + 1);
+
+          int idx = iHists.nSides_ * iHists.nPanels_ * r + iHists.nSides_ * p + s;
+          int idxBeta = iHists.betaStartIdx_ + idx;
+
+          name = fmt::sprintf("%s_alphaMean", baseName);
+          title = fmt::sprintf("%s_alphaMean;cot(#alpha); Average cluster size x (pixel)", baseTitle);
+          iHists.h_fpixMean_[idx] = iBooker.book1D(name, title, 60, -3., 3.);
+          name = fmt::sprintf("%s_betaMean", baseName);
+          title = fmt::sprintf("%s_betaMean;cot(#beta); Average cluster size y (pixel)", baseTitle);
+          iHists.h_fpixMean_[idxBeta] = iBooker.book1D(name, title, 60, -3., 3.);
+
+        }  // loop over sides
+      }    // loop over panels
+    }      // loop over rings
+    iBooker.setCurrentFolder(fmt::sprintf("%s/FPix", folder_.data()));
+    for (int r = 0; r < iHists.nRings_; ++r) {
+      for (int p = 0; p < iHists.nPanels_; ++p) {
+        for (int s = 0; s < iHists.nSides_; ++s) {
+          baseName = fmt::sprintf("R%d_P%d_z%d", r + 1, p + 1, s + 1);
+          if (s == 0)
+            baseTitle = fmt::sprintf("Ring%d_Panel%d_z-", r + 1, p + 1);
+          else
+            baseTitle = fmt::sprintf("Ring%d_Panel%d_z+", r + 1, p + 1);
+
+          int idx = iHists.nSides_ * iHists.nPanels_ * r + iHists.nSides_ * p + s;
+          int idxBeta = iHists.betaStartIdx_ + idx;
+
+          name = fmt::sprintf("%s_alpha", baseName);
+          title = fmt::sprintf("%s_alpha;cot(#alpha); Cluster size x (pixel)", baseTitle);
+          iHists.h_fpixAngleSize_[idx] = iBooker.book2D(name, title, 60, -3., 3., 10, 0.5, 10.5);
+          name = fmt::sprintf("%s_beta", baseName);
+          title = fmt::sprintf("%s_beta;cot(#beta); Cluster size y (pixel) ", baseTitle);
+          iHists.h_fpixAngleSize_[idxBeta] = iBooker.book2D(name, title, 60, -3., 3., 10, 0.5, 10.5);
+          for (int m = 0; m < 3; ++m) {
+            name = fmt::sprintf("%s_B%d", baseName, m);
+            char bComp = m == 0 ? 'x' : (m == 1 ? 'y' : 'z');
+            title = fmt::sprintf("%s_magField%d;B_{%c} [T];Entries", baseTitle, m, bComp);
+            iHists.h_fpixMagField_[m][idx] = iBooker.book1D(name, title, 10000, -5., 5.);
+          }  // mag. field comps
+        }    // loop over sides
+      }      // loop over panels
+    }        // loop over rings
+  }          // if MinimalClusterSize
+
+  // book the track monitoring plots
+  iBooker.setCurrentFolder(fmt::sprintf("%s/TrackMonitoring", folder_.data()));
+  iHists.h_tracks_ = iBooker.book1D("h_tracks", ";tracker volume;tracks", 2, -0.5, 1.5);
+  iHists.h_tracks_->setBinLabel(1, "all tracks", 1);
+  iHists.h_tracks_->setBinLabel(2, "has pixel hits", 1);
+  iHists.h_trackEta_ = iBooker.book1D("h_trackEta", ";track #eta; #tracks", 30, -3., 3.);
+  iHists.h_trackPhi_ = iBooker.book1D("h_trackPhi", ";track #phi; #tracks", 48, -M_PI, M_PI);
+  iHists.h_trackPt_ = iBooker.book1D("h_trackPt", ";track p_{T} [GeV]; #tracks", 100, 0., 100.);
+  iHists.h_trackChi2_ = iBooker.book1D("h_trackChi2ndof", ";track #chi^{2}/ndof; #tracks", 100, 0., 10.);
 }
 
 void SiPixelLorentzAnglePCLWorker::dqmEndRun(edm::Run const& run, edm::EventSetup const& iSetup) {
@@ -772,10 +990,17 @@ const std::pair<LocalPoint, LocalPoint> SiPixelLorentzAnglePCLWorker::surface_de
   return lps;
 }
 
+LorentzAngleAnalysisTypeEnum SiPixelLorentzAnglePCLWorker::convertStringToLorentzAngleAnalysisTypeEnum(
+    std::string type) {
+  return (type == "GrazingAngle") ? eGrazingAngle : eMinimumClusterSize;
+}
+
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
 void SiPixelLorentzAnglePCLWorker::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.setComment("Worker module of the SiPixel Lorentz Angle PCL monitoring workflow");
+  desc.add<std::string>("analysisType", "GrazingAngle")
+      ->setComment("analysis type - GrazingAngle (default) or MinimumClusterSize");
   desc.add<std::string>("folder", "AlCaReco/SiPixelLorentzAngle")->setComment("directory of PCL Worker output");
   desc.add<bool>("notInPCL", false)->setComment("create TTree (true) or not (false)");
   desc.add<std::string>("fileName", "testrun.root")->setComment("name of the TTree file if notInPCL = true");
@@ -783,14 +1008,14 @@ void SiPixelLorentzAnglePCLWorker::fillDescriptions(edm::ConfigurationDescriptio
   desc.add<edm::InputTag>("src", edm::InputTag("TrackRefitter"))->setComment("input track collections");
   desc.add<double>("ptMin", 3.)->setComment("minimum pt on tracks");
   desc.add<double>("normChi2Max", 2.)->setComment("maximum reduced chi squared");
-  desc.add<int>("clustSizeYMin", 4)->setComment("minimum cluster size on Y axis for Layer 1-3");
-  desc.add<int>("clustSizeYMinL4", 3)->setComment("minimum cluster size on Y axis for Layer 4");
+  desc.add<std::vector<int>>("clustSizeYMin", {4, 3, 3, 2})
+      ->setComment("minimum cluster size on Y axis for all Barrel Layers");
   desc.add<int>("clustSizeXMax", 5)->setComment("maximum cluster size on X axis");
   desc.add<double>("residualMax", 0.005)->setComment("maximum residual");
   desc.add<double>("clustChargeMaxPerLength", 50000)
       ->setComment("maximum cluster charge per unit length of pixel depth (z)");
   desc.add<int>("binsDepth", 50)->setComment("# bins for electron production depth axis");
-  desc.add<int>("binsDrift", 200)->setComment("# bins for electron drift axis");
+  desc.add<int>("binsDrift", 100)->setComment("# bins for electron drift axis");
   descriptions.addWithDefaultLabel(desc);
 }
 

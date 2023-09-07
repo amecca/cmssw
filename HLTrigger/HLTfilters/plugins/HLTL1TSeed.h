@@ -110,25 +110,35 @@ private:
   edm::InputTag m_l1MuonTag;
   edm::EDGetTokenT<l1t::MuonBxCollection> m_l1MuonToken;
 
+  /// Meta InputTag for L1 Muon collection
+  edm::InputTag m_l1MuonShowerCollectionsTag;
+  edm::InputTag m_l1MuonShowerTag;
+  edm::EDGetTokenT<l1t::MuonShowerBxCollection> m_l1MuonShowerToken;
+
   /// Meta InputTag for L1 Egamma collection
   edm::InputTag m_l1EGammaCollectionsTag;
   edm::InputTag m_l1EGammaTag;
   edm::EDGetTokenT<l1t::EGammaBxCollection> m_l1EGammaToken;
 
-  /// Meta InputTag for L1 Egamma collection
+  /// Meta InputTag for L1 Jet collection
   edm::InputTag m_l1JetCollectionsTag;
   edm::InputTag m_l1JetTag;
   edm::EDGetTokenT<l1t::JetBxCollection> m_l1JetToken;
 
-  /// Meta InputTag for L1 Egamma collection
+  /// Meta InputTag for L1 Tau collection
   edm::InputTag m_l1TauCollectionsTag;
   edm::InputTag m_l1TauTag;
   edm::EDGetTokenT<l1t::TauBxCollection> m_l1TauToken;
 
-  /// Meta InputTag for L1 Egamma collection
+  /// Meta InputTag for L1 EtSum collection
   edm::InputTag m_l1EtSumCollectionsTag;
   edm::InputTag m_l1EtSumTag;
   edm::EDGetTokenT<l1t::EtSumBxCollection> m_l1EtSumToken;
+
+  /// Meta InputTag for L1 EtSum (ZDC) collection
+  edm::InputTag m_l1EtSumZdcCollectionsTag;
+  edm::InputTag m_l1EtSumZdcTag;
+  edm::EDGetTokenT<l1t::EtSumBxCollection> m_l1EtSumZdcToken;
 
   /// flag to pass if L1TGlobal accept
   bool m_l1GlobalDecision;

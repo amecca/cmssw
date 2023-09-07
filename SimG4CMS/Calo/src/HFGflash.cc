@@ -42,11 +42,10 @@ HFGflash::HFGflash(edm::ParameterSet const& p) {
   edm::LogVerbatim("HFShower") << "HFGFlash:: Set B-Field to " << theBField << ", WatcherOn to " << theWatcherOn
                                << " and FillHisto to " << theFillHisto;
 
-  theHelix = new GflashTrajectory;
-  theGflashStep = new G4Step();
-  theGflashNavigator = new G4Navigator();
-  //  theGflashNavigator = 0;
-  theGflashTouchableHandle = new G4TouchableHistory();
+  theHelix = std::make_unique<GflashTrajectory>();
+  theGflashStep = std::make_unique<G4Step>();
+  theGflashNavigator = std::make_unique<G4Navigator>();
+  theGflashTouchableHandle = std::make_unique<G4TouchableHistory>();
 
 #ifdef EDM_ML_DEBUG
   if (theFillHisto) {
@@ -119,11 +118,7 @@ HFGflash::HFGflash(edm::ParameterSet const& p) {
   jCalorimeter = Gflash::kHF;
 }
 
-HFGflash::~HFGflash() {
-  delete theHelix;
-  delete theGflashStep;
-  delete theGflashNavigator;
-}
+HFGflash::~HFGflash() {}
 
 std::vector<HFGflash::Hit> HFGflash::gfParameterization(const G4Step* aStep, bool onlyLong) {
   double tempZCalo = 26;            // Gflash::Z[jCalorimeter]
@@ -238,8 +233,11 @@ std::vector<HFGflash::Hit> HFGflash::gfParameterization(const G4Step* aStep, boo
   z1 *= 9.76972e-01 - 3.85026e-01 * std::tanh(1.82790e+00 * std::log(energy) - 3.66237e+00);
   p1 *= 0.96;
 
+#ifdef EDM_ML_DEBUG
+  G4int nSpots_sd = 0;  // count total number of spots in SD
+#endif
+
   G4double stepLengthLeft = 10000;
-  G4int nSpots_sd = 0;                // count total number of spots in SD
   G4double zInX0 = 0.0;               // shower depth in X0 unit
   G4double deltaZInX0 = 0.0;          // segment of depth in X0 unit
   G4double deltaZ = 0.0;              // segment of depth in cm
@@ -264,8 +262,6 @@ std::vector<HFGflash::Hit> HFGflash::gfParameterization(const G4Step* aStep, boo
   // Uniqueness of G4Step is important otherwise hits won't be created.
   G4double timeGlobal = preStepPoint->GetGlobalTime();
 
-  // this needs to be deleted manually at the end of this loop.
-  //  theGflashNavigator = new G4Navigator();
   theGflashNavigator->SetWorldVolume(
       G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume());
 
@@ -447,7 +443,9 @@ std::vector<HFGflash::Hit> HFGflash::gfParameterization(const G4Step* aStep, boo
       oneHit.time = timeGlobal;
       oneHit.edep = emSpotEnergy * invgev;
       hit.push_back(oneHit);
+#ifdef EDM_ML_DEBUG
       nSpots_sd++;
+#endif
 
     }  // end of for spot iteration
 
@@ -457,6 +455,5 @@ std::vector<HFGflash::Hit> HFGflash::gfParameterization(const G4Step* aStep, boo
     em_nSpots_sd->Fill(nSpots_sd);
   }
 #endif
-  //  delete theGflashNavigator;
   return hit;
 }

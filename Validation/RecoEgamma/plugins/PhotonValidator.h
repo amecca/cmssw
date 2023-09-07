@@ -3,7 +3,6 @@
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/CaloTopology/interface/CaloTopology.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -344,10 +343,10 @@ private:
   MonitorElement* h_pfMva_[3];
   //// particle based isolation from ValueMap
   MonitorElement* h_dRPhoPFcand_ChHad_Cleaned_[3];
-  MonitorElement* h_dRPhoPFcand_NeuHad_Cleaned_[3];
+  MonitorElement* h_dRPhoPFcand_NeuHad_Cleaned_[5];
   MonitorElement* h_dRPhoPFcand_Pho_Cleaned_[3];
   MonitorElement* h_dRPhoPFcand_ChHad_unCleaned_[3];
-  MonitorElement* h_dRPhoPFcand_NeuHad_unCleaned_[3];
+  MonitorElement* h_dRPhoPFcand_NeuHad_unCleaned_[5];
   MonitorElement* h_dRPhoPFcand_Pho_unCleaned_[3];
   MonitorElement* h_SumPtOverPhoPt_ChHad_Cleaned_[3];
   MonitorElement* h_SumPtOverPhoPt_NeuHad_Cleaned_[3];

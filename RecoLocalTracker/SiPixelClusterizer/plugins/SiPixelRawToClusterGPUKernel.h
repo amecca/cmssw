@@ -5,6 +5,8 @@
 #include <cuda_runtime.h>
 
 #include "DataFormats/SiPixelDetId/interface/PixelChannelIdentifier.h"
+#include "DataFormats/SiPixelRawData/interface/SiPixelErrorCompact.h"
+#include "DataFormats/SiPixelRawData/interface/SiPixelFormatterErrors.h"
 #include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigisCUDA.h"
 #include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigiErrorsCUDA.h"
 #include "CUDADataFormats/SiPixelCluster/interface/SiPixelClustersCUDA.h"
@@ -12,8 +14,9 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/SimpleVector.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/host_unique_ptr.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/host_noncached_unique_ptr.h"
-#include "DataFormats/SiPixelRawData/interface/SiPixelErrorCompact.h"
-#include "DataFormats/SiPixelRawData/interface/SiPixelFormatterErrors.h"
+#include "Geometry/CommonTopologies/interface/SimplePixelTopology.h"
+
+// #define GPU_DEBUG
 
 // local include(s)
 #include "SiPixelClusterThresholds.h"
@@ -71,22 +74,26 @@ namespace pixelgpudetails {
     return (row << thePacking.column_width) | col;
   }
 
+  template <typename TrackerTraits>
   class SiPixelRawToClusterGPUKernel {
   public:
     class WordFedAppender {
     public:
-      WordFedAppender();
-      WordFedAppender(uint32_t maxFedWords);
-      ~WordFedAppender() = default;
+      WordFedAppender(uint32_t words, cudaStream_t stream)
+          : word_{cms::cuda::make_host_unique<unsigned int[]>(words, stream)},
+            fedId_{cms::cuda::make_host_unique<unsigned char[]>(words, stream)} {}
 
-      void initializeWordFed(int fedId, unsigned int wordCounterGPU, const cms_uint32_t* src, unsigned int length);
+      void initializeWordFed(int fedId, unsigned int index, cms_uint32_t const* src, unsigned int length) {
+        std::memcpy(word_.get() + index, src, sizeof(cms_uint32_t) * length);
+        std::memset(fedId_.get() + index / 2, fedId - FEDNumbering::MINSiPixeluTCAFEDID, length / 2);
+      }
 
       const unsigned int* word() const { return word_.get(); }
       const unsigned char* fedId() const { return fedId_.get(); }
 
     private:
-      cms::cuda::host::noncached::unique_ptr<unsigned int[]> word_;
-      cms::cuda::host::noncached::unique_ptr<unsigned char[]> fedId_;
+      cms::cuda::host::unique_ptr<unsigned int[]> word_;
+      cms::cuda::host::unique_ptr<unsigned char[]> fedId_;
     };
 
     SiPixelRawToClusterGPUKernel() = default;
@@ -97,20 +104,28 @@ namespace pixelgpudetails {
     SiPixelRawToClusterGPUKernel& operator=(const SiPixelRawToClusterGPUKernel&) = delete;
     SiPixelRawToClusterGPUKernel& operator=(SiPixelRawToClusterGPUKernel&&) = delete;
 
-    void makeClustersAsync(bool isRun2,
-                           const SiPixelClusterThresholds clusterThresholds,
-                           const SiPixelROCsStatusAndMapping* cablingMap,
-                           const unsigned char* modToUnp,
-                           const SiPixelGainForHLTonGPU* gains,
-                           const WordFedAppender& wordFed,
-                           SiPixelFormatterErrors&& errors,
-                           const uint32_t wordCounter,
-                           const uint32_t fedCounter,
-                           const uint32_t maxFedWords,
-                           bool useQualityInfo,
-                           bool includeErrors,
-                           bool debug,
-                           cudaStream_t stream);
+    void makePhase1ClustersAsync(const SiPixelClusterThresholds clusterThresholds,
+                                 const SiPixelROCsStatusAndMapping* cablingMap,
+                                 const unsigned char* modToUnp,
+                                 const SiPixelGainForHLTonGPU* gains,
+                                 const WordFedAppender& wordFed,
+                                 SiPixelFormatterErrors&& errors,
+                                 const uint32_t wordCounter,
+                                 const uint32_t fedCounter,
+                                 bool useQualityInfo,
+                                 bool includeErrors,
+                                 bool debug,
+                                 cudaStream_t stream);
+
+    void makePhase2ClustersAsync(const SiPixelClusterThresholds clusterThresholds,
+                                 const uint16_t* moduleIds,
+                                 const uint16_t* xDigis,
+                                 const uint16_t* yDigis,
+                                 const uint16_t* adcDigis,
+                                 const uint32_t* packedData,
+                                 const uint32_t* rawIds,
+                                 const uint32_t numDigis,
+                                 cudaStream_t stream);
 
     std::pair<SiPixelDigisCUDA, SiPixelClustersCUDA> getResults() {
       digis_d.setNModulesDigis(nModules_Clusters_h[0], nDigis);
@@ -129,7 +144,7 @@ namespace pixelgpudetails {
     SiPixelDigiErrorsCUDA&& getErrors() { return std::move(digiErrors_d); }
 
   private:
-    uint32_t nDigis = 0;
+    uint32_t nDigis;
 
     // Data to be put in the event
     cms::cuda::host::unique_ptr<uint32_t[]> nModules_Clusters_h;

@@ -6,7 +6,7 @@ bool SiStripLorentzAngle::putLorentzAngle(const uint32_t& detid, float value) {
   std::map<unsigned int, float>::const_iterator id = m_LA.find(detid);
   if (id != m_LA.end()) {
     edm::LogError("SiStripLorentzAngle") << "SiStripLorentzAngle for DetID " << detid
-                                         << " is already stored. Skippig this put" << std::endl;
+                                         << " is already stored. Skipping this put" << std::endl;
     return false;
   } else
     m_LA[detid] = value;
@@ -25,12 +25,10 @@ float SiStripLorentzAngle::getLorentzAngle(const uint32_t& detid) const {
 void SiStripLorentzAngle::printDebug(std::stringstream& ss, const TrackerTopology* /*trackerTopo*/) const {
   std::map<unsigned int, float> detid_la = getLorentzAngles();
   std::map<unsigned int, float>::const_iterator it;
-  size_t count = 0;
   ss << "SiStripLorentzAngleReader:" << std::endl;
   ss << "detid \t Lorentz angle" << std::endl;
   for (it = detid_la.begin(); it != detid_la.end(); ++it) {
     ss << it->first << "\t" << it->second << std::endl;
-    ++count;
   }
 }
 

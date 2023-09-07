@@ -9,9 +9,11 @@ from HLTriggerOffline.Common.HLTValidationHarvest_cff import *
 from Validation.RecoHI.HarvestingHI_cff import *
 from Validation.RecoJets.JetPostProcessor_cff import *
 from Validation.RecoMET.METPostProcessor_cff import *
+from DQMOffline.RecoB.bTagMiniDQM_cff import *
 
 
 dqmHarvesting = cms.Path(DQMOffline_SecondStep*DQMOffline_Certification)
+dqmHarvestingExpress = cms.Path(DQMOffline_SecondStep_Express)
 dqmHarvestingExtraHLT = cms.Path(DQMOffline_SecondStep_ExtraHLT*DQMOffline_Certification)
 dqmHarvestingFakeHLT = cms.Path(DQMOffline_SecondStep_FakeHLT*DQMOffline_Certification)
 #dqmHarvesting = cms.Sequence(DQMOffline_SecondStep*DQMOffline_Certification)
@@ -27,11 +29,18 @@ validationHarvestingNoHLT = cms.Path(postValidation*postValidation_gen)
 validationHarvesting = cms.Path(postValidation*hltpostvalidation*postValidation_gen)
 #validationHarvestingNoHLT = cms.Sequence(postValidation*postValidation_gen)
 #validationHarvesting = cms.Sequence(postValidation*hltpostvalidation*postValidation_gen)
+validationHarvestingPhase2 = cms.Path(hltpostvalidation)
+
+from Configuration.Eras.Modifier_phase2_common_cff import phase2_common
+phase2_common.toReplaceWith(validationHarvesting,validationHarvestingPhase2)
 
 _validationHarvesting_fastsim = validationHarvesting.copy()
 for _entry in [hltpostvalidation]:
     _validationHarvesting_fastsim.remove(_entry)
 _validationHarvesting_fastsim.remove(hltpostvalidation)
+_validationHarvesting_fastsim.remove(efficienciesTauValidationMiniAODRealData)
+_validationHarvesting_fastsim.remove(efficienciesTauValidationMiniAODRealElectronsData)
+_validationHarvesting_fastsim.remove(efficienciesTauValidationMiniAODRealMuonsData)
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
 fastSim.toReplaceWith(validationHarvesting,_validationHarvesting_fastsim)
 
@@ -66,5 +75,5 @@ genHarvesting = cms.Path(postValidation_gen)
 alcaHarvesting = cms.Path()
 #alcaHarvesting = cms.Sequence()
 
-validationHarvestingMiniAOD = cms.Path(JetPostProcessor*METPostProcessorHarvesting*postValidationMiniAOD)
+validationHarvestingMiniAOD = cms.Path(JetPostProcessor*METPostProcessorHarvesting*bTagMiniValidationHarvesting*postValidationMiniAOD)
 #validationHarvestingMiniAOD = cms.Sequence(JetPostProcessor*METPostProcessorHarvesting*postValidationMiniAOD)

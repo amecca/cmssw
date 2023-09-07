@@ -45,6 +45,7 @@ for _eraName, _postfix, _era in _cfg.allEras():
 _removeForFastSimSeedProducers =["initialStepSeedsPreSplitting",
                                  "jetCoreRegionalStepSeeds",
                                  "jetCoreRegionalStepSeedsBarrel","jetCoreRegionalStepSeedsEndcap",
+                                 "displacedRegionalStepSeeds",
                                  "muonSeededSeedsInOut",
                                  "muonSeededSeedsOutIn"]
 
@@ -52,6 +53,7 @@ _seedProducers_fastSim = [ x for x in _seedProducers if x not in _removeForFastS
 
 _removeForFastTrackProducers = ["initialStepTracksPreSplitting",
                                 "jetCoreRegionalStepTracks",
+                                "displacedRegionalStepTracks",
                                 "muonSeededTracksInOut",
                                 "muonSeededTracksOutIn"]
 _trackProducers_fastSim = [ x for x in _trackProducers if x not in _removeForFastTrackProducers]
@@ -709,6 +711,29 @@ tracksValidationTruth = cms.Task(
     VertexAssociatorByPositionAndTracks,
     trackingParticleNumberOfLayersProducer
 )
+
+# HIon modifiers
+from Configuration.ProcessModifiers.pp_on_AA_cff import pp_on_AA
+
+trackingParticleHIPixelTrackAssociation = trackingParticleRecoTrackAsssociation.clone(
+    label_tr = "hiConformalPixelTracks",
+    associator = "quickTrackAssociatorByHits",
+)
+
+from Configuration.ProcessModifiers.pixelNtupletFit_cff import pixelNtupletFit
+
+pixelNtupletFit.toModify(trackingParticleHIPixelTrackAssociation,
+        associator = "quickTrackAssociatorByHitsPreSplitting")
+
+HIPixelVertexAssociatorByPositionAndTracks = VertexAssociatorByPositionAndTracks.clone(
+    trackAssociation = "trackingParticleHIPixelTrackAssociation"
+)
+
+pp_on_AA.toReplaceWith(tracksValidationTruth, cms.Task(
+    tracksValidationTruth.copy(),
+    trackingParticleHIPixelTrackAssociation,
+    HIPixelVertexAssociatorByPositionAndTracks
+))
 fastSim.toModify(tracksValidationTruth, lambda x: x.remove(tpClusterProducer))
 
 tracksPreValidation = cms.Task(
@@ -742,6 +767,29 @@ tracksValidation = cms.Sequence(
     trackValidatorGsfTracks,
     tracksPreValidation
 )
+
+trackValidatorHILowPtConformalValidator = trackValidator.clone(
+    dirName = "Tracking/HIPixelTrack/",
+    label = [
+        "hiConformalPixelTracks",
+    ],
+    doResolutionPlotsForLabels = ["hiConformalPixelTracks"],
+    trackCollectionForDrCalculation = "hiConformalPixelTracks",
+    associators = ["trackingParticleHIPixelTrackAssociation"],
+    vertexAssociator = "HIPixelVertexAssociatorByPositionAndTracks",
+    dodEdxPlots = False,
+    cores = "" 
+)
+
+tracksValidationHIonTask = cms.Task(trackValidatorHILowPtConformalValidator) 
+
+tracksValidationHIon = cms.Sequence(
+    tracksValidation.copy(),
+    tracksValidationHIonTask    
+)
+
+pp_on_AA.toReplaceWith(tracksValidation,tracksValidationHIon)
+
 
 from Configuration.ProcessModifiers.seedingDeepCore_cff import seedingDeepCore
 seedingDeepCore.toReplaceWith(tracksValidation, cms.Sequence(tracksValidation.copy()+trackValidatorJetCore))
@@ -975,6 +1023,15 @@ tracksValidationTrackingOnly = cms.Sequence(
     tracksValidationSeedSelectorsTrackingOnly
 )
 
+
+tracksValidationHIonTrackingOnly = cms.Sequence(
+    tracksValidation.copy(),
+    tracksValidationHIonTask    
+)
+
+pp_on_AA.toReplaceWith(tracksValidationTrackingOnly,tracksValidationHIonTrackingOnly)
+
+
 ####################################################################################################
 ### Pixel tracking only mode (placeholder for now)
 trackingParticlePixelTrackAsssociation = trackingParticleRecoTrackAsssociation.clone(
@@ -1000,10 +1057,10 @@ trackSelector = cms.EDFilter('TrackSelector',
                              cut = cms.string("")
 )
 
-cutstring = "numberOfValidHits == 3"
+cutstring = "hitPattern.trackerLayersWithMeasurement == 3"
 pixelTracks3hits = trackRefSelector.clone( cut = cutstring )
 
-cutstring = "numberOfValidHits >= 4"
+cutstring = "hitPattern.trackerLayersWithMeasurement >= 4"
 pixelTracks4hits = trackRefSelector.clone( cut = cutstring )
 
 cutstring = "pt > 0.9"
@@ -1014,7 +1071,7 @@ pixelTracksFromPV = generalTracksFromPV.clone(quality = "highPurity", ptMin = 0.
 #pixelTracksFromPVPt09 = generalTracksPt09.clone(quality = ["loose","tight","highPurity"], vertexTag = "pixelVertices", src = "pixelTracksFromPV")
 pixelTracksFromPVPt09 = pixelTracksFromPV.clone(ptMin = 0.9)
 
-cutstring = "numberOfValidHits >= 4"
+cutstring = "hitPattern.trackerLayersWithMeasurement >= 4"
 #pixelTracksFromPV4hits = trackRefSelector.clone( cut = cutstring, src = "pixelTracksFromPV" )
 pixelTracksFromPV4hits = pixelTracksFromPV.clone( numberOfValidPixelHits = 4 )
 
@@ -1033,8 +1090,9 @@ trackValidatorPixelTrackingOnly = trackValidator.clone(
     label_vertex = "pixelVertices",
     vertexAssociator = "PixelVertexAssociatorByPositionAndTracks",
     dodEdxPlots = False,
-    cores = cms.InputTag(""),
+    cores = "" 
 )
+
 trackValidatorFromPVPixelTrackingOnly = trackValidatorPixelTrackingOnly.clone(
     dirName = "Tracking/PixelTrackFromPV/",
     label = [
@@ -1124,7 +1182,7 @@ for key,value in quality.items():
     tracksPreValidationPixelTrackingOnly.add(locals()[label])
 #-----------         
     label = "pixelTracks4hits"+key
-    cutstring = "numberOfValidHits == 4 & qualityMask <= 7 & qualityMask >= " + str(qualityBit)
+    cutstring = "hitPattern.trackerLayersWithMeasurement >= 4 & qualityMask <= 7 & qualityMask >= " + str(qualityBit)
     locals()[label] = trackRefSelector.clone( cut = cutstring )
     tracksPreValidationPixelTrackingOnly.add(locals()[label])
     
@@ -1134,7 +1192,7 @@ for key,value in quality.items():
     tracksPreValidationPixelTrackingOnly.add(locals()[label])
 #--------    
     label = "pixelTracks3hits"+key
-    cutstring = "numberOfValidHits == 3 & qualityMask <= 7 & qualityMask >= " + str(qualityBit)
+    cutstring = "hitPattern.trackerLayersWithMeasurement == 3 & qualityMask <= 7 & qualityMask >= " + str(qualityBit)
     locals()[label] = trackRefSelector.clone( cut = cutstring )
     tracksPreValidationPixelTrackingOnly.add(locals()[label])
      

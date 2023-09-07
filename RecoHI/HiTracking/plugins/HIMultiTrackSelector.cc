@@ -4,7 +4,6 @@
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "CondFormats/DataRecord/interface/GBRWrapperRcd.h"
 #include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 
 #include <Math/DistFunc.h>
 #include <TMath.h>
@@ -621,7 +620,7 @@ void HIMultiTrackSelector::selectVertices(unsigned int tsNum,
   for (VertexCollection::const_iterator it = vtxs.begin(), ed = vtxs.end(); it != ed; ++it) {
     LogDebug("SelectVertex") << " select vertex with z position " << it->z() << " " << it->chi2() << " " << it->ndof()
                              << " " << TMath::Prob(it->chi2(), static_cast<int32_t>(it->ndof()));
-    Vertex vtx = *it;
+    const Vertex &vtx = *it;
     bool pass = vertexCut_[tsNum](vtx);
     if (pass) {
       points.push_back(it->position());

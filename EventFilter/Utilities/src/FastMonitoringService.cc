@@ -9,6 +9,7 @@
 #include "FWCore/ServiceRegistry/interface/PathContext.h"
 #include "EventFilter/Utilities/interface/EvFDaqDirector.h"
 #include "EventFilter/Utilities/interface/FedRawDataInputSource.h"
+#include "EventFilter/Utilities/interface/DAQSource.h"
 #include "EventFilter/Utilities/interface/FileIO.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/UnixSignalHandlers.h"
@@ -132,7 +133,8 @@ namespace evf {
         fastName_("fastmoni"),
         slowName_("slowmoni"),
         filePerFwkStream_(iPS.getUntrackedParameter<bool>("filePerFwkStream", false)),
-        totalEventsProcessed_(0) {
+        totalEventsProcessed_(0),
+        verbose_(iPS.getUntrackedParameter<bool>("verbose")) {
     reg.watchPreallocate(this, &FastMonitoringService::preallocate);  //receiving information on number of threads
     reg.watchJobFailure(this, &FastMonitoringService::jobFailure);    //global
 
@@ -193,6 +195,7 @@ namespace evf {
         ->setComment("Modulo of sleepTime intervals on which fastmon file is written out");
     desc.addUntracked<bool>("filePerFwkStream", false)
         ->setComment("Switches on monitoring output per framework stream");
+    desc.addUntracked<bool>("verbose", false)->setComment("Set to use LogInfo messages from the monitoring thread");
     desc.setAllowAnything();
     descriptions.add("FastMonitoringService", desc);
   }
@@ -385,6 +388,7 @@ namespace evf {
         << " LS:" << sc.eventID().luminosityBlock() << " " << context;
     std::lock_guard<std::mutex> lock(fmt_->monlock_);
     exceptionInLS_.push_back(sc.eventID().luminosityBlock());
+    has_data_exception_.store(true);
   }
 
   void FastMonitoringService::preGlobalEarlyTermination(edm::GlobalContext const& gc, edm::TerminationOrigin to) {
@@ -400,6 +404,7 @@ namespace evf {
         << "earlyTermination -: LS:" << gc.luminosityBlockID().luminosityBlock() << " " << context;
     std::lock_guard<std::mutex> lock(fmt_->monlock_);
     exceptionInLS_.push_back(gc.luminosityBlockID().luminosityBlock());
+    has_data_exception_.store(true);
   }
 
   void FastMonitoringService::preSourceEarlyTermination(edm::TerminationOrigin to) {
@@ -414,13 +419,33 @@ namespace evf {
                                              << "earlyTermination -: " << context;
     std::lock_guard<std::mutex> lock(fmt_->monlock_);
     exception_detected_ = true;
+    has_source_exception_.store(true);
+    has_data_exception_.store(true);
   }
 
   void FastMonitoringService::setExceptionDetected(unsigned int ls) {
+    std::lock_guard<std::mutex> lock(fmt_->monlock_);
     if (!ls)
       exception_detected_ = true;
     else
       exceptionInLS_.push_back(ls);
+  }
+
+  bool FastMonitoringService::exceptionDetected() const {
+    return has_source_exception_.load() || has_data_exception_.load();
+  }
+
+  bool FastMonitoringService::isExceptionOnData(unsigned int ls) {
+    if (!has_data_exception_.load())
+      return false;
+    if (has_source_exception_.load())
+      return true;
+    std::lock_guard<std::mutex> lock(fmt_->monlock_);
+    for (auto ex : exceptionInLS_) {
+      if (ls == ex)
+        return true;
+    }
+    return false;
   }
 
   void FastMonitoringService::jobFailure() { fmt_->m_data.macrostate_ = FastMonState::sError; }
@@ -432,7 +457,7 @@ namespace evf {
 
     //build a map of modules keyed by their module description address
     //here we need to treat output modules in a special way so they can be easily singled out
-    if (desc.moduleName() == "Stream" || desc.moduleName() == "ShmStreamConsumer" ||
+    if (desc.moduleName() == "Stream" || desc.moduleName() == "GlobalEvFOutputModule" ||
         desc.moduleName() == "EvFOutputModule" || desc.moduleName() == "EventStreamFileWriter" ||
         desc.moduleName() == "PoolOutputModule") {
       fmt_->m_data.encModule_.updateReserved((void*)&desc);
@@ -524,8 +549,9 @@ namespace evf {
       return;
     }
 
-    if (inputSource_) {
-      auto sourceReport = inputSource_->getEventReport(lumi, true);
+    if (inputSource_ || daqInputSource_) {
+      auto sourceReport =
+          inputSource_ ? inputSource_->getEventReport(lumi, true) : daqInputSource_->getEventReport(lumi, true);
       if (sourceReport.first) {
         if (sourceReport.second != processedEventsPerLumi_[lumi].first) {
           throw cms::Exception("FastMonitoringService") << "MISMATCH with SOURCE update. LUMI -: " << lumi
@@ -534,6 +560,7 @@ namespace evf {
         }
       }
     }
+
     edm::LogInfo("FastMonitoringService")
         << "Statistics for lumisection -: lumi = " << lumi << " events = " << lumiProcessedJptr->value()
         << " time = " << usecondsForLumi / 1000000 << " size = " << accuSize << " thr = " << throughput;
@@ -762,7 +789,7 @@ namespace evf {
     while (!fmt_->m_stoprequest) {
       std::vector<std::vector<unsigned int>> lastEnc;
       {
-        std::lock_guard<std::mutex> lock(fmt_->monlock_);
+        std::unique_lock<std::mutex> lock(fmt_->monlock_);
 
         doSnapshot(lastGlobalLumi_, false);
 
@@ -775,15 +802,16 @@ namespace evf {
             for (unsigned int i = 0; i < nStreams_; i++) {
               CSVv.push_back(fmt_->jsonMonitor_->getCSVString((int)i));
             }
-            fmt_->monlock_.unlock();
+            // release mutex before writing out fast path file
+            lock.release()->unlock();
             for (unsigned int i = 0; i < nStreams_; i++) {
               if (!CSVv[i].empty())
                 fmt_->jsonMonitor_->outputCSV(fastPathList_[i], CSVv[i]);
             }
           } else {
             std::string CSV = fmt_->jsonMonitor_->getCSVString();
-            //release mutex before writing out fast path file
-            fmt_->monlock_.unlock();
+            // release mutex before writing out fast path file
+            lock.release()->unlock();
             if (!CSV.empty())
               fmt_->jsonMonitor_->outputCSV(fastPath_, CSV);
           }
@@ -791,24 +819,25 @@ namespace evf {
         snapCounter_++;
       }
 
-      std::stringstream accum;
-      std::function<void(std::vector<unsigned int>)> f = [&](std::vector<unsigned int> p) {
-        for (unsigned int i = 0; i < nStreams_; i++) {
-          if (i == 0)
-            accum << "[" << p[i] << ",";
-          else if (i <= nStreams_ - 1)
-            accum << p[i] << ",";
-          else
-            accum << p[i] << "]";
-        }
-      };
+      if (verbose_) {
+        edm::LogInfo msg("FastMonitoringService");
+        auto f = [&](std::vector<unsigned int> const& p) {
+          for (unsigned int i = 0; i < nStreams_; i++) {
+            if (i == 0)
+              msg << "[" << p[i] << ",";
+            else if (i <= nStreams_ - 1)
+              msg << p[i] << ",";
+            else
+              msg << p[i] << "]";
+          }
+        };
 
-      accum << "Current states: Ms=" << fmt_->m_data.fastMacrostateJ_.value() << " ms=";
-      f(lastEnc[0]);
-      accum << " us=";
-      f(lastEnc[1]);
-      accum << " is=" << inputStateNames[inputState_] << " iss=" << inputStateNames[inputSupervisorState_];
-      edm::LogInfo("FastMonitoringService") << accum.str();
+        msg << "Current states: Ms=" << fmt_->m_data.fastMacrostateJ_.value() << " ms=";
+        f(lastEnc[0]);
+        msg << " us=";
+        f(lastEnc[1]);
+        msg << " is=" << inputStateNames[inputState_] << " iss=" << inputStateNames[inputSupervisorState_];
+      }
 
       ::sleep(sleepTime_);
     }

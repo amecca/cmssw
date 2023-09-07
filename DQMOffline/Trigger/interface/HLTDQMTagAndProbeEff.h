@@ -58,7 +58,6 @@ namespace {
 template <typename TagType, typename TagCollType, typename ProbeType = TagType, typename ProbeCollType = TagCollType>
 class HLTDQMTagAndProbeEff {
 public:
-  typedef dqm::legacy::MonitorElement MonitorElement;
   typedef dqm::legacy::DQMStore DQMStore;
 
   explicit HLTDQMTagAndProbeEff(const edm::ParameterSet& pset, edm::ConsumesCollector&& cc);
@@ -181,6 +180,7 @@ edm::ParameterSetDescription HLTDQMTagAndProbeEff<TagType, TagCollType, ProbeTyp
   trigEvtFlagDesc.add<unsigned int>("verbosityLevel", 1);
   trigEvtFlagDesc.add<bool>("andOrDcs", false);
   trigEvtFlagDesc.add<edm::InputTag>("dcsInputTag", edm::InputTag("scalersRawToDigi"));
+  trigEvtFlagDesc.add<edm::InputTag>("dcsRecordInputTag", edm::InputTag("onlineMetaDataDigis"));
   trigEvtFlagDesc.add<std::vector<int> >("dcsPartitions", {24, 25, 26, 27, 28, 29});
   trigEvtFlagDesc.add<bool>("errorReplyDcs", true);
   trigEvtFlagDesc.add<std::string>("dbLabel", "");

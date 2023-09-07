@@ -47,10 +47,10 @@ AlignmentProducerBase::AlignmentProducerBase(const edm::ParameterSet& config, ed
       saveDeformationsToDB_{config.getParameter<bool>("saveDeformationsToDB")},
       useSurvey_{config.getParameter<bool>("useSurvey")},
       enableAlignableUpdates_{config.getParameter<bool>("enableAlignableUpdates")},
+      tkAliRcdName_{config.getParameter<std::string>("trackerAlignmentRcdName")},
       ttopoToken_(iC.esConsumes<edm::Transition::BeginRun>()),
       geomDetToken_(iC.esConsumes<edm::Transition::BeginRun>()),
       ptpToken_(iC.esConsumes<edm::Transition::BeginRun>()),
-      ptitpToken_(iC.esConsumes<edm::Transition::BeginRun>()),
       dtGeomToken_(iC.esConsumes<edm::Transition::BeginRun>(edm::ESInputTag("", "idealForAlignmentProducerBase"))),
       cscGeomToken_(iC.esConsumes<edm::Transition::BeginRun>(edm::ESInputTag("", "idealForAlignmentProducerBase"))),
       gemGeomToken_(iC.esConsumes<edm::Transition::BeginRun>(edm::ESInputTag("", "idealForAlignmentProducerBase"))),
@@ -93,7 +93,7 @@ AlignmentProducerBase::AlignmentProducerBase(const edm::ParameterSet& config, ed
 
   createAlignmentAlgorithm(iC);
   createMonitors(iC);
-  createCalibrations();
+  createCalibrations(iC);
 }
 
 //------------------------------------------------------------------------------
@@ -297,11 +297,11 @@ void AlignmentProducerBase::createMonitors(edm::ConsumesCollector& iC) {
 }
 
 //------------------------------------------------------------------------------
-void AlignmentProducerBase::createCalibrations() {
+void AlignmentProducerBase::createCalibrations(edm::ConsumesCollector& iC) {
   const auto& calibrations = config_.getParameter<edm::VParameterSet>("calibrations");
   for (const auto& iCalib : calibrations) {
-    calibrations_.emplace_back(
-        IntegratedCalibrationPluginFactory::get()->create(iCalib.getParameter<std::string>("calibrationName"), iCalib));
+    calibrations_.emplace_back(IntegratedCalibrationPluginFactory::get()->create(
+        iCalib.getParameter<std::string>("calibrationName"), iCalib, iC));
   }
 }
 
@@ -431,9 +431,8 @@ void AlignmentProducerBase::createGeometries(const edm::EventSetup& iSetup, cons
   if (doTracker_) {
     const GeometricDet* geometricDet = &iSetup.getData(geomDetToken_);
     const PTrackerParameters* ptp = &iSetup.getData(ptpToken_);
-    const PTrackerAdditionalParametersPerDet* ptitp = &iSetup.getData(ptitpToken_);
     TrackerGeomBuilderFromGeometricDet trackerBuilder;
-    trackerGeometry_ = std::shared_ptr<TrackerGeometry>(trackerBuilder.build(geometricDet, ptitp, *ptp, tTopo));
+    trackerGeometry_ = std::shared_ptr<TrackerGeometry>(trackerBuilder.build(geometricDet, *ptp, tTopo));
   }
 
   if (doMuon_) {
@@ -853,12 +852,11 @@ void AlignmentProducerBase::writeForRunRange(cond::Time_t time) {
 
     auto alignments = alignableTracker_->alignments();
     auto alignmentErrors = alignableTracker_->alignmentErrors();
-    this->writeDB(
-        alignments, "TrackerAlignmentRcd", alignmentErrors, "TrackerAlignmentErrorExtendedRcd", trackerGlobal, time);
+    this->writeDB(alignments, tkAliRcdName_, alignmentErrors, "TrackerAlignmentErrorExtendedRcd", trackerGlobal, time);
 
     // Save surface deformations to database
     if (saveDeformationsToDB_) {
-      auto alignmentSurfaceDeformations = alignableTracker_->surfaceDeformations();
+      const auto alignmentSurfaceDeformations = *(alignableTracker_->surfaceDeformations());
       this->writeDB(alignmentSurfaceDeformations, "TrackerSurfaceDeformationRcd", time);
     }
   }
@@ -894,7 +892,7 @@ void AlignmentProducerBase::writeDB(Alignments* alignments,
   edm::Service<cond::service::PoolDBOutputService> poolDb;
   if (!poolDb.isAvailable()) {           // Die if not available
     delete tempAlignments;               // promised to take over ownership...
-    delete tempAlignmentErrorsExtended;  // dito
+    delete tempAlignmentErrorsExtended;  // ditto
     throw cms::Exception("NotAvailable") << "PoolDBOutputService not available";
   }
 
@@ -917,35 +915,32 @@ void AlignmentProducerBase::writeDB(Alignments* alignments,
 
   if (saveToDB_) {
     edm::LogInfo("Alignment") << "Writing Alignments for run " << time << " to " << alignRcd << ".";
-    poolDb->writeOne<Alignments>(tempAlignments, time, alignRcd);
-  } else {                  // poolDb->writeOne(..) takes over 'alignments' ownership,...
+    poolDb->writeOneIOV<Alignments>(*tempAlignments, time, alignRcd);
+  } else {
     delete tempAlignments;  // ...otherwise we have to delete, as promised!
   }
 
   if (saveApeToDB_) {
     edm::LogInfo("Alignment") << "Writing AlignmentErrorsExtended for run " << time << " to " << errRcd << ".";
-    poolDb->writeOne<AlignmentErrorsExtended>(tempAlignmentErrorsExtended, time, errRcd);
-  } else {                               // poolDb->writeOne(..) takes over 'alignmentErrors' ownership,...
+    poolDb->writeOneIOV<AlignmentErrorsExtended>(*tempAlignmentErrorsExtended, time, errRcd);
+  } else {
     delete tempAlignmentErrorsExtended;  // ...otherwise we have to delete, as promised!
   }
 }
 
 //------------------------------------------------------------------------------
-void AlignmentProducerBase::writeDB(AlignmentSurfaceDeformations* alignmentSurfaceDeformations,
+void AlignmentProducerBase::writeDB(const AlignmentSurfaceDeformations& alignmentSurfaceDeformations,
                                     const std::string& surfaceDeformationRcd,
                                     cond::Time_t time) const {
   // Call service
   edm::Service<cond::service::PoolDBOutputService> poolDb;
-  if (!poolDb.isAvailable()) {            // Die if not available
-    delete alignmentSurfaceDeformations;  // promised to take over ownership...
+  if (!poolDb.isAvailable()) {  // Die if not available
     throw cms::Exception("NotAvailable") << "PoolDBOutputService not available";
   }
 
   if (saveDeformationsToDB_) {
     edm::LogInfo("Alignment") << "Writing AlignmentSurfaceDeformations for run " << time << " to "
                               << surfaceDeformationRcd << ".";
-    poolDb->writeOne<AlignmentSurfaceDeformations>(alignmentSurfaceDeformations, time, surfaceDeformationRcd);
-  } else {                                // poolDb->writeOne(..) takes over 'surfaceDeformation' ownership,...
-    delete alignmentSurfaceDeformations;  // ...otherwise we have to delete, as promised!
+    poolDb->writeOneIOV<AlignmentSurfaceDeformations>(alignmentSurfaceDeformations, time, surfaceDeformationRcd);
   }
 }

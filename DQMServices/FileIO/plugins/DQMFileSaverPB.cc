@@ -43,6 +43,17 @@ DQMFileSaverPB::DQMFileSaverPB(const edm::ParameterSet& ps) : DQMFileSaverBase(p
   if (tag_ != "UNKNOWN") {
     streamLabel_ = "DQMLive";
   }
+
+  if (!fakeFilterUnitMode_) {
+    if (!edm::Service<evf::EvFDaqDirector>().isAvailable())
+      throw cms::Exception("DQMFileSaverPB") << "EvFDaqDirector is not available";
+    std::string initFileName = edm::Service<evf::EvFDaqDirector>()->getInitFilePath(streamLabel_);
+    std::ofstream file(initFileName);
+    if (!file)
+      throw cms::Exception("DQMFileSaverPB")
+          << "Cannot create INI file: " << initFileName << " error: " << strerror(errno);
+    file.close();
+  }
 }
 
 DQMFileSaverPB::~DQMFileSaverPB() = default;
@@ -51,13 +62,6 @@ void DQMFileSaverPB::initRun() const {
   if (!fakeFilterUnitMode_) {
     transferDestination_ = edm::Service<evf::EvFDaqDirector>()->getStreamDestinations(streamLabel_);
     mergeType_ = edm::Service<evf::EvFDaqDirector>()->getStreamMergeType(streamLabel_, evf::MergeTypePB);
-  }
-
-  if (!fakeFilterUnitMode_) {
-    evf::EvFDaqDirector* daqDirector = (evf::EvFDaqDirector*)(edm::Service<evf::EvFDaqDirector>().operator->());
-    const std::string initFileName = daqDirector->getInitFilePath(streamLabel_);
-    std::ofstream file(initFileName);
-    file.close();
   }
 }
 
@@ -103,13 +107,17 @@ void DQMFileSaverPB::saveLumi(const FileParameters& fp) const {
     fms = (evf::FastMonitoringService*)(edm::Service<evf::MicroStateService>().operator->());
   }
 
-  if (fms ? fms->getEventsProcessedForLumi(fp.lumi_) : true) {
+  bool abortFlag = false;
+  if (fms ? fms->getEventsProcessedForLumi(fp.lumi_, &abortFlag) : true) {
     // Save the file in the open directory.
     this->savePB(&*store, openHistoFilePathName, fp.run_, fp.lumi_);
 
     // Now move the the data and json files into the output directory.
     ::rename(openHistoFilePathName.c_str(), histoFilePathName.c_str());
   }
+
+  if (abortFlag)
+    return;
 
   // Write the json file in the open directory.
   bpt::ptree pt = fillJson(fp.run_, fp.lumi_, histoFilePathName, transferDestination_, mergeType_, fms);
@@ -255,9 +263,9 @@ void DQMFileSaverPB::savePB(DQMStore* store, std::string const& filename, int ru
     } else {
       // Compress ME blob with zlib
       int maxOutputSize = this->getMaxCompressedSize(buffer.Length());
-      char compression_output[maxOutputSize];
-      uLong total_out = this->compressME(buffer, maxOutputSize, compression_output);
-      histo.set_streamed_histo(compression_output, total_out);
+      std::vector<char> compression_output(maxOutputSize);
+      uLong total_out = this->compressME(buffer, maxOutputSize, compression_output.data());
+      histo.set_streamed_histo(compression_output.data(), total_out);
     }
 
     // Save quality reports
@@ -285,9 +293,10 @@ void DQMFileSaverPB::savePB(DQMStore* store, std::string const& filename, int ru
       } else {
         // Compress ME blob with zlib
         int maxOutputSize = this->getMaxCompressedSize(qr_buffer.Length());
-        char compression_output[maxOutputSize];
+        char* compression_output = new char[maxOutputSize];
         uLong total_out = this->compressME(qr_buffer, maxOutputSize, compression_output);
         qr_histo.set_streamed_histo(compression_output, total_out);
+        delete[] compression_output;
       }
     }
 
@@ -311,19 +320,16 @@ void DQMFileSaverPB::savePB(DQMStore* store, std::string const& filename, int ru
     GzipOutputStream gzip_stream(&file_stream, options);
     dqmstore_message.SerializeToZeroCopyStream(&gzip_stream);
 
-    // Flush the internal streams
+    // Flush the internal streams & Close the file descriptor
     gzip_stream.Close();
     file_stream.Close();
   } else {
     // We zlib compressed individual MEs so no need to compress the entire file again.
     dqmstore_message.SerializeToZeroCopyStream(&file_stream);
 
-    // Flush the internal stream
+    // Flush the internal stream & Close the file descriptor
     file_stream.Close();
   }
-
-  // Close the file descriptor
-  ::close(filedescriptor);
 
   // Maybe make some noise.
   edm::LogInfo("DQMFileSaverPB") << "savePB: successfully wrote " << nme << " objects  "

@@ -34,12 +34,12 @@ namespace edm {
   class ParameterSet;
 
   namespace eventsetup {
-    class DataProxyProvider;
+    class ESProductResolverProvider;
     class EventSetupsController;
 
     template <class T>
-    void addProviderTo(EventSetupProvider& iProvider, std::shared_ptr<T> iComponent, const DataProxyProvider*) {
-      std::shared_ptr<DataProxyProvider> pProvider(iComponent);
+    void addProviderTo(EventSetupProvider& iProvider, std::shared_ptr<T> iComponent, const ESProductResolverProvider*) {
+      std::shared_ptr<ESProductResolverProvider> pProvider(iComponent);
       ComponentDescription description = pProvider->description();
       description.isSource_ = true;
       pProvider->setDescription(description);
@@ -53,6 +53,7 @@ namespace edm {
     struct SourceMakerTraits {
       typedef EventSetupRecordIntervalFinder base_type;
       static std::string name();
+      static std::string const& baseType();
       template <class T>
       static void addTo(EventSetupProvider& iProvider,
                         std::shared_ptr<T> iComponent,

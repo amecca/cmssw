@@ -117,17 +117,13 @@ void IsolatedEcalPixelTrackCandidateProducer::produce(edm::StreamID,
 #endif
   const CaloGeometry* geo = &iSetup.getData(tok_geom_);
 
-  edm::Handle<EcalRecHitCollection> ecalEB;
-  iEvent.getByToken(tok_eb, ecalEB);
-
-  edm::Handle<EcalRecHitCollection> ecalEE;
-  iEvent.getByToken(tok_ee, ecalEE);
+  const edm::Handle<EcalRecHitCollection>& ecalEB = iEvent.getHandle(tok_eb);
+  const edm::Handle<EcalRecHitCollection>& ecalEE = iEvent.getHandle(tok_ee);
 #ifdef EDM_ML_DEBUG
   edm::LogVerbatim("HcalIsoTrack") << "ecal Collections isValid: " << ecalEB.isValid() << "/" << ecalEE.isValid();
 #endif
 
-  edm::Handle<trigger::TriggerFilterObjectWithRefs> trigCand;
-  iEvent.getByToken(tok_trigcand, trigCand);
+  const edm::Handle<trigger::TriggerFilterObjectWithRefs>& trigCand = iEvent.getHandle(tok_trigcand);
 
   std::vector<edm::Ref<reco::IsolatedPixelTrackCandidateCollection> > isoPixTrackRefs;
   trigCand->getObjects(trigger::TriggerTrack, isoPixTrackRefs);
@@ -155,19 +151,16 @@ void IsolatedEcalPixelTrackCandidateProducer::produce(edm::StreamID,
                                      << " coneSize_: " << coneSize_;
 #endif
     if (etaAbs < 1.7) {
-      int nin(0), nout(0);
       for (auto eItr : *(ecalEB.product())) {
         const GlobalPoint& pos = geo->getPosition(eItr.detid());
         double R = reco::deltaR(pos.eta(), pos.phi(), etaPhi.first, etaPhi.second);
         if (R < coneSize_) {
           nhitIn++;
           inEnergy += (eItr.energy());
-          ++nin;
           if (eItr.energy() > hitCountEthrEB_)
             nhitOut++;
           if (eItr.energy() > hitEthrEB_) {
             outEnergy += (eItr.energy());
-            ++nout;
           }
 #ifdef EDM_ML_DEBUG
           edm::LogVerbatim("HcalIsoTrack") << "EBRechit close to the track has E " << eItr.energy()
@@ -177,7 +170,6 @@ void IsolatedEcalPixelTrackCandidateProducer::produce(edm::StreamID,
       }
     }
     if (etaAbs > 1.25) {
-      int nin(0), nout(0);
       for (auto eItr : *(ecalEE.product())) {
         const GlobalPoint& pos = geo->getPosition(eItr.detid());
         double R = reco::deltaR(pos.eta(), pos.phi(), etaPhi.first, etaPhi.second);
@@ -188,12 +180,10 @@ void IsolatedEcalPixelTrackCandidateProducer::produce(edm::StreamID,
             hitEthr = hitEthrEB_;
           nhitIn++;
           inEnergy += (eItr.energy());
-          ++nin;
           if (eItr.energy() > fachitCountEE_ * hitEthr)
             nhitOut++;
           if (eItr.energy() > hitEthr) {
             outEnergy += (eItr.energy());
-            ++nout;
           }
 #ifdef EDM_ML_DEBUG
           edm::LogVerbatim("HcalIsoTrack") << "EERechit close to the track has E " << eItr.energy()

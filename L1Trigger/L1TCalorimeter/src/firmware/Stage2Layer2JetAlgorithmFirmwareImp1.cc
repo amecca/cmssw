@@ -102,6 +102,7 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::create(const std::vector<l1t::Ca
           const CaloTower& tow = CaloTools::getTower(towers, CaloTools::caloEta(ieta), iphi);
 
           int seedEt = tow.hwPt();
+          int iDelay = (tow.hwQual() & 0b0100) >> 2;
           int iEt = seedEt;
           bool satSeed = false;
           bool vetoCandidate = false;
@@ -117,6 +118,7 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::create(const std::vector<l1t::Ca
           for (int deta = -4; deta < 5; ++deta) {
             for (int dphi = -4; dphi < 5; ++dphi) {
               int towEt = 0;
+              int towDelay = 0;
               int ietaTest = ieta + deta;
               int iphiTest = iphi + dphi;
 
@@ -135,6 +137,7 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::create(const std::vector<l1t::Ca
               // check jet mask and sum tower et
               const CaloTower& towTest = CaloTools::getTower(towers, CaloTools::caloEta(ietaTest), iphiTest);
               towEt = towTest.hwPt();
+              towDelay = (towTest.hwQual() & 0b0100) >> 2;
 
               if (mask_[8 - (dphi + 4)][deta + 4] == 0)
                 continue;
@@ -145,8 +148,11 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::create(const std::vector<l1t::Ca
 
               if (vetoCandidate)
                 break;
-              else
+              else {
                 iEt += towEt;
+                if (abs(ieta) < 29 && abs(ietaTest) < 29)
+                  iDelay += towDelay;  // don't include HF feature bits in HBHE flagged jets
+              }
             }
             if (vetoCandidate)
               break;
@@ -239,6 +245,8 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::create(const std::vector<l1t::Ca
               iEt = CaloTools::kSatJet;
 
             jet.setHwPt(iEt);
+            if (iDelay >= 2)
+              jet.setHwQual(1);
             jet.setRawEt((short int)rawEt);
             jet.setSeedEt((short int)seedEt);
             jet.setTowerIEta((short int)caloEta);
@@ -668,7 +676,7 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::calibrate(std::vector<l1t::Jet>&
       }
 
       double ptPhys = jet->hwPt() * params_->jetLsb();
-      double correction = params[7];
+      double correction;
 
       if (ptPhys < params[8])
         correction = params[7];
@@ -684,6 +692,7 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::calibrate(std::vector<l1t::Jet>&
     // Calibrate using 3 LUTs: pt and eta compression LUTs, and a multiplicand/addend LUT.
     // The pt and eta are each converted to a compressed scale using individual LUTs
     // pt : 8 -> 4 bits, eta 6 -> 4 bits
+    // **updated** pt : 8 -> 6 bits, eta 6 -> 6 bits (uncompressed)
     // This then forms an address. Using the third LUT, we get a
     // multiplicand & addend, so we can do y = m*x + c on the original
     // (i.e. non-compressed) jet pt.
@@ -706,9 +715,11 @@ void l1t::Stage2Layer2JetAlgorithmFirmwareImp1::calibrate(std::vector<l1t::Jet>&
       if (jetHwPt >= 0x200) {
         jetHwPt = 0x1FF;
       }
+
+      unsigned int ptCompNrBits = params_->jetCompressPtLUT()->nrBitsData();
       unsigned int ptBin = params_->jetCompressPtLUT()->data(jetHwPt >> 1);
       unsigned int etaBin = params_->jetCompressEtaLUT()->data(abs(CaloTools::mpEta(jet->hwEta())));
-      unsigned int compBin = (etaBin << 4) | ptBin;
+      unsigned int compBin = (etaBin << ptCompNrBits) | ptBin;
 
       unsigned int addPlusMult = params_->jetCalibrationLUT()->data(compBin);
       unsigned int multiplier = addPlusMult & 0x3ff;

@@ -51,6 +51,7 @@ private:
   int m_rotNumSeed;
   std::string m_fname;
   std::ostream* m_xos;
+  edm::ESGetToken<DDCompactView, IdealMagneticFieldRecord> ddToken_;
 };
 
 bool ddsvaluesCmp::operator()(const DDsvalues_type& sv1, const DDsvalues_type& sv2) const {
@@ -86,6 +87,8 @@ OutputMagneticFieldDDToDDL::OutputMagneticFieldDDToDDL(const edm::ParameterSet& 
   (*m_xos) << " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n";
   (*m_xos) << "xsi:schemaLocation=\"http://www.cern.ch/cms/DDL ../../../DetectorDescription/Schema/DDLSchema.xsd\">\n";
   (*m_xos) << std::fixed << std::setprecision(18);
+
+  ddToken_ = esConsumes<DDCompactView, IdealMagneticFieldRecord>();
 }
 
 OutputMagneticFieldDDToDDL::~OutputMagneticFieldDDToDDL() {
@@ -97,8 +100,7 @@ OutputMagneticFieldDDToDDL::~OutputMagneticFieldDDToDDL() {
 void OutputMagneticFieldDDToDDL::beginRun(const edm::Run&, edm::EventSetup const& es) {
   edm::LogInfo("OutputMagneticFieldDDToDDL") << "OutputMagneticFieldDDToDDL::beginRun";
 
-  edm::ESTransientHandle<DDCompactView> pDD;
-  es.get<IdealMagneticFieldRecord>().get(pDD);
+  edm::ESTransientHandle<DDCompactView> pDD = es.getTransientHandle(ddToken_);
 
   const auto& gra = pDD->graph();
 
@@ -140,7 +142,6 @@ void OutputMagneticFieldDDToDDL::beginRun(const edm::Run&, edm::EventSetup const
   adjl_iterator git = gra.begin();
   adjl_iterator gend = gra.end();
 
-  Graph::index_type i = 0;
   (*m_xos) << "<PosPartSection label=\"" << ns_ << "\">\n";
   git = gra.begin();
   for (; git != gend; ++git) {
@@ -151,7 +152,6 @@ void OutputMagneticFieldDDToDDL::beginRun(const edm::Run&, edm::EventSetup const
     lpStore.insert(ddLP);
     addToMatStore(ddLP.material(), matStore);
     addToSolStore(ddLP.solid(), solStore, rotStore);
-    ++i;
     if (!git->empty()) {
       // ask for children of ddLP
       auto cit = git->begin();
@@ -189,7 +189,7 @@ void OutputMagneticFieldDDToDDL::beginRun(const edm::Run&, edm::EventSetup const
     if (!rit->isDefined().second)
       continue;
     if (rit->toString() != ":") {
-      DDRotation r(*rit);
+      const DDRotation& r(*rit);
       out.rotation(r, *m_xos);
     }
   }

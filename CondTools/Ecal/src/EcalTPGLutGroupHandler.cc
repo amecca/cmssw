@@ -119,7 +119,7 @@ void popcon::EcalTPGLutGroupHandler::getNewObjects() {
 
   readFromFile("last_tpg_lutGroup_settings.txt");
 
-  unsigned int min_run = m_i_run_number + 1;
+  unsigned int min_run;
 
   if (m_firstRun < m_i_run_number) {
     min_run = m_i_run_number + 1;
@@ -214,7 +214,6 @@ void popcon::EcalTPGLutGroupHandler::getNewObjects() {
             typedef std::map<EcalLogicID, FEConfigLUTDat>::const_iterator CIfelut;
             EcalLogicID ecid_xt;
             FEConfigLUTDat rd_lut;
-            int itowers = 0;
 
             for (CIfelut p = dataset_TpgLut.begin(); p != dataset_TpgLut.end(); p++) {
               ecid_xt = p->first;
@@ -247,7 +246,6 @@ void popcon::EcalTPGLutGroupHandler::getNewObjects() {
 		      */
 
                 lut->setValue(towid.rawId(), rd_lut.getLUTGroupId());
-                ++itowers;
               } else if (ecid_name == "EE_trigger_tower") {
                 // EE data
                 // TCC number
@@ -273,8 +271,6 @@ void popcon::EcalTPGLutGroupHandler::getNewObjects() {
                 } else {
                   std::cout << " these may be the additional towers TCC/TT " << tccid << "/" << towerid << std::endl;
                 }
-
-                ++itowers;
               }
             }
 

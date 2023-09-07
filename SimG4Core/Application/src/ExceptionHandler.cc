@@ -1,7 +1,7 @@
 #include "SimG4Core/Application/interface/ExceptionHandler.h"
-#include "SimG4Core/Notification/interface/SimG4Exception.h"
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/Utilities/interface/Exception.h"
 
 #include "G4EventManager.hh"
 #include "G4TrackingManager.hh"
@@ -9,7 +9,7 @@
 #include "globals.hh"
 #include <sstream>
 
-ExceptionHandler::ExceptionHandler(double th) : m_eth(th) {}
+ExceptionHandler::ExceptionHandler(double th, bool tr) : m_eth(th), m_trace(tr) {}
 
 ExceptionHandler::~ExceptionHandler() {}
 
@@ -22,7 +22,7 @@ bool ExceptionHandler::Notify(const char* exceptionOrigin,
   static const G4String ws_banner = "\n-------- WWWW ------- G4Exception-START -------- WWWW -------\n";
   static const G4String we_banner = "\n-------- WWWW -------- G4Exception-END --------- WWWW -------\n";
 
-  const G4Track* track = G4EventManager::GetEventManager()->GetTrackingManager()->GetTrack();
+  G4Track* track = G4EventManager::GetEventManager()->GetTrackingManager()->GetTrack();
   double ekin = m_eth;
 
   std::stringstream message;
@@ -33,14 +33,18 @@ bool ExceptionHandler::Notify(const char* exceptionOrigin,
   // part of exception happens outside tracking loop
   if (nullptr != track) {
     ekin = track->GetKineticEnergy();
-    message << "\n"
+    message << "\n CMS info: "
             << "TrackID=" << track->GetTrackID() << " ParentID=" << track->GetParentID() << "  "
             << track->GetParticleDefinition()->GetParticleName() << "; Ekin(MeV)=" << ekin / CLHEP::MeV
             << "; time(ns)=" << track->GetGlobalTime() / CLHEP::ns << "; status=" << track->GetTrackStatus()
             << "\n   position(mm): " << track->GetPosition() << "; direction: " << track->GetMomentumDirection();
     const G4VPhysicalVolume* vol = track->GetVolume();
     if (nullptr != vol) {
-      message << "\n   PhysicalVolume: " << vol->GetName() << "; material: " << track->GetMaterial()->GetName();
+      message << "\n   PhysicalVolume: " << vol->GetName() << ";";
+      const G4LogicalVolume* lv = vol->GetLogicalVolume();
+      if (nullptr != lv) {
+        message << " material: " << lv->GetMaterial()->GetName();
+      }
     }
     message << "\n   stepNumber=" << track->GetCurrentStepNumber()
             << "; stepLength(mm)=" << track->GetStepLength() / CLHEP::mm << "; weight=" << track->GetWeight();
@@ -49,28 +53,37 @@ bool ExceptionHandler::Notify(const char* exceptionOrigin,
       message << "; creatorProcess: " << proc->GetProcessName() << "; modelID=" << track->GetCreatorModelID();
     }
   }
-  message << "\n";
+  message << " \n";
 
   G4ExceptionSeverity localSeverity = severity;
-  G4String code = G4String(*exceptionCode);
-  if (ekin < m_eth && code == "GeomNav0003") {
+  std::stringstream mescode;
+  mescode << exceptionCode << "\n";
+  G4String code;
+  mescode >> code;
+
+  // track is killed
+  if (ekin < m_eth && (code == "GeomNav0003" || code == "GeomField0003")) {
     localSeverity = JustWarning;
+    track->SetTrackStatus(fStopAndKill);
+    ++m_number;
   }
 
-  std::stringstream ss;
+  bool res = false;
   switch (localSeverity) {
     case FatalException:
     case FatalErrorInArgument:
     case RunMustBeAborted:
     case EventMustBeAborted:
-      ss << es_banner << message.str() << ee_banner;
-      throw SimG4Exception(ss.str());
+      edm::LogWarning("SimG4CoreApplication") << es_banner << message.str() << ee_banner;
+      throw cms::Exception("Geant4 fatal exception");
+      res = m_trace;
       break;
 
     case JustWarning:
-      edm::LogWarning("SimG4CoreApplication")
-          << ws_banner << message.str() << "*** This is just a warning message. ***" << we_banner;
+      if (m_number < 20)
+        edm::LogWarning("SimG4CoreApplication")
+            << ws_banner << message.str() << "*** This is just a warning message. ***" << we_banner;
       break;
   }
-  return false;
+  return res;
 }

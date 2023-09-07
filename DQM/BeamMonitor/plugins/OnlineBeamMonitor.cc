@@ -8,7 +8,6 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DQM/BeamMonitor/plugins/OnlineBeamMonitor.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/Common/interface/View.h"
@@ -32,7 +31,10 @@ OnlineBeamMonitor::OnlineBeamMonitor(const ParameterSet& ps)
       bsTransientToken_(esConsumes<edm::Transition::BeginLuminosityBlock>()),
       bsHLTToken_(esConsumes<edm::Transition::BeginLuminosityBlock>()),
       bsLegacyToken_(esConsumes<edm::Transition::BeginLuminosityBlock>()),
-      numberOfValuesToSave_(0) {
+      numberOfValuesToSave_(0),
+      appendRunTxt_(ps.getUntrackedParameter<bool>("AppendRunToFileName")),
+      writeDIPTxt_(ps.getUntrackedParameter<bool>("WriteDIPAscii")),
+      outputDIPTxt_(ps.getUntrackedParameter<std::string>("DIPFileName")) {
   if (!monitorName_.empty())
     monitorName_ = monitorName_ + "/";
 
@@ -67,6 +69,10 @@ OnlineBeamMonitor::OnlineBeamMonitor(const ParameterSet& ps)
 void OnlineBeamMonitor::fillDescriptions(edm::ConfigurationDescriptions& iDesc) {
   edm::ParameterSetDescription ps;
   ps.addUntracked<std::string>("MonitorName", "YourSubsystemName");
+  ps.addUntracked<bool>("AppendRunToFileName", false);
+  ps.addUntracked<bool>("WriteDIPAscii", true);
+  ps.addUntracked<std::string>("DIPFileName", "BeamFitResultsForDIP.txt");
+
   iDesc.addWithDefaultLabel(ps);
 }
 
@@ -109,50 +115,117 @@ void OnlineBeamMonitor::bookHistograms(DQMStore::IBooker& ibooker,
   // create and cd into new folder
   ibooker.setCurrentFolder(monitorName_ + "Validation");
   //Book histograms
-  bsChoice_ = ibooker.book1D("bsChoice",
-                             "Choice between HLT (+1) and Legacy (-1) BS",
-                             lastLumi - firstLumi + 1,
-                             firstLumi - 0.5,
-                             lastLumi + 0.5);
+  bsChoice_ = ibooker.bookProfile("bsChoice",
+                                  "BS Choice: +1=HLT / -1=Legacy / -10=Fake (fallback to PCL) / 0=No Transient ",
+                                  lastLumi - firstLumi + 1,
+                                  firstLumi - 0.5,
+                                  lastLumi + 0.5,
+                                  100,
+                                  -10,
+                                  1,
+                                  "");
   bsChoice_->setAxisTitle("Lumisection", 1);
   bsChoice_->setAxisTitle("Choice", 2);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-std::shared_ptr<onlinebeammonitor::NoCache> OnlineBeamMonitor::globalBeginLuminosityBlock(
+// Handle exceptions for the schema evolution of the BeamSpotOnline CondFormat
+
+// Slightly better error handler
+static void print_error(const std::exception& e) { edm::LogError("BeamSpotOnlineParameters") << e.what() << '\n'; }
+
+// Method to catch exceptions
+template <typename T, class Except, class Func, class Response>
+T try_(Func f, Response r) {
+  try {
+    LogDebug("BeamSpotOnlineParameters") << "I have tried" << std::endl;
+    return f();
+  } catch (Except& e) {
+    LogDebug("BeamSpotOnlineParameters") << "I have caught!" << std::endl;
+    r(e);
+    return static_cast<T>("-999");
+  }
+}
+
+// Enum the BS string parameters
+enum BSparameters {
+  startTime = 0,  // 0 additional std::string parameters
+  endTime = 1,    // 1
+  lumiRange = 2,  // 2
+  END_OF_TYPES = 3,
+};
+
+// Functor
+std::function<std::string(BSparameters, BeamSpotOnlineObjects)> myStringFunctor = [](BSparameters my_param,
+                                                                                     BeamSpotOnlineObjects m_payload) {
+  std::string ret("");
+  switch (my_param) {
+    case startTime:
+      return m_payload.startTime();
+    case endTime:
+      return m_payload.endTime();
+    case lumiRange:
+      return m_payload.lumiRange();
+    default:
+      return ret;
+  }
+};
+
+//----------------------------------------------------------------------------------------------------------------------
+std::shared_ptr<onlinebeammonitor::BeamSpotInfo> OnlineBeamMonitor::globalBeginLuminosityBlock(
     const LuminosityBlock& iLumi, const EventSetup& iSetup) const {
   // Always create a beamspot group for each lumi weather we have results or not! Each Beamspot will be of unknown type!
 
-  processedLumis_.push_back(iLumi.id().luminosityBlock());
+  auto beamSpotInfo = std::make_shared<onlinebeammonitor::BeamSpotInfo>();
+
   //Read BeamSpot from DB
   ESHandle<BeamSpotOnlineObjects> bsHLTHandle;
   ESHandle<BeamSpotOnlineObjects> bsLegacyHandle;
   ESHandle<BeamSpotObjects> bsTransientHandle;
+  //int lastLumiHLT_ = 0;
+  //int lastLumiLegacy_ = 0;
+  std::string startTimeStamp_ = "0";
+  std::string startTimeStampHLT_ = "0";
+  std::string startTimeStampLegacy_ = "0";
+  std::string stopTimeStamp_ = "0";
+  std::string stopTimeStampHLT_ = "0";
+  std::string stopTimeStampLegacy_ = "0";
+  std::string lumiRange_ = "0 - 0";
+  std::string lumiRangeHLT_ = "0 - 0";
+  std::string lumiRangeLegacy_ = "0 - 0";
 
   if (auto bsHLTHandle = iSetup.getHandle(bsHLTToken_)) {
     auto const& spotDB = *bsHLTHandle;
 
+    //lastLumiHLT_ = spotDB.lastAnalyzedLumi();
+    startTimeStampHLT_ =
+        try_<std::string, std::out_of_range>(std::bind(myStringFunctor, BSparameters::startTime, spotDB), print_error);
+    stopTimeStampHLT_ =
+        try_<std::string, std::out_of_range>(std::bind(myStringFunctor, BSparameters::endTime, spotDB), print_error);
+    lumiRangeHLT_ =
+        try_<std::string, std::out_of_range>(std::bind(myStringFunctor, BSparameters::lumiRange, spotDB), print_error);
+
     // translate from BeamSpotObjects to reco::BeamSpot
-    BeamSpot::Point apoint(spotDB.GetX(), spotDB.GetY(), spotDB.GetZ());
+    BeamSpot::Point apoint(spotDB.x(), spotDB.y(), spotDB.z());
 
     BeamSpot::CovarianceMatrix matrix;
     for (int i = 0; i < 7; ++i) {
       for (int j = 0; j < 7; ++j) {
-        matrix(i, j) = spotDB.GetCovariance(i, j);
+        matrix(i, j) = spotDB.covariance(i, j);
       }
     }
 
-    beamSpotsMap_["HLT"] =
-        BeamSpot(apoint, spotDB.GetSigmaZ(), spotDB.Getdxdz(), spotDB.Getdydz(), spotDB.GetBeamWidthX(), matrix);
+    beamSpotInfo->beamSpotsMap_["HLT"] =
+        BeamSpot(apoint, spotDB.sigmaZ(), spotDB.dxdz(), spotDB.dydz(), spotDB.beamWidthX(), matrix);
 
-    BeamSpot* aSpot = &(beamSpotsMap_["HLT"]);
+    BeamSpot* aSpot = &(beamSpotInfo->beamSpotsMap_["HLT"]);
 
-    aSpot->setBeamWidthY(spotDB.GetBeamWidthY());
-    aSpot->setEmittanceX(spotDB.GetEmittanceX());
-    aSpot->setEmittanceY(spotDB.GetEmittanceY());
-    aSpot->setbetaStar(spotDB.GetBetaStar());
+    aSpot->setBeamWidthY(spotDB.beamWidthY());
+    aSpot->setEmittanceX(spotDB.emittanceX());
+    aSpot->setEmittanceY(spotDB.emittanceY());
+    aSpot->setbetaStar(spotDB.betaStar());
 
-    if (spotDB.GetBeamType() == 2) {
+    if (spotDB.beamType() == 2) {
       aSpot->setType(reco::BeamSpot::Tracker);
     } else {
       aSpot->setType(reco::BeamSpot::Fake);
@@ -164,27 +237,36 @@ std::shared_ptr<onlinebeammonitor::NoCache> OnlineBeamMonitor::globalBeginLumino
   }
   if (auto bsLegacyHandle = iSetup.getHandle(bsLegacyToken_)) {
     auto const& spotDB = *bsLegacyHandle;
+
     // translate from BeamSpotObjects to reco::BeamSpot
-    BeamSpot::Point apoint(spotDB.GetX(), spotDB.GetY(), spotDB.GetZ());
+    BeamSpot::Point apoint(spotDB.x(), spotDB.y(), spotDB.z());
+
+    //lastLumiLegacy_ = spotDB.lastAnalyzedLumi();
+    startTimeStampLegacy_ =
+        try_<std::string, std::out_of_range>(std::bind(myStringFunctor, BSparameters::startTime, spotDB), print_error);
+    stopTimeStampLegacy_ =
+        try_<std::string, std::out_of_range>(std::bind(myStringFunctor, BSparameters::endTime, spotDB), print_error);
+    lumiRangeLegacy_ =
+        try_<std::string, std::out_of_range>(std::bind(myStringFunctor, BSparameters::lumiRange, spotDB), print_error);
 
     BeamSpot::CovarianceMatrix matrix;
     for (int i = 0; i < 7; ++i) {
       for (int j = 0; j < 7; ++j) {
-        matrix(i, j) = spotDB.GetCovariance(i, j);
+        matrix(i, j) = spotDB.covariance(i, j);
       }
     }
 
-    beamSpotsMap_["Legacy"] =
-        BeamSpot(apoint, spotDB.GetSigmaZ(), spotDB.Getdxdz(), spotDB.Getdydz(), spotDB.GetBeamWidthX(), matrix);
+    beamSpotInfo->beamSpotsMap_["Legacy"] =
+        BeamSpot(apoint, spotDB.sigmaZ(), spotDB.dxdz(), spotDB.dydz(), spotDB.beamWidthX(), matrix);
 
-    BeamSpot* aSpot = &(beamSpotsMap_["Legacy"]);
+    BeamSpot* aSpot = &(beamSpotInfo->beamSpotsMap_["Legacy"]);
 
-    aSpot->setBeamWidthY(spotDB.GetBeamWidthY());
-    aSpot->setEmittanceX(spotDB.GetEmittanceX());
-    aSpot->setEmittanceY(spotDB.GetEmittanceY());
-    aSpot->setbetaStar(spotDB.GetBetaStar());
+    aSpot->setBeamWidthY(spotDB.beamWidthY());
+    aSpot->setEmittanceX(spotDB.emittanceX());
+    aSpot->setEmittanceY(spotDB.emittanceY());
+    aSpot->setbetaStar(spotDB.betaStar());
 
-    if (spotDB.GetBeamType() == 2) {
+    if (spotDB.beamType() == 2) {
       aSpot->setType(reco::BeamSpot::Tracker);
     } else {
       aSpot->setType(reco::BeamSpot::Fake);
@@ -196,58 +278,122 @@ std::shared_ptr<onlinebeammonitor::NoCache> OnlineBeamMonitor::globalBeginLumino
   }
   if (auto bsTransientHandle = iSetup.getHandle(bsTransientToken_)) {
     auto const& spotDB = *bsTransientHandle;
+    //std::cout << " from the DB " << spotDB << std::endl;
 
     // translate from BeamSpotObjects to reco::BeamSpot
-    BeamSpot::Point apoint(spotDB.GetX(), spotDB.GetY(), spotDB.GetZ());
+    BeamSpot::Point apoint(spotDB.x(), spotDB.y(), spotDB.z());
 
     BeamSpot::CovarianceMatrix matrix;
     for (int i = 0; i < 7; ++i) {
       for (int j = 0; j < 7; ++j) {
-        matrix(i, j) = spotDB.GetCovariance(i, j);
+        matrix(i, j) = spotDB.covariance(i, j);
       }
     }
 
-    beamSpotsMap_["Transient"] =
-        BeamSpot(apoint, spotDB.GetSigmaZ(), spotDB.Getdxdz(), spotDB.Getdydz(), spotDB.GetBeamWidthX(), matrix);
+    beamSpotInfo->beamSpotsMap_["Transient"] =
+        BeamSpot(apoint, spotDB.sigmaZ(), spotDB.dxdz(), spotDB.dydz(), spotDB.beamWidthX(), matrix);
 
-    BeamSpot* aSpot = &(beamSpotsMap_["Transient"]);
+    BeamSpot* aSpot = &(beamSpotInfo->beamSpotsMap_["Transient"]);
 
-    aSpot->setBeamWidthY(spotDB.GetBeamWidthY());
-    aSpot->setEmittanceX(spotDB.GetEmittanceX());
-    aSpot->setEmittanceY(spotDB.GetEmittanceY());
-    aSpot->setbetaStar(spotDB.GetBetaStar());
-
-    if (spotDB.GetBeamType() == 2) {
+    aSpot->setBeamWidthY(spotDB.beamWidthY());
+    aSpot->setEmittanceX(spotDB.emittanceX());
+    aSpot->setEmittanceY(spotDB.emittanceY());
+    aSpot->setbetaStar(spotDB.betaStar());
+    if (spotDB.beamType() == 2) {
       aSpot->setType(reco::BeamSpot::Tracker);
     } else {
       aSpot->setType(reco::BeamSpot::Fake);
+    }
+
+    if (writeDIPTxt_) {
+      std::ofstream outFile;
+
+      std::string tmpname = outputDIPTxt_;
+      int frun = iLumi.getRun().run();
+
+      char index[15];
+      if (appendRunTxt_ && writeDIPTxt_) {
+        sprintf(index, "%s%i", "_Run", frun);
+        tmpname.insert(outputDIPTxt_.length() - 4, index);
+      }
+      //int lastLumiAnalyzed_ = iLumi.id().luminosityBlock();
+
+      if (beamSpotInfo->beamSpotsMap_.find("Transient") != beamSpotInfo->beamSpotsMap_.end()) {
+        if (beamSpotInfo->beamSpotsMap_.find("HLT") != beamSpotInfo->beamSpotsMap_.end() &&
+            beamSpotInfo->beamSpotsMap_["Transient"].x0() == beamSpotInfo->beamSpotsMap_["HLT"].x0()) {
+          // lastLumiAnalyzed_ = lastLumiHLT_;
+          startTimeStamp_ = startTimeStampHLT_;
+          stopTimeStamp_ = stopTimeStampHLT_;
+          lumiRange_ = lumiRangeHLT_;
+
+        } else if (beamSpotInfo->beamSpotsMap_.find("Legacy") != beamSpotInfo->beamSpotsMap_.end() &&
+                   beamSpotInfo->beamSpotsMap_["Transient"].x0() == beamSpotInfo->beamSpotsMap_["Legacy"].x0()) {
+          //lastLumiAnalyzed_ = lastLumiLegacy_;
+          startTimeStamp_ = startTimeStampLegacy_;
+          stopTimeStamp_ = stopTimeStampLegacy_;
+          lumiRange_ = lumiRangeLegacy_;
+        }
+      }
+
+      outFile.open(tmpname.c_str());
+
+      outFile << "Runnumber " << frun << " bx " << 0 << std::endl;
+      outFile << "BeginTimeOfFit " << startTimeStamp_ << " " << 0 << std::endl;
+      outFile << "EndTimeOfFit " << stopTimeStamp_ << " " << 0 << std::endl;
+      //outFile << "LumiRange " << lumiRange_ << " - " << lastLumiAnalyzed_ << std::endl;
+      outFile << "LumiRange " << lumiRange_ << std::endl;
+      outFile << "Type " << aSpot->type() << std::endl;
+      outFile << "X0 " << aSpot->x0() << std::endl;
+      outFile << "Y0 " << aSpot->y0() << std::endl;
+      outFile << "Z0 " << aSpot->z0() << std::endl;
+      outFile << "sigmaZ0 " << aSpot->sigmaZ() << std::endl;
+      outFile << "dxdz " << aSpot->dxdz() << std::endl;
+      outFile << "dydz " << aSpot->dydz() << std::endl;
+      outFile << "BeamWidthX " << aSpot->BeamWidthX() << std::endl;
+      outFile << "BeamWidthY " << aSpot->BeamWidthY() << std::endl;
+      for (int i = 0; i < 6; ++i) {
+        outFile << "Cov(" << i << ",j) ";
+        for (int j = 0; j < 7; ++j) {
+          outFile << aSpot->covariance(i, j) << " ";
+        }
+        outFile << std::endl;
+      }
+      outFile << "Cov(6,j) 0 0 0 0 0 0 " << aSpot->covariance(6, 6) << std::endl;
+      outFile << "EmittanceX " << aSpot->emittanceX() << std::endl;
+      outFile << "EmittanceY " << aSpot->emittanceY() << std::endl;
+      outFile << "BetaStar " << aSpot->betaStar() << std::endl;
+
+      outFile.close();
     }
     //LogInfo("OnlineBeamMonitor")
     //  << *aSpot << std::endl;
   } else {
     LogInfo("OnlineBeamMonitor") << "Database BeamSpot is not valid at lumi: " << iLumi.id().luminosityBlock();
   }
-  return nullptr;
+  return beamSpotInfo;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 void OnlineBeamMonitor::globalEndLuminosityBlock(const LuminosityBlock& iLumi, const EventSetup& iSetup) {
+  processedLumis_.push_back(iLumi.id().luminosityBlock());
+  auto beamSpotInfo = luminosityBlockCache(iLumi.index());
+
   //Setting up the choice
-  if (beamSpotsMap_.find("Transient") != beamSpotsMap_.end()) {
-    if (beamSpotsMap_.find("HLT") != beamSpotsMap_.end() &&
-        beamSpotsMap_["Transient"].x0() == beamSpotsMap_["HLT"].x0()) {
-      bsChoice_->setBinContent(iLumi.id().luminosityBlock(), 1);
+  if (beamSpotInfo->beamSpotsMap_.find("Transient") != beamSpotInfo->beamSpotsMap_.end()) {
+    if (beamSpotInfo->beamSpotsMap_.find("HLT") != beamSpotInfo->beamSpotsMap_.end() &&
+        beamSpotInfo->beamSpotsMap_["Transient"].x0() == beamSpotInfo->beamSpotsMap_["HLT"].x0()) {
+      bsChoice_->Fill(iLumi.id().luminosityBlock(), 1);
       bsChoice_->setBinError(iLumi.id().luminosityBlock(), 0.05);
-    } else if (beamSpotsMap_.find("Legacy") != beamSpotsMap_.end() &&
-               beamSpotsMap_["Transient"].x0() == beamSpotsMap_["Legacy"].x0()) {
-      bsChoice_->setBinContent(iLumi.id().luminosityBlock(), -1);
+    } else if (beamSpotInfo->beamSpotsMap_.find("Legacy") != beamSpotInfo->beamSpotsMap_.end() &&
+               beamSpotInfo->beamSpotsMap_["Transient"].x0() == beamSpotInfo->beamSpotsMap_["Legacy"].x0()) {
+      bsChoice_->Fill(iLumi.id().luminosityBlock(), -1);
       bsChoice_->setBinError(iLumi.id().luminosityBlock(), 0.05);
     } else {
-      bsChoice_->setBinContent(iLumi.id().luminosityBlock(), -10);
+      bsChoice_->Fill(iLumi.id().luminosityBlock(), -10);
       bsChoice_->setBinError(iLumi.id().luminosityBlock(), 0.05);
     }
   } else {
-    bsChoice_->setBinContent(iLumi.id().luminosityBlock(), 0);
+    bsChoice_->Fill(iLumi.id().luminosityBlock(), 0);
     bsChoice_->setBinError(iLumi.id().luminosityBlock(), 0.05);
   }
 
@@ -257,7 +403,7 @@ void OnlineBeamMonitor::globalEndLuminosityBlock(const LuminosityBlock& iLumi, c
   MonitorElement* histo = nullptr;
   for (const auto& itV : varNamesV_) {
     resultsMap.clear();
-    for (const auto& itBS : beamSpotsMap_) {
+    for (const auto& itBS : beamSpotInfo->beamSpotsMap_) {
       if (itBS.second.type() == BeamSpot::Tracker) {
         if (itV == "x") {
           resultsMap[itBS.first] = pair<double, double>(itBS.second.x0(), itBS.second.x0Error());
@@ -361,4 +507,5 @@ void OnlineBeamMonitor::dqmEndRun(edm::Run const&, edm::EventSetup const&) {
     }
   }
 }
+
 DEFINE_FWK_MODULE(OnlineBeamMonitor);

@@ -12,7 +12,6 @@
 // user include files
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -232,10 +231,14 @@ private:
   struct SubDetMEs {
     int totNClustersOnTrack = 0;
     int totNClustersOffTrack = 0;
+    int totNClustersOnTrackMono = 0;
+    int totNClustersOnTrackStereo = 0;
     MonitorElement* nClustersOnTrack = nullptr;
     MonitorElement* nClustersTrendOnTrack = nullptr;
     MonitorElement* nClustersOffTrack = nullptr;
     MonitorElement* nClustersTrendOffTrack = nullptr;
+    MonitorElement* nClustersOnTrackMono = nullptr;
+    MonitorElement* nClustersOnTrackStereo = nullptr;
     MonitorElement* ClusterGain = nullptr;
     MonitorElement* ClusterStoNCorrOnTrack = nullptr;
     MonitorElement* ClusterStoNCorrThinOnTrack = nullptr;

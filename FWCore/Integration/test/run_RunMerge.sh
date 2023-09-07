@@ -4,9 +4,7 @@ test=testRunMerge
 
 function die { echo Failure $1: status $2 ; exit $2 ; }
 
-echo LOCAL_TMP_DIR = ${LOCAL_TMP_DIR}
-
-pushd ${LOCAL_TMP_DIR}
+LOCAL_TEST_DIR=${SCRAM_TEST_PATH}
   echo ${test}PROD0 ------------------------------------------------------------
   cmsRun -p ${LOCAL_TEST_DIR}/${test}PROD0_cfg.py || die "cmsRun ${test}PROD0_cfg.py" $?
 
@@ -91,6 +89,15 @@ pushd ${LOCAL_TMP_DIR}
   echo ${test}COPY1------------------------------------------------------------
   cmsRun -p ${LOCAL_TEST_DIR}/${test}COPY1_cfg.py || die "cmsRun ${test}COPY1_cfg.py" $?
 
+  echo ${test}MERGE6------------------------------------------------------------
+  cmsRun -p ${LOCAL_TEST_DIR}/${test}MERGE6_cfg.py || die "cmsRun ${test}MERGE6_cfg.py" $?
+
+  echo ${test}NoRunLumiSort------------------------------------------------------------
+  cmsRun -p ${LOCAL_TEST_DIR}/${test}NoRunLumiSort_cfg.py || die "cmsRun ${test}NoRunLumiSort_cfg.py" $?
+
+  echo ${test}TEST6------------------------------------------------------------
+  cmsRun -p ${LOCAL_TEST_DIR}/${test}TEST6_cfg.py || die "cmsRun ${test}TEST6_cfg.py" $?
+
   echo ${test}PickEvents------------------------------------------------------------
   cmsRun -p ${LOCAL_TEST_DIR}/${test}PickEvents_cfg.py || die "cmsRun ${test}PickEvents_cfg.py" $?
 
@@ -108,7 +115,5 @@ pushd ${LOCAL_TMP_DIR}
   echo testLooperEventNavigation1-----------------------------------------------------
   cmsRun -p ${LOCAL_TEST_DIR}/testLooperEventNavigation1_cfg.py < ${LOCAL_TEST_DIR}/testLooperEventNavigation.txt > testLooperEventNavigationOutput1.txt || die "cmsRun testLooperEventNavigation1_cfg.py " $?
   diff ${LOCAL_TEST_DIR}/unit_test_outputs/testLooperEventNavigationOutput.txt testLooperEventNavigationOutput1.txt || die "comparing testLooperEventNavigationOutput1.txt" $?
-
-popd
 
 exit 0

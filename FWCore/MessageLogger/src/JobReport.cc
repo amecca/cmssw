@@ -302,10 +302,43 @@ namespace edm {
     }
   }
 
+  static constexpr std::string_view kJobReportEndElement = "</FrameworkJobReport>\n";
+  static constexpr int kMinSizeOfComment = 8;
+
   JobReport::~JobReport() {
     impl_->flushFiles();
     if (impl_->ost_) {
-      *(impl_->ost_) << "</FrameworkJobReport>\n" << std::flush;
+      //are we actually at the end of the file?
+      auto pos = impl_->ost_->tellp();
+      impl_->ost_->seekp(0, std::ios_base::end);
+      auto endpos = impl_->ost_->tellp();
+      impl_->ost_->seekp(pos);
+      if ((endpos - pos) > static_cast<long int>(kJobReportEndElement.size())) {
+        //need to add some padding so use a comment element
+        // comment is used since white spaces are converted to a special node
+        // while comments are usually ignored by xml parsers
+        auto padding = (endpos - pos) - (kJobReportEndElement.size() + kMinSizeOfComment);
+        *(impl_->ost_) << "<!--";
+        for (int i = padding; i > 0; --i) {
+          (*impl_->ost_) << ' ';
+        }
+        *(impl_->ost_) << "-->\n";
+      }
+      *(impl_->ost_) << kJobReportEndElement << std::flush;
+    }
+  }
+
+  void JobReport::temporarilyCloseXML() {
+    if (impl_->ost_) {
+      //remember where we were
+      auto pos = impl_->ost_->tellp();
+      if (not errorLogged_) {
+        *(impl_->ost_) << "<FrameworkError ExitStatus=\"8901\" Type=\"UnexpectedJobTermination\"/>\n";
+      }
+      *(impl_->ost_) << kJobReportEndElement << std::flush;
+
+      //overwrite above during next write.
+      impl_->ost_->seekp(pos);
     }
   }
 
@@ -315,6 +348,7 @@ namespace edm {
     if (impl_->ost_) {
       *(impl_->ost_) << "<FrameworkJobReport>\n";
     }
+    temporarilyCloseXML();
   }
 
   JobReport::Token JobReport::inputFileOpened(std::string const& physicalFileName,
@@ -376,14 +410,13 @@ namespace edm {
   void JobReport::inputFileClosed(InputType inputType, JobReport::Token fileToken) {
     JobReport::InputFile& f = impl_->getInputFileForToken(inputType, fileToken);
     f.fileHasBeenClosed = true;
+    std::lock_guard<std::mutex> lock(write_mutex);
     if (inputType == InputType::Primary) {
       impl_->writeInputFile(f);
     } else {
-      {
-        std::lock_guard<std::mutex> lock(write_mutex);
-        impl_->writeInputFile(f);
-      }
+      impl_->writeInputFile(f);
     }
+    temporarilyCloseXML();
   }
 
   JobReport::Token JobReport::outputFileOpened(std::string const& physicalFileName,
@@ -417,7 +450,8 @@ namespace edm {
         r.contributingInputs.push_back(i);
       }
     }
-    for (tbb::concurrent_vector<Token>::size_type i = 0, iEnd = impl_->inputFilesSecSource_.size(); i < iEnd; ++i) {
+    for (oneapi::tbb::concurrent_vector<Token>::size_type i = 0, iEnd = impl_->inputFilesSecSource_.size(); i < iEnd;
+         ++i) {
       if (!impl_->inputFilesSecSource_[i].fileHasBeenClosed) {
         r.contributingInputsSecSource.push_back(i);
       }
@@ -433,7 +467,9 @@ namespace edm {
   void JobReport::outputFileClosed(JobReport::Token fileToken) {
     JobReport::OutputFile& f = impl_->getOutputFileForToken(fileToken);
     f.fileHasBeenClosed = true;
+    std::lock_guard<std::mutex> lock(write_mutex);
     impl_->writeOutputFile(f);
+    temporarilyCloseXML();
   }
 
   void JobReport::reportSkippedEvent(RunNumber_t run, EventNumber_t event) {
@@ -443,7 +479,7 @@ namespace edm {
         std::lock_guard<std::mutex> lock(write_mutex);
         msg << "<SkippedEvent Run=\"" << run << "\"";
         msg << " Event=\"" << event << "\" />\n";
-        msg << std::flush;
+        temporarilyCloseXML();
       }
     }
   }
@@ -485,7 +521,7 @@ namespace edm {
               << "\n";
         }
         msg << "</AnalysisFile>\n";
-        msg << std::flush;
+        temporarilyCloseXML();
       }
     }
   }
@@ -494,11 +530,23 @@ namespace edm {
     if (impl_->ost_) {
       {
         std::lock_guard<std::mutex> lock(write_mutex);
+        errorLogged_ = true;
         std::ostream& msg = *(impl_->ost_);
         msg << "<FrameworkError ExitStatus=\"" << exitCode << "\" Type=\"" << shortDesc << "\" >\n";
         msg << "<![CDATA[\n" << longDesc << "\n]]>\n";
         msg << "</FrameworkError>\n";
-        msg << std::flush;
+        temporarilyCloseXML();
+      }
+    }
+  }
+
+  void JobReport::reportShutdownSignal() {
+    if (impl_->ost_) {
+      {
+        std::lock_guard<std::mutex> lock(write_mutex);
+        std::ostream& msg = *(impl_->ost_);
+        msg << "<ShutdownSignal/>\n";
+        temporarilyCloseXML();
       }
     }
   }
@@ -515,7 +563,7 @@ namespace edm {
         std::lock_guard<std::mutex> lock(write_mutex);
         skipped->Accept(&printer);
         msg << printer.CStr();
-        msg << std::flush;
+        temporarilyCloseXML();
       }
     }
   }
@@ -533,13 +581,14 @@ namespace edm {
         fallback->Accept(&printer);
         msg << printer.CStr();
         msg << "<![CDATA[\n" << err << "\n]]>\n";
-        msg << std::flush;
+        temporarilyCloseXML();
       }
     }
   }
 
   void JobReport::reportMemoryInfo(std::vector<std::string> const& memoryData) {
     if (impl_->ost_) {
+      std::lock_guard<std::mutex> lock(write_mutex);
       std::ostream& msg = *(impl_->ost_);
       msg << "<MemoryService>\n";
 
@@ -548,12 +597,13 @@ namespace edm {
         msg << *pos << "\n";
       }
       msg << "</MemoryService>\n";
-      msg << std::flush;
+      temporarilyCloseXML();
     }
   }
 
   void JobReport::reportMessageInfo(std::map<std::string, double> const& messageData) {
     if (impl_->ost_) {
+      std::lock_guard<std::mutex> lock(write_mutex);
       std::ostream& msg = *(impl_->ost_);
       msg << "<MessageSummary>\n";
       typedef std::map<std::string, double>::const_iterator const_iterator;
@@ -562,15 +612,16 @@ namespace edm {
             << "\n";
       }
       msg << "</MessageSummary>\n";
-      msg << std::flush;
+      temporarilyCloseXML();
     }
   }
 
   void JobReport::reportReadBranches() {
-    if (impl_->printedReadBranches_)
+    bool expected = false;
+    if (not impl_->printedReadBranches_.compare_exchange_strong(expected, true))
       return;
-    impl_->printedReadBranches_ = true;
     if (impl_->ost_) {
+      std::lock_guard<std::mutex> lock(write_mutex);
       std::ostream& ost = *(impl_->ost_);
       ost << "<ReadBranches>\n";
       tinyxml2::XMLDocument doc;
@@ -604,7 +655,7 @@ namespace edm {
         }
         ost << "</SecondarySourceReadBranches>\n";
       }
-      ost << std::flush;
+      temporarilyCloseXML();
     }
   }
 
@@ -644,7 +695,7 @@ namespace edm {
         msg << "<RandomServiceStateFile>\n"
             << doc.NewText(name.c_str())->Value() << "\n"
             << "</RandomServiceStateFile>\n";
-        msg << std::flush;
+        temporarilyCloseXML();
       }
     }
   }
@@ -664,7 +715,7 @@ namespace edm {
 
       msg << "  </PerformanceSummary>\n"
           << "</PerformanceReport>\n";
-      msg << std::flush;
+      temporarilyCloseXML();
     }
   }
 
@@ -685,7 +736,7 @@ namespace edm {
 
       msg << "  </PerformanceModule>\n"
           << "</PerformanceReport>\n";
-      msg << std::flush;
+      temporarilyCloseXML();
     }
   }
 

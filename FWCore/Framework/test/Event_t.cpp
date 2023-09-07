@@ -105,7 +105,6 @@ class testEvent : public CppUnit::TestFixture {
   CPPUNIT_TEST(getByToken);
   CPPUNIT_TEST(getHandle);
   CPPUNIT_TEST(get_product);
-  CPPUNIT_TEST(getManyByType);
   CPPUNIT_TEST(printHistory);
   CPPUNIT_TEST(deleteProduct);
   CPPUNIT_TEST_SUITE_END();
@@ -130,7 +129,6 @@ public:
   void getByToken();
   void getHandle();
   void get_product();
-  void getManyByType();
   void printHistory();
   void deleteProduct();
 
@@ -449,8 +447,8 @@ void testEvent::setUp() {
   Timestamp time = make_timestamp();
   EventID id = make_id();
   ProcessConfiguration const& pc = currentModuleDescription_->processConfiguration();
-  auto runAux = std::make_shared<RunAuxiliary>(id.run(), time, time);
-  auto rp = std::make_shared<RunPrincipal>(runAux, preg, pc, &historyAppender_, 0);
+  auto rp = std::make_shared<RunPrincipal>(preg, pc, &historyAppender_, 0);
+  rp->setAux(RunAuxiliary(id.run(), time, time));
   lbp_ = std::make_shared<LuminosityBlockPrincipal>(preg, pc, &historyAppender_, 0);
   lbp_->setAux(LuminosityBlockAuxiliary(rp->run(), 1, time, time));
   lbp_->setRunPrincipal(rp);
@@ -499,6 +497,16 @@ void testEvent::getByTokenFromEmpty() {
   CPPUNIT_ASSERT(!nonesuch.isValid());
   CPPUNIT_ASSERT(nonesuch.failedToGet());
   CPPUNIT_ASSERT_THROW(*nonesuch, cms::Exception);
+
+  {
+    edm::EventBase const* eb = currentEvent_.get();
+    Handle<int> nonesuch;
+    CPPUNIT_ASSERT(!nonesuch.isValid());
+    CPPUNIT_ASSERT(!eb->getByToken(consumer.m_tokens[0], nonesuch));
+    CPPUNIT_ASSERT(!nonesuch.isValid());
+    CPPUNIT_ASSERT(nonesuch.failedToGet());
+    CPPUNIT_ASSERT_THROW(*nonesuch, cms::Exception);
+  }
 }
 
 void testEvent::getHandleFromEmpty() {
@@ -765,6 +773,7 @@ void testEvent::getByToken() {
   consumer.updateLookup(InEvent, principal_->productLookup(), false);
 
   currentEvent_->setConsumer(&consumer);
+  edm::EventBase const* eb = currentEvent_.get();
 
   const auto modMultiToken = consumer.m_tokens[0];
   const auto modMultiInt1Token = consumer.m_tokens[1];
@@ -778,8 +787,12 @@ void testEvent::getByToken() {
   handle_t h;
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiToken, h));
   CPPUNIT_ASSERT(h->value == 3);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiToken, h));
+  CPPUNIT_ASSERT(h->value == 3);
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiInt1Token, h));
+  CPPUNIT_ASSERT(h->value == 200);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiInt1Token, h));
   CPPUNIT_ASSERT(h->value == 200);
 
   CPPUNIT_ASSERT(!currentEvent_->getByToken(modMultinomatchToken, h));
@@ -788,20 +801,32 @@ void testEvent::getByToken() {
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiInt1Token, h));
   CPPUNIT_ASSERT(h->value == 200);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiInt1Token, h));
+  CPPUNIT_ASSERT(h->value == 200);
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiInt1EarlyToken, h));
+  CPPUNIT_ASSERT(h->value == 1);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiInt1EarlyToken, h));
   CPPUNIT_ASSERT(h->value == 1);
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiInt1LateToken, h));
   CPPUNIT_ASSERT(h->value == 100);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiInt1LateToken, h));
+  CPPUNIT_ASSERT(h->value == 100);
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiInt1CurrentToken, h));
+  CPPUNIT_ASSERT(h->value == 200);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiInt1CurrentToken, h));
   CPPUNIT_ASSERT(h->value == 200);
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modMultiInt2EarlyToken, h));
   CPPUNIT_ASSERT(h->value == 2);
+  CPPUNIT_ASSERT(eb->getByToken(modMultiInt2EarlyToken, h));
+  CPPUNIT_ASSERT(h->value == 2);
 
   CPPUNIT_ASSERT(currentEvent_->getByToken(modOneToken, h));
+  CPPUNIT_ASSERT(h->value == 4);
+  CPPUNIT_ASSERT(eb->getByToken(modOneToken, h));
   CPPUNIT_ASSERT(h->value == 4);
 }
 
@@ -944,44 +969,6 @@ void testEvent::get_product() {
   CPPUNIT_ASSERT(currentEvent_->get(modMultiInt2EarlyToken).value == 2);
 
   CPPUNIT_ASSERT(currentEvent_->get(modOneToken).value == 4);
-}
-
-void testEvent::getManyByType() {
-  typedef edmtest::IntProduct product_t;
-  typedef std::unique_ptr<product_t> ap_t;
-  typedef Handle<product_t> handle_t;
-  typedef std::vector<handle_t> handle_vec;
-
-  ap_t one(new product_t(1));
-  ap_t two(new product_t(2));
-  ap_t three(new product_t(3));
-  ap_t four(new product_t(4));
-  addProduct(std::move(one), "int1_tag", "int1");
-  addProduct(std::move(two), "int2_tag", "int2");
-  addProduct(std::move(three), "int3_tag");
-  addProduct(std::move(four), "nolabel_tag");
-
-  auto ap_vthing = std::make_unique<std::vector<edmtest::Thing>>();
-  addProduct(std::move(ap_vthing), "thing", "");
-
-  auto ap_vthing2 = std::make_unique<std::vector<edmtest::Thing>>();
-  addProduct(std::move(ap_vthing2), "thing2", "inst2");
-
-  ap_t oneHundred(new product_t(100));
-  addProduct(std::move(oneHundred), "int1_tag_late", "int1");
-
-  auto twoHundred = std::make_unique<edmtest::IntProduct>(200);
-  putProduct(std::move(twoHundred), "int1");
-
-  CPPUNIT_ASSERT(currentEvent_->size() == 8);
-
-  handle_vec handles;
-  currentEvent_->getManyByType(handles);
-  CPPUNIT_ASSERT(handles.size() == 6);
-  int sum = 0;
-  for (int k = 0; k < 6; ++k)
-    sum += handles[k]->value;
-  CPPUNIT_ASSERT(sum == 310);
 }
 
 void testEvent::printHistory() {

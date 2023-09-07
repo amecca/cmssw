@@ -1,71 +1,59 @@
 #include "DataFormats/Common/interface/DetSetVector.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "Geometry/Records/interface/MuonGeometryRecord.h"
 #include "SimDataFormats/TrackerDigiSimLink/interface/StripDigiSimLink.h"
 #include "SimMuon/MCTruth/interface/MuonTruth.h"
 
-MuonTruth::MuonTruth(const edm::Event &event, const edm::EventSetup &setup, const edm::ParameterSet &conf)
-    : theDigiSimLinks(nullptr),
-      theWireDigiSimLinks(nullptr),
-      linksTag(conf.getParameter<edm::InputTag>("CSClinksTag")),
-      wireLinksTag(conf.getParameter<edm::InputTag>("CSCwireLinksTag")),
-      // CrossingFrame used or not ?
-      crossingframe(conf.getParameter<bool>("crossingframe")),
-      CSCsimHitsTag(conf.getParameter<edm::InputTag>("CSCsimHitsTag")),
-      CSCsimHitsXFTag(conf.getParameter<edm::InputTag>("CSCsimHitsXFTag"))
-
-{
-  initEvent(event, setup);
-}
-
 MuonTruth::MuonTruth(const edm::ParameterSet &conf, edm::ConsumesCollector &&iC)
-    : theDigiSimLinks(nullptr),
+    : cscBadChambers(nullptr),
+      theTotalCharge(0.0),
+      theDetId(0),
+      theDigiSimLinks(nullptr),
       theWireDigiSimLinks(nullptr),
       linksTag(conf.getParameter<edm::InputTag>("CSClinksTag")),
       wireLinksTag(conf.getParameter<edm::InputTag>("CSCwireLinksTag")),
       // CrossingFrame used or not ?
       crossingframe(conf.getParameter<bool>("crossingframe")),
       CSCsimHitsTag(conf.getParameter<edm::InputTag>("CSCsimHitsTag")),
-      CSCsimHitsXFTag(conf.getParameter<edm::InputTag>("CSCsimHitsXFTag"))
-
-{
-  iC.consumes<DigiSimLinks>(linksTag);
-  iC.consumes<DigiSimLinks>(wireLinksTag);
+      CSCsimHitsXFTag(conf.getParameter<edm::InputTag>("CSCsimHitsXFTag")),
+      geomToken_(iC.esConsumes<CSCGeometry, MuonGeometryRecord>()),
+      badToken_(iC.esConsumes<CSCBadChambers, CSCBadChambersRcd>()),
+      linksToken_(iC.consumes<DigiSimLinks>(linksTag)),
+      wireLinksToken_(iC.consumes<DigiSimLinks>(wireLinksTag)),
+      cscgeom(nullptr) {
   if (crossingframe) {
-    iC.consumes<CrossingFrame<PSimHit>>(CSCsimHitsXFTag);
+    simHitsXFToken_ = iC.consumes<CrossingFrame<PSimHit>>(CSCsimHitsXFTag);
   } else if (!CSCsimHitsTag.label().empty()) {
-    iC.consumes<edm::PSimHitContainer>(CSCsimHitsTag);
+    simHitsToken_ = iC.consumes<edm::PSimHitContainer>(CSCsimHitsTag);
   }
 }
 
 void MuonTruth::initEvent(const edm::Event &event, const edm::EventSetup &setup) {
-  edm::Handle<DigiSimLinks> digiSimLinks;
+  theChargeMap.clear();
+  theTotalCharge = 0.0;
+  theDetId = 0;
+
   LogTrace("MuonTruth") << "getting CSC Strip DigiSimLink collection - " << linksTag;
-  event.getByLabel(linksTag, digiSimLinks);
+  const edm::Handle<DigiSimLinks> &digiSimLinks = event.getHandle(linksToken_);
   theDigiSimLinks = digiSimLinks.product();
 
-  edm::Handle<DigiSimLinks> wireDigiSimLinks;
   LogTrace("MuonTruth") << "getting CSC Wire DigiSimLink collection - " << wireLinksTag;
-  event.getByLabel(wireLinksTag, wireDigiSimLinks);
+  const edm::Handle<DigiSimLinks> &wireDigiSimLinks = event.getHandle(wireLinksToken_);
   theWireDigiSimLinks = wireDigiSimLinks.product();
 
   // get CSC Geometry to use CSCLayer methods
-  edm::ESHandle<CSCGeometry> mugeom;
-  setup.get<MuonGeometryRecord>().get(mugeom);
-  cscgeom = &*mugeom;
+  const edm::ESHandle<CSCGeometry> &mugeom = setup.getHandle(geomToken_);
+  cscgeom = mugeom.product();
 
   // get CSC Bad Chambers (ME4/2)
-  edm::ESHandle<CSCBadChambers> badChambers;
-  setup.get<CSCBadChambersRcd>().get(badChambers);
+  const edm::ESHandle<CSCBadChambers> &badChambers = setup.getHandle(badToken_);
   cscBadChambers = badChambers.product();
 
   theSimHitMap.clear();
 
   if (crossingframe) {
-    edm::Handle<CrossingFrame<PSimHit>> cf;
     LogTrace("MuonTruth") << "getting CrossingFrame<PSimHit> collection - " << CSCsimHitsXFTag;
-    event.getByLabel(CSCsimHitsXFTag, cf);
+    const edm::Handle<CrossingFrame<PSimHit>> &cf = event.getHandle(simHitsXFToken_);
 
     std::unique_ptr<MixCollection<PSimHit>> CSCsimhits(new MixCollection<PSimHit>(cf.product()));
     LogTrace("MuonTruth") << "... size = " << CSCsimhits->size();
@@ -75,9 +63,8 @@ void MuonTruth::initEvent(const edm::Event &event, const edm::EventSetup &setup)
     }
 
   } else if (!CSCsimHitsTag.label().empty()) {
-    edm::Handle<edm::PSimHitContainer> CSCsimhits;
     LogTrace("MuonTruth") << "getting PSimHit collection - " << CSCsimHitsTag;
-    event.getByLabel(CSCsimHitsTag, CSCsimhits);
+    const edm::Handle<edm::PSimHitContainer> &CSCsimhits = event.getHandle(simHitsToken_);
     LogTrace("MuonTruth") << "... size = " << CSCsimhits->size();
 
     for (edm::PSimHitContainer::const_iterator hitItr = CSCsimhits->begin(); hitItr != CSCsimhits->end(); ++hitItr) {

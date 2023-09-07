@@ -127,7 +127,17 @@ process.load("RecoTracker.TrackProducer.TrackRefitters_cff")
 process.TrackRefitter.src = 'ALCARECOTkAlMinBias'
 process.TrackRefitter.NavigationSchool = ''
 
+####################################################################
+# Refitting Sequence
+####################################################################
+process.load("RecoLocalTracker.SiPixelRecHits.SiPixelTemplateStoreESProducer_cfi")
+process.seqTrackselRefit = cms.Sequence(process.offlineBeamSpot*
+                                        process.TrackRefitter,
+                                        cms.Task(process.SiPixelTemplateStoreESProducer))
+
+####################################################################
 ## PV refit
+####################################################################
 process.load("TrackingTools.TransientTrack.TransientTrackBuilder_cfi")
 
 from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi import offlinePrimaryVertices 
@@ -171,7 +181,11 @@ process.PrimaryVertexResolution = cms.EDAnalyzer('SplitVertexResolution',
                                                  minVertexNdf        = cms.untracked.double(10.),
                                                  minVertexMeanWeight = cms.untracked.double(0.5),
                                                  runControl = cms.untracked.bool(True),
-                                                 runControlNumber = cms.untracked.vuint32(320040)
+                                                 runControlNumber = cms.untracked.vuint32(320040),
+                                                 sumpTStartScale = cms.untracked.double(1.),
+                                                 sumpTEndScale = cms.untracked.double(1000.),
+                                                 nTrackBins = cms.untracked.double(60.),
+                                                 nVtxBins = cms.untracked.double(40.)
                                                  )
 
 process.TFileService = cms.Service("TFileService",
@@ -180,11 +194,11 @@ process.TFileService = cms.Service("TFileService",
                                    )
 
 process.p = cms.Path(process.HLTFilter                               +
-                     process.offlineBeamSpot                         +
-                     process.TrackRefitter                           +
+                     #process.offlineBeamSpot                        +
+                     #process.TrackRefitter                          +
+                     process.seqTrackselRefit                        +
                      process.offlinePrimaryVerticesFromRefittedTrks  +
                      process.PrimaryVertexResolution                 +
-                     process.myanalysis
-                     )
+                     process.myanalysis)
 
 

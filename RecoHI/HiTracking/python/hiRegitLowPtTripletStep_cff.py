@@ -35,8 +35,8 @@ hiRegitLowPtTripletStepSeedLayers =  RecoTracker.IterativeTracking.LowPtTripletS
     FPix = dict(skipClusters = 'hiRegitLowPtTripletStepClusters')
 )
 
-from RecoPixelVertexing.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
-import RecoPixelVertexing.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi
+from RecoTracker.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
+import RecoTracker.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi
 # seeds
 hiRegitLowPtTripletStepSeeds     = RecoTracker.IterativeTracking.LowPtTripletStep_cff.lowPtTripletStepSeeds.clone(
     RegionFactoryPSet = HiTrackingRegionFactoryFromJetsBlock.clone(
@@ -46,7 +46,7 @@ hiRegitLowPtTripletStepSeeds     = RecoTracker.IterativeTracking.LowPtTripletSte
     OrderedHitsFactoryPSet = dict(
 	SeedingLayers = 'hiRegitLowPtTripletStepSeedLayers',
 	GeneratorPSet = dict (
-	    SeedComparitorPSet = RecoPixelVertexing.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi.LowPtClusterShapeSeedComparitor.clone()
+	    SeedComparitorPSet = RecoTracker.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi.LowPtClusterShapeSeedComparitor.clone()
 	),
     ),
 )
@@ -56,8 +56,8 @@ hiRegitLowPtTripletStepTrajectoryFilter = RecoTracker.IterativeTracking.LowPtTri
 
 
 hiRegitLowPtTripletStepTrajectoryBuilder = RecoTracker.IterativeTracking.LowPtTripletStep_cff.lowPtTripletStepTrajectoryBuilder.clone(
-    trajectoryFilter = cms.PSet(refToPSet_ = cms.string('hiRegitLowPtTripletStepTrajectoryFilter')),
-    clustersToSkip = cms.InputTag('hiRegitLowPtTripletStepClusters'),
+    trajectoryFilter = dict(refToPSet_ = 'hiRegitLowPtTripletStepTrajectoryFilter'),
+    clustersToSkip = 'hiRegitLowPtTripletStepClusters',
 )
 
 # track candidates

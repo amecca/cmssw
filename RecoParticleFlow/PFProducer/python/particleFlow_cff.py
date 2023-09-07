@@ -10,19 +10,27 @@ from RecoParticleFlow.PFProducer.particleFlowTmpPtrs_cfi import *
 
 particleFlowTmp = particleFlow.clone()
 
-## temporary for 12_1; EtaExtendedEles do not enter PF because ID/regression of EEEs are not ready yet
-## In 12_2, we expect to have EEE's ID/regression, then this switch can flip to True
-particleFlowTmp.PFEGammaFiltersParameters.allowEEEinPF = cms.bool(False)
-
 # Thresholds for e/gamma PFID DNN 
+# Thresholds for electron: Sig_isolated+Sig_nonIsolated
 particleFlowTmp.PFEGammaFiltersParameters.electronDnnThresholds = cms.PSet(
-            electronDnnHighPtBarrelThr = cms.double(0.122),
-            electronDnnHighPtEndcapThr = cms.double(0.072),
-            electronDnnLowPtThr = cms.double(0.081)
+            electronDnnHighPtBarrelThr = cms.double(0.068),
+            electronDnnHighPtEndcapThr = cms.double(0.056),
+            electronDnnLowPtThr = cms.double(0.075), 
+            electronDnnExtEta1Thr = cms.double(0.113604), 
+            electronDnnExtEta2Thr = cms.double(0.118044) 
         )
+# Thresholds for electron: Bkg_nonIsolated
+particleFlowTmp.PFEGammaFiltersParameters.electronDnnBkgThresholds = cms.PSet(
+            electronDnnBkgHighPtBarrelThr = cms.double(0.8),
+            electronDnnBkgHighPtEndcapThr = cms.double(0.75),
+            electronDnnBkgLowPtThr = cms.double(0.75), 
+            electronDnnBkgExtEta1Thr = cms.double(0.7), 
+            electronDnnBkgExtEta2Thr = cms.double(0.85) 
+        )
+# Thresholds for photons
 particleFlowTmp.PFEGammaFiltersParameters.photonDnnThresholds = cms.PSet(
-            photonDnnBarrelThr = cms.double(0.70),
-            photonDnnEndcapThr = cms.double(0.79)
+            photonDnnBarrelThr = cms.double(0.22),
+            photonDnnEndcapThr = cms.double(0.35)
 )
 
 from Configuration.Eras.Modifier_pf_badHcalMitigationOff_cff import pf_badHcalMitigationOff

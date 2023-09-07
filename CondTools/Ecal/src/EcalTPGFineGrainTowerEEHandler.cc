@@ -74,7 +74,7 @@ void popcon::EcalTPGFineGrainTowerEEHandler::getNewObjects() {
 
   readFromFile("last_tpg_fgrTTEE_settings.txt");
 
-  unsigned int min_run = m_i_run_number + 1;
+  unsigned int min_run;
 
   if (m_firstRun < m_i_run_number) {
     min_run = m_i_run_number + 1;
@@ -166,7 +166,6 @@ void popcon::EcalTPGFineGrainTowerEEHandler::getNewObjects() {
             typedef std::map<EcalLogicID, FEConfigFgrEETowerDat>::const_iterator CIfefgr;
             EcalLogicID ecid_xt;
             FEConfigFgrEETowerDat rd_fgr;
-            int itowers = 0;
 
             for (CIfefgr p = dataset_TpgFineGrainEE.begin(); p != dataset_TpgFineGrainEE.end(); p++) {
               ecid_xt = p->first;
@@ -198,8 +197,6 @@ void popcon::EcalTPGFineGrainTowerEEHandler::getNewObjects() {
                 } else {
                   std::cout << " these may be the additional towers TCC/TT " << tccid << "/" << towerid << std::endl;
                 }
-
-                ++itowers;
               }
             }
 

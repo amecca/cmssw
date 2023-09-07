@@ -46,7 +46,7 @@ options.register('TemplateFilePath',
     			 opts.VarParsing.varType.string,
     			 'Location of template files')
 options.register('GlobalTag',
-    			 'auto:phase2_realistic',
+                         'auto:phase2_realistic',
     			 opts.VarParsing.multiplicity.singleton,
     			 opts.VarParsing.varType.string,
     			 'Global tag for this run')
@@ -172,6 +172,8 @@ from Configuration.StandardSequences.Eras import eras
 process = cms.Process("SiPixelTemplateDBUpload",eras.Phase2)#C2)
 process.load("CondCore.CondDB.CondDB_cfi")
 process.load("FWCore.MessageService.MessageLogger_cfi")
+process.MessageLogger = cms.Service("MessageLogger",
+                                    destinations = cms.untracked.vstring('SiPixelTemplateDBObjectUploader_Phase2.log'))
 
 geometry_cff = ''
 recoGeometry_cff = ''
@@ -190,9 +192,9 @@ elif tGeometry == 'T14':
 elif tGeometry == 'T15':
     geometry_cff = 'GeometryExtended2026D49_cff'
     recoGeometry_cff = 'GeometryExtended2026D49Reco_cff'
-elif tGeometry == 'T16':
-    geometry_cff = 'GeometryExtended2026D48_cff'
-    recoGeometry_cff = 'GeometryExtended2026D48Reco_cff'
+elif tGeometry == 'T21':
+    geometry_cff = 'GeometryExtended2026D92_cff'
+    recoGeometry_cff = 'GeometryExtended2026D92Reco_cff'
 else:
     print("Unknown tracker geometry")
     print("What are you doing ?!?!?!?!")

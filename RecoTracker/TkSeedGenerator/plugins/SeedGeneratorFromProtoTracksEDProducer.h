@@ -3,13 +3,10 @@
 #include "FWCore/Utilities/interface/Visibility.h"
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
-#include "FWCore/Framework/interface/FrameworkfwdMostUsed.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "RecoTracker/TkSeedGenerator/interface/SeedFromProtoTrack.h"
 #include "SeedFromConsecutiveHitsCreator.h"
-
-#include <string>
 
 class dso_hidden SeedGeneratorFromProtoTracksEDProducer : public edm::stream::EDProducer<> {
 public:
@@ -25,6 +22,7 @@ private:
   const bool useEventsWithNoVertex;
   const bool usePV_;
   const bool includeFourthHit_;
+  const bool produceComplement_;
   const edm::EDGetTokenT<reco::TrackCollection> theInputCollectionTag;
   const edm::EDGetTokenT<reco::VertexCollection> theInputVertexCollectionTag;
   SeedFromConsecutiveHitsCreator seedCreator_;

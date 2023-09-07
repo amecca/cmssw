@@ -67,6 +67,8 @@
 #include "RecoJets/FFTJetAlgorithms/interface/AbsPileupCalculator.h"
 #include "RecoJets/FFTJetProducers/interface/FFTJetInterface.h"
 
+#include "JetMETCorrections/FFTJetObjects/interface/FFTJetLookupTableSequenceLoader.h"
+
 namespace fftjetcms {
   class DiscretizedEnergyFlow;
 }
@@ -110,9 +112,8 @@ public:
 
 protected:
   // Functions which should be overriden from the base
-  void beginJob() override;
+  void beginStream(edm::StreamID) override;
   void produce(edm::Event&, const edm::EventSetup&) override;
-  void endJob() override;
 
   // The following functions can be overriden by derived classes
   // in order to adjust jet reconstruction algorithm behavior.
@@ -183,7 +184,8 @@ private:
 
   // Useful local utilities
   template <class Real>
-  void loadSparseTreeData(const edm::Event&);
+  void loadSparseTreeData(const edm::Event&,
+                          const edm::EDGetTokenT<reco::PattRecoTree<Real, reco::PattRecoPeak<Real> > >& tok);
 
   void removeFakePreclusters();
 
@@ -399,13 +401,16 @@ private:
   std::vector<unsigned> cellCountsVec;
 
   // Tokens for data access
-  edm::EDGetTokenT<reco::PattRecoTree<fftjetcms::Real, reco::PattRecoPeak<fftjetcms::Real> > > input_recotree_token_;
+  edm::EDGetTokenT<reco::PattRecoTree<double, reco::PattRecoPeak<double> > > input_recotree_token_d_;
+  edm::EDGetTokenT<reco::PattRecoTree<float, reco::PattRecoPeak<float> > > input_recotree_token_f_;
   edm::EDGetTokenT<std::vector<reco::FFTAnyJet<reco::GenJet> > > input_genjet_token_;
   edm::EDGetTokenT<reco::DiscretizedEnergyFlow> input_energyflow_token_;
   edm::EDGetTokenT<reco::FFTJetPileupSummary> input_pusummary_token_;
 
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geometry_token_;
   edm::ESGetToken<HcalTopology, HcalRecNumberingRecord> topology_token_;
+
+  FFTJetLookupTableSequenceLoader esLoader_;
 };
 
 #endif  // RecoJets_FFTJetProducers_FFTJetProducer_h

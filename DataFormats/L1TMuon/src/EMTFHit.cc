@@ -72,22 +72,43 @@ namespace l1t {
                     theta);
   }
 
-  CSCCorrelatedLCTDigi EMTFHit::CreateCSCCorrelatedLCTDigi() const {
-    return CSCCorrelatedLCTDigi(1,
-                                valid,
-                                quality,
-                                wire,
-                                strip,
-                                pattern,
-                                (bend == 1) ? 1 : 0,
-                                bx + CSCConstants::LCT_CENTRAL_BX,
-                                0,
-                                0,
-                                sync_err,
-                                csc_ID);
+  CSCCorrelatedLCTDigi EMTFHit::CreateCSCCorrelatedLCTDigi(const bool isRun3) const {
+    CSCCorrelatedLCTDigi lct = CSCCorrelatedLCTDigi(1,
+                                                    valid,
+                                                    quality,
+                                                    wire,
+                                                    strip,
+                                                    pattern,
+                                                    (bend == 1) ? 1 : 0,
+                                                    bx + CSCConstants::LCT_CENTRAL_BX,
+                                                    0,
+                                                    0,
+                                                    sync_err,
+                                                    csc_ID);
+    bool quart_bit = strip_quart_bit == 1;
+    bool eighth_bit = strip_eighth_bit == 1;
+
+    lct.setQuartStripBit(quart_bit);
+    lct.setEighthStripBit(eighth_bit);
+    lct.setSlope(slope);
+    lct.setRun3Pattern(pattern_run3);
+    lct.setRun3(isRun3);
+
+    return lct;
+    // Added Run 3 parameters - EY 04.07.22
     // Filling "trknmb" with 1 and "bx0" with 0 (as in MC).
     // May consider filling "trknmb" with 2 for 2nd LCT in the same chamber. - AWB 24.05.17
     // trknmb and bx0 are unused in the EMTF emulator code. mpclink = 0 (after bx) indicates unsorted.
+  }
+
+  CSCShowerDigi EMTFHit::CreateCSCShowerDigi() const {
+    CSCShowerDigi shower = CSCShowerDigi(muon_shower_inTime == -99 ? 0 : muon_shower_inTime,
+                                         muon_shower_outOfTime == -99 ? 0 : muon_shower_outOfTime,
+                                         csc_ID,
+                                         bx + CSCConstants::LCT_CENTRAL_BX,
+                                         CSCShowerDigi::ShowerType::kEMTFShower);
+
+    return shower;
   }
 
   // // Not yet implemented - AWB 15.03.17

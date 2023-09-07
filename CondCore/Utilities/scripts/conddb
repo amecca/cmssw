@@ -395,7 +395,10 @@ def output(args, string, *parameters, **kwargs):
 
     output_file = kwargs.get('output_file', sys.stdout)
 
-    print(string % parameters + colors.end, end=' ', file=output_file)
+    to_print = string + colors.end
+    if len(parameters)>0:
+        to_print = string % parameters + colors.end
+    print(to_print, end=' ', file=output_file)
 
     if kwargs.get('newline', True):
         print(file=output_file)
@@ -2541,6 +2544,10 @@ def dump(args):
     if args.format == 'xml':
         xmlProcessor = cond2xml.CondXmlProcessor(conddb)
 
+    if args.destfile != None: #The file for XML dump will be cleaned up and automatically closed after this
+        with open(args.destfile, 'w'):
+            pass 
+
     if args.type == 'payload':
         if args.format == 'xml':
             xmlProcessor.payload2xml(session, name, args.destfile)
@@ -2552,16 +2559,16 @@ def dump(args):
             filter(IOV.tag_name == name).\
             distinct():
             if args.format == 'xml':
-                xmlProcessor.payload2xml(session, payload)
+                xmlProcessor.payload2xml(session, payload, args.destfile)
             else:
                 _dump_payload(session, payload, args.loadonly)
 
-    elif args.type == 'gt' and _exists(session, conddb.GlobalTag.name, name) != None:
+    elif args.type == 'gt' and _exists(session, GlobalTag.name, name) != None:
         for payload, in session.query(IOV.payload_hash).\
             filter(GlobalTagMap.global_tag_name == name, IOV.tag_name == GlobalTagMap.tag_name).\
             distinct():
             if args.format == 'xml':
-                xmlProcessor.payload2xml(session, payload)
+                xmlProcessor.payload2xml(session, payload, args.destfile)
             else:
                 _dump_payload(session, payload, args.loadonly)
 
@@ -2657,6 +2664,7 @@ def setProtection( args ):
     action = 'Access restriction altered.'
     note = ''
     if args.remove:
+        TagAuthorization = session.get_dbtype(conddb.TagAuthorization)
         query = session.query(TagAuthorization).filter(TagAuthorization.tag_name == args.tag)
         query = query.filter(TagAuthorization.access_type == input_access_code)
         for code in db_access_code_map.keys():

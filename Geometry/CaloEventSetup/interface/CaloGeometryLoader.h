@@ -27,11 +27,11 @@ public:
   using ParVecVec = CaloSubdetectorGeometry::ParVecVec;
 
   static constexpr double k_ScaleFromDDD = 0.1;
-  static constexpr double k_ScaleFromDD4Hep = (1.0 / dd4hep::cm);
+  static constexpr double k_ScaleFromDD4hep = (1.0 / dd4hep::cm);
 
-  CaloGeometryLoader<T>() {}
+  virtual ~CaloGeometryLoader() = default;
 
-  virtual ~CaloGeometryLoader<T>() = default;
+  CaloGeometryLoader() = default;
 
   PtrType load(const DDCompactView* cpv, const Alignments* alignments = nullptr, const Alignments* globals = nullptr);
   PtrType load(const cms::DDCompactView* cpv,
@@ -48,7 +48,7 @@ private:
   void fillGeom(T* geom, const ParmVec& pv, const HepGeom::Transform3D& tr, const DetId& id, const double& scale);
 
   unsigned int getDetIdForDDDNode(const DDFilteredView& fv);
-  unsigned int getDetIdForDD4HepNode(const cms::DDFilteredView& fv);
+  unsigned int getDetIdForDD4hepNode(const cms::DDFilteredView& fv);
 
   typename T::NumberingScheme m_scheme;
 };

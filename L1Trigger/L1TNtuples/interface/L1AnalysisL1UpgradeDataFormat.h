@@ -40,7 +40,9 @@ namespace L1Analysis {
     kAsymEt,
     kAsymHt,
     kAsymEtHF,
-    kAsymHtHF
+    kAsymHtHF,
+    kZDCP,
+    kZDCM
   };
 
   struct L1AnalysisL1UpgradeDataFormat {
@@ -92,6 +94,7 @@ namespace L1Analysis {
       jetIEt.clear();
       jetIEta.clear();
       jetIPhi.clear();
+      jetHwQual.clear();
       jetBx.clear();
       jetTowerIPhi.clear();
       jetTowerIEta.clear();
@@ -125,6 +128,13 @@ namespace L1Analysis {
       muonTfMuonIdx.clear();
       muonBx.clear();
 
+      nMuonShowers = 0;
+      muonShowerBx.clear();
+      muonShowerOneNominal.clear();
+      muonShowerOneTight.clear();
+      muonShowerTwoLoose.clear();
+      muonShowerTwoLooseDiffSectors.clear();
+
       nSums = 0;
       sumType.clear();
       sumEt.clear();
@@ -132,6 +142,15 @@ namespace L1Analysis {
       sumIEt.clear();
       sumIPhi.clear();
       sumBx.clear();
+
+      //CM: Adding additional sum collections for the ZDC
+      nSumsZDC = 0;
+      sumZDCType.clear();
+      sumZDCEt.clear();
+      sumZDCPhi.clear();
+      sumZDCIEt.clear();
+      sumZDCIPhi.clear();
+      sumZDCBx.clear();
     }
 
     unsigned short int nEGs;
@@ -178,6 +197,7 @@ namespace L1Analysis {
     std::vector<short int> jetIEt;
     std::vector<short int> jetIEta;
     std::vector<short int> jetIPhi;
+    std::vector<short int> jetHwQual;
     std::vector<short int> jetBx;
     std::vector<short int> jetTowerIPhi;
     std::vector<short int> jetTowerIEta;
@@ -211,6 +231,13 @@ namespace L1Analysis {
     std::vector<unsigned short int> muonTfMuonIdx;
     std::vector<short int> muonBx;
 
+    unsigned short int nMuonShowers;
+    std::vector<short int> muonShowerBx;
+    std::vector<short int> muonShowerOneNominal;
+    std::vector<short int> muonShowerOneTight;
+    std::vector<short int> muonShowerTwoLoose;
+    std::vector<short int> muonShowerTwoLooseDiffSectors;
+
     unsigned short int nSums;
     std::vector<short int> sumType;
     std::vector<float> sumEt;
@@ -218,6 +245,14 @@ namespace L1Analysis {
     std::vector<short int> sumIEt;
     std::vector<short int> sumIPhi;
     std::vector<float> sumBx;
+
+    unsigned short int nSumsZDC;
+    std::vector<short int> sumZDCType;
+    std::vector<float> sumZDCEt;
+    std::vector<float> sumZDCPhi;
+    std::vector<short int> sumZDCIEt;
+    std::vector<short int> sumZDCIPhi;
+    std::vector<float> sumZDCBx;
   };
 }  // namespace L1Analysis
 #endif

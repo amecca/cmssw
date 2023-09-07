@@ -180,7 +180,7 @@ process.ALCARECOStreamSiStripCalMinBias = cms.OutputModule("PoolOutputModule",
         'keep *_ALCARECOSiStripCalMinBias_*_*', 
         'keep *_siStripClusters_*_*', 
         'keep *_siPixelClusters_*_*', 
-        'keep DetIdedmEDCollection_siStripDigis_*_*', 
+        'keep DetIds_siStripDigis_*_*', 
         'keep L1AcceptBunchCrossings_*_*_*', 
         'keep L1GlobalTriggerReadoutRecord_gtDigis_*_*', 
         'keep LumiScalerss_scalersRawToDigi_*_*', 
@@ -302,7 +302,7 @@ process.ALCARECOEventContent.outputCommands.extend(process.OutALCARECOTkAlZMuMu_
 process.ALCARECOEventContent.outputCommands.extend(process.OutALCARECOTkAlJpsiMuMu_noDrop.outputCommands)
 process.ALCARECOEventContent.outputCommands.extend(process.OutALCARECOSiStripCalMinBias_noDrop.outputCommands)
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2021_realistic', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2022_realistic', '')
 
 # Path and EndPath definitions
 process.endjob_step = cms.EndPath(process.endOfProcess)

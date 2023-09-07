@@ -60,9 +60,9 @@ namespace edm {
     return rootFile()->readLuminosityBlockAuxiliary_();
   }
 
-  void RootInputFileSequence::readRun_(RunPrincipal& runPrincipal) {
+  bool RootInputFileSequence::readRun_(RunPrincipal& runPrincipal) {
     assert(rootFile());
-    rootFile()->readRun_(runPrincipal);
+    return rootFile()->readRun_(runPrincipal);
   }
 
   void RootInputFileSequence::fillProcessBlockHelper_() {
@@ -80,9 +80,9 @@ namespace edm {
     rootFile()->readProcessBlock_(processBlockPrincipal);
   }
 
-  void RootInputFileSequence::readLuminosityBlock_(LuminosityBlockPrincipal& lumiPrincipal) {
+  bool RootInputFileSequence::readLuminosityBlock_(LuminosityBlockPrincipal& lumiPrincipal) {
     assert(rootFile());
-    rootFile()->readLuminosityBlock_(lumiPrincipal);
+    return rootFile()->readLuminosityBlock_(lumiPrincipal);
   }
 
   // readEvent() is responsible for setting up the EventPrincipal.
@@ -234,6 +234,7 @@ namespace edm {
 
     lfn_ = logicalFileName().empty() ? fileNames()[0] : logicalFileName();
     lfnHash_ = std::hash<std::string>()(lfn_);
+    usedFallback_ = false;
 
     std::shared_ptr<InputFile> filePtr;
     std::list<std::string> originalInfo;
@@ -241,23 +242,26 @@ namespace edm {
     std::vector<std::string> const& fNames = fileNames();
 
     //this tries to open the file using multiple PFNs corresponding to different data catalogs
-    std::list<std::string> exInfo;
     {
+      std::list<std::string> exInfo;
+      std::list<std::string> additionalMessage;
       std::unique_ptr<InputSource::FileOpenSentry> sentry(
-          input ? std::make_unique<InputSource::FileOpenSentry>(*input, lfn_, false) : nullptr);
+          input ? std::make_unique<InputSource::FileOpenSentry>(*input, lfn_) : nullptr);
       edm::Service<edm::storage::StatisticsSenderService> service;
       if (service.isAvailable()) {
         service->openingFile(lfn(), inputType, -1);
       }
       for (std::vector<std::string>::const_iterator it = fNames.begin(); it != fNames.end(); ++it) {
         try {
+          usedFallback_ = (it != fNames.begin());
           std::unique_ptr<char[]> name(gSystem->ExpandPathName(it->c_str()));
           filePtr = std::make_shared<InputFile>(name.get(), "  Initiating request to open file ", inputType);
           break;
         } catch (cms::Exception const& e) {
           if (!skipBadFiles && std::next(it) == fNames.end()) {
             InputFile::reportSkippedFile((*it), logicalFileName());
-            Exception ex(errors::FileOpenError, "", e);
+            errors::ErrorCodes errorCode = usedFallback_ ? errors::FallbackFileOpenError : errors::FileOpenError;
+            Exception ex(errorCode, "", e);
             ex.addContext("Calling RootInputFileSequence::initTheFile()");
             std::ostringstream out;
             out << "Input file " << (*it) << " could not be opened.";
@@ -265,9 +269,23 @@ namespace edm {
             //report previous exceptions when use other names to open file
             for (auto const& s : exInfo)
               ex.addAdditionalInfo(s);
+            //report more information of the earlier file open failures in a log message
+            if (not additionalMessage.empty()) {
+              edm::LogWarning l("RootInputFileSequence");
+              for (auto const& msg : additionalMessage) {
+                l << msg << "\n";
+              }
+            }
             throw ex;
           } else {
             exInfo.push_back("Calling RootInputFileSequence::initTheFile(): fail to open the file with name " + (*it));
+            additionalMessage.push_back(fmt::format(
+                "Input file {} could not be opened, and fallback was attempted.\nAdditional information:", *it));
+            char c = 'a';
+            for (auto const& ai : e.additionalInfo()) {
+              additionalMessage.push_back(fmt::format("  [{}] {}", c, ai));
+              ++c;
+            }
           }
         }
       }

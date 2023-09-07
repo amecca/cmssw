@@ -1,5 +1,6 @@
 <use name="Calibration/HcalCalibAlgos"/>
 <use name="SimDataFormats/Track"/>
+<use name="CondFormats/EcalObjects"/>
 <use name="CondFormats/HcalObjects"/>
 <use name="CondFormats/L1TObjects"/>
 <use name="DQMServices/Core"/>
@@ -19,7 +20,7 @@
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/Utilities"/>
 <use name="Geometry/Records"/>
-<use name="JetMETCorrections/Objects"/>
+<use name="JetMETCorrections/JetCorrector"/>
 <use name="HLTrigger/HLTcore"/>
 <use name="Calibration/IsolatedParticles"/>
 <use name="rootphysics"/>

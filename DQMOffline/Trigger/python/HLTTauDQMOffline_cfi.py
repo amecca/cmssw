@@ -9,10 +9,7 @@ TauRefProducer = cms.EDProducer("HLTTauRefProducer",
                             PFTauDiscriminatorContainers  = cms.untracked.VInputTag(),
                             PFTauDiscriminatorContainerWPs  = cms.untracked.vstring(),
                             PFTauDiscriminators = cms.untracked.VInputTag(
-                                    cms.InputTag("hpsPFTauDiscriminationByDecayModeFinding"),
-                                    cms.InputTag("hpsPFTauDiscriminationByLooseCombinedIsolationDBSumPtCorr3Hits"),
-                                    cms.InputTag("hpsPFTauDiscriminationByLooseMuonRejection3"),
-                                    cms.InputTag("hpsPFTauDiscriminationByMVA6TightElectronRejection")
+                                    cms.InputTag("hpsPFTauDiscriminationByDecayModeFinding")
                             ),
                             doPFTaus = cms.untracked.bool(True),
                             ptMin = cms.untracked.double(15.0),
@@ -141,7 +138,7 @@ def TriggerSelectionParameters(hltpaths):
 
 
 hltTauOfflineMonitor_TagAndProbe = hltTauOfflineMonitor_PFTaus.clone(
-    DQMBaseFolder = cms.untracked.string("HLT/TAU/TagAndProbe"),
+    DQMBaseFolder = "HLT/TAU/TagAndProbe",
     Matching = cms.PSet(                                                                                                                                                                             
         doMatching            = cms.untracked.bool(True),                                                                                                                                            
         matchFilters          = cms.untracked.VPSet(                                                                                                                                                 

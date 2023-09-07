@@ -12,7 +12,7 @@
 //
 
 // system include files
-#include "tbb/task.h"
+#include "oneapi/tbb/task_group.h"
 
 // user include files
 #include "FWCore/Concurrency/interface/SerialTaskQueue.h"
@@ -29,11 +29,9 @@ SerialTaskQueue::~SerialTaskQueue() {
   bool isEmpty = m_tasks.empty();
   bool isTaskChosen = m_taskChosen;
   if ((not isEmpty and not isPaused()) or isTaskChosen) {
-    tbb::task_group g;
-    g.run([&g, this]() {
-      tbb::task::suspend(
-          [&g, this](tbb::task::suspend_point tag) { push(g, [tag]() { tbb::task::resume(tag); }); });  //suspend
-    });                                                                                                 //group run
+    oneapi::tbb::task_group g;
+    tbb::task_handle last{g.defer([]() {})};
+    push(g, [&g, &last]() { g.run(std::move(last)); });
     g.wait();
   }
 }

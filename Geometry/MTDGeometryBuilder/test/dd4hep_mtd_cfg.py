@@ -1,9 +1,9 @@
 import FWCore.ParameterSet.Config as cms
 
-from Configuration.Eras.Era_Phase2C11I13M9_cff import Phase2C11I13M9
+from Configuration.Eras.Era_Phase2C17I13M9_cff import Phase2C17I13M9
 from Configuration.ProcessModifiers.dd4hep_cff import dd4hep
 
-process = cms.Process("GeometryTest",Phase2C11I13M9,dd4hep)
+process = cms.Process("GeometryTest",Phase2C17I13M9,dd4hep)
 
 process.source = cms.Source("EmptyIOVSource",
                             lastValue = cms.uint64(1),
@@ -50,26 +50,7 @@ process.MessageLogger.files.mtdGeometryDD4hep = cms.untracked.PSet(
     threshold = cms.untracked.string('INFO')
 )
 
-process.DDDetectorESProducer = cms.ESSource("DDDetectorESProducer",
-                                            confGeomXMLFiles = cms.FileInPath('Geometry/MTDCommonData/data/dd4hep/cms-mtdD76-geometry.xml'),
-                                            appendToDataLabel = cms.string('')
-)
-
-process.DDCompactViewESProducer = cms.ESProducer("DDCompactViewESProducer",
-                                                 appendToDataLabel = cms.string('')
-)
-
-process.DDSpecParRegistryESProducer = cms.ESProducer("DDSpecParRegistryESProducer",
-                                                     appendToDataLabel = cms.string('')
-)
-
-process.load("Geometry.MTDNumberingBuilder.mtdNumberingGeometry_cff")
-
-process.load("Geometry.MTDNumberingBuilder.mtdTopology_cfi")
-process.load("Geometry.MTDGeometryBuilder.mtdParameters_cff")
-
-process.load("Geometry.MTDGeometryBuilder.mtdGeometry_cfi")
-process.mtdGeometry.applyAlignment = cms.bool(False)
+process.load("Configuration.Geometry.GeometryDD4hepExtended2026D98Reco_cff")
 
 process.Timing = cms.Service("Timing")
 

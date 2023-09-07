@@ -3,7 +3,6 @@
 #include "DQMOffline/Trigger/interface/EgHLTEleHLTFilterMon.h"
 #include "DQMOffline/Trigger/interface/EgHLTPhoHLTFilterMon.h"
 
-#include "DQMOffline/Trigger/interface/EgHLTDebugFuncs.h"
 #include "DQMOffline/Trigger/interface/EgHLTDQMCut.h"
 #include "DQMOffline/Trigger/interface/EgHLTTrigTools.h"
 
@@ -256,3 +255,6 @@ void EgHLTOfflineSource::filterTriggers(const HLTConfigProvider& hltConfig) {
   trigTools::filterInactiveTightLooseTriggers(phoTightLooseTrigNames_, activePhoFilters);
   trigTools::filterInactiveTightLooseTriggers(diPhoTightLooseTrigNames_, activePhoFilters);
 }
+
+#include "FWCore/Framework/interface/MakerMacros.h"
+DEFINE_FWK_MODULE(EgHLTOfflineSource);

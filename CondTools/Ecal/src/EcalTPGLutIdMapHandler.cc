@@ -82,7 +82,7 @@ void popcon::EcalTPGLutIdMapHandler::getNewObjects() {
 
   readFromFile("last_tpg_lutIdMap_settings.txt");
 
-  unsigned int min_run = m_i_run_number + 1;
+  unsigned int min_run;
 
   if (m_firstRun < m_i_run_number) {
     min_run = m_i_run_number + 1;
@@ -172,7 +172,6 @@ void popcon::EcalTPGLutIdMapHandler::getNewObjects() {
             typedef std::map<EcalLogicID, FEConfigLUTGroupDat>::const_iterator CIfelut;
             EcalLogicID ecid_xt;
             FEConfigLUTGroupDat rd_lut;
-            int igroups = 0;
 
             for (CIfelut p = dataset_TpgLut.begin(); p != dataset_TpgLut.end(); p++) {
               ecid_xt = p->first;
@@ -189,7 +188,6 @@ void popcon::EcalTPGLutIdMapHandler::getNewObjects() {
               EcalTPGLut mylut;
               mylut.setLut(lutArray);
               lutMap->setValue(rd_lut.getLUTGroupId(), mylut);
-              ++igroups;
             }
 
             Time_t snc = (Time_t)irun;

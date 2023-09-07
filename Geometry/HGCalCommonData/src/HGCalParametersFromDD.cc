@@ -11,49 +11,6 @@
 //#define EDM_ML_DEBUG
 using namespace geant_units::operators;
 
-namespace {
-  HGCalGeometryMode::GeometryMode getGeometryMode(const char* s, const DDsvalues_type& sv) {
-    DDValue val(s);
-    if (DDfetch(&sv, val)) {
-      const std::vector<std::string>& fvec = val.strings();
-      if (fvec.empty()) {
-        throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag.";
-      }
-
-      HGCalStringToEnumParser<HGCalGeometryMode::GeometryMode> eparser;
-      HGCalGeometryMode::GeometryMode result = (HGCalGeometryMode::GeometryMode)eparser.parseString(fvec[0]);
-      return result;
-    } else {
-      throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag";
-    }
-  }
-  HGCalGeometryMode::GeometryMode getGeometryMode(const std::string& s) {
-    HGCalStringToEnumParser<HGCalGeometryMode::GeometryMode> eparser;
-    HGCalGeometryMode::GeometryMode result = (HGCalGeometryMode::GeometryMode)eparser.parseString(s);
-    return result;
-  }
-  HGCalGeometryMode::WaferMode getGeometryWaferMode(const char* s, const DDsvalues_type& sv) {
-    DDValue val(s);
-    if (DDfetch(&sv, val)) {
-      const std::vector<std::string>& fvec = val.strings();
-      if (fvec.empty()) {
-        throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag.";
-      }
-
-      HGCalStringToEnumParser<HGCalGeometryMode::WaferMode> eparser;
-      HGCalGeometryMode::WaferMode result = (HGCalGeometryMode::WaferMode)eparser.parseString(fvec[0]);
-      return result;
-    } else {
-      throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag";
-    }
-  }
-  HGCalGeometryMode::WaferMode getGeometryWaferMode(std::string& s) {
-    HGCalStringToEnumParser<HGCalGeometryMode::WaferMode> eparser;
-    HGCalGeometryMode::WaferMode result = (HGCalGeometryMode::WaferMode)eparser.parseString(s);
-    return result;
-  }
-}  // namespace
-
 bool HGCalParametersFromDD::build(const DDCompactView* cpv,
                                   HGCalParameters& php,
                                   const std::string& name,
@@ -73,22 +30,32 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
   DDFilteredView fv(*cpv, filter);
   bool ok = fv.firstChild();
   HGCalGeometryMode::WaferMode mode(HGCalGeometryMode::Polyhedra);
-
+#ifdef EDM_ML_DEBUG
+  edm::LogVerbatim("HGCalGeom") << "Volume " << name << " GeometryMode ";
+#endif
   if (ok) {
     DDsvalues_type sv(fv.mergedSpecifics());
-    php.mode_ = getGeometryMode("GeometryMode", sv);
+    php.mode_ = HGCalGeometryMode::getGeometryMode("GeometryMode", sv);
 #ifdef EDM_ML_DEBUG
     edm::LogVerbatim("HGCalGeom") << "Volume " << name << " GeometryMode " << php.mode_ << ":"
                                   << HGCalGeometryMode::Hexagon << ":" << HGCalGeometryMode::HexagonFull << ":"
                                   << HGCalGeometryMode::Hexagon8 << ":" << HGCalGeometryMode::Hexagon8Full << ":"
                                   << HGCalGeometryMode::Hexagon8File << ":" << HGCalGeometryMode::Hexagon8Module << ":"
                                   << HGCalGeometryMode::Trapezoid << ":" << HGCalGeometryMode::TrapezoidFile << ":"
-                                  << HGCalGeometryMode::TrapezoidModule;
+                                  << HGCalGeometryMode::TrapezoidModule << ":" << HGCalGeometryMode::Hexagon8Cassette
+                                  << ":" << HGCalGeometryMode::TrapezoidCassette << ":"
+                                  << HGCalGeometryMode::Hexagon8CalibCell;
 #endif
     php.levelZSide_ = 3;        // Default level for ZSide
     php.detectorType_ = 0;      // These two parameters are
     php.firstMixedLayer_ = -1;  // defined for post TDR geometry
+    php.useSimWt_ = 1;          // energy weighting for SimHits
     php.layerRotation_ = 0;     // default layer rotation angle
+    php.cassettes_ = 0;         // default number of cassettes
+    php.nphiCassette_ = 0;      // default number of phi's per cassette
+    php.phiOffset_ = 0;         // default value of phi offset for cassette
+    php.calibCellRHD_ = 0;      // default value of R of HD calibration cells
+    php.calibCellRLD_ = 0;      // default value of R of LD calibration cells
     std::unique_ptr<HGCalGeomParameters> geom = std::make_unique<HGCalGeomParameters>();
     if ((php.mode_ == HGCalGeometryMode::Hexagon) || (php.mode_ == HGCalGeometryMode::HexagonFull)) {
       attribute = "OnlyForHGCalNumbering";
@@ -99,7 +66,7 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       bool ok2 = fv2.firstChild();
       if (ok2) {
         DDsvalues_type sv2(fv2.mergedSpecifics());
-        mode = getGeometryWaferMode("WaferMode", sv2);
+        mode = HGCalGeometryMode::getGeometryWaferMode("WaferMode", sv2);
 #ifdef EDM_ML_DEBUG
         edm::LogVerbatim("HGCalGeom") << "WaferMode " << mode << ":" << HGCalGeometryMode::Polyhedra << ":"
                                       << HGCalGeometryMode::ExtrudedPolygon;
@@ -110,7 +77,8 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       php.waferZSide_ = 0;
     }
     if ((php.mode_ == HGCalGeometryMode::Hexagon8) || (php.mode_ == HGCalGeometryMode::Hexagon8Full) ||
-        (php.mode_ == HGCalGeometryMode::Hexagon8File) || (php.mode_ == HGCalGeometryMode::Hexagon8Module)) {
+        (php.mode_ == HGCalGeometryMode::Hexagon8File) || (php.mode_ == HGCalGeometryMode::Hexagon8Module) ||
+        (php.mode_ == HGCalGeometryMode::Hexagon8Cassette) || (php.mode_ == HGCalGeometryMode::Hexagon8CalibCell)) {
       php.levelT_ = dbl_to_int(getDDDArray("LevelTop", sv));
       php.levelZSide_ = static_cast<int>(getDDDValue("LevelZSide", sv));
       php.nCellsFine_ = php.nCellsCoarse_ = 0;
@@ -120,14 +88,21 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       php.minTileSize_ = 0;
       php.waferMaskMode_ = static_cast<int>(getDDDValue("WaferMaskMode", sv));
       php.waferZSide_ = static_cast<int>(getDDDValue("WaferZside", sv));
-      if (php.mode_ == HGCalGeometryMode::Hexagon8Module)
+      if ((php.mode_ == HGCalGeometryMode::Hexagon8Module) || (php.mode_ == HGCalGeometryMode::Hexagon8Cassette) ||
+          (php.mode_ == HGCalGeometryMode::Hexagon8CalibCell)) {
+        php.useSimWt_ = static_cast<int>(getDDDValue("UseSimWt", sv));
         php.layerRotation_ = getDDDValue("LayerRotation", sv);
+      }
+      if ((php.waferMaskMode_ == HGCalGeomParameters::siliconCassetteEE) ||
+          (php.waferMaskMode_ == HGCalGeomParameters::siliconCassetteHE))
+        php.cassettes_ = getDDDValue("Cassettes", sv);
 #ifdef EDM_ML_DEBUG
       edm::LogVerbatim("HGCalGeom") << "Top levels " << php.levelT_[0] << ":" << php.levelT_[1] << " ZSide Level "
                                     << php.levelZSide_ << " first layers " << php.firstLayer_ << ":"
                                     << php.firstMixedLayer_ << " Det Type " << php.detectorType_ << " Wafer Mask Mode "
-                                    << php.waferMaskMode_ << " Zside " << php.waferZSide_ << " Layer Rotation "
-                                    << convertRadToDeg(php.layerRotation_);
+                                    << php.waferMaskMode_ << " ZSide " << php.waferZSide_ << " Layer Rotation "
+                                    << convertRadToDeg(php.layerRotation_) << " Cassettes " << php.cassettes_
+                                    << " UseSimWt " << php.useSimWt_;
 #endif
       attribute = "OnlyForHGCalNumbering";
       value = namet;
@@ -137,13 +112,16 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       bool ok2 = fv2.firstChild();
       if (ok2) {
         DDsvalues_type sv2(fv2.mergedSpecifics());
-        mode = getGeometryWaferMode("WaferMode", sv2);
+        mode = HGCalGeometryMode::getGeometryWaferMode("WaferMode", sv2);
         php.nCellsFine_ = static_cast<int>(getDDDValue("NumberOfCellsFine", sv2));
         php.nCellsCoarse_ = static_cast<int>(getDDDValue("NumberOfCellsCoarse", sv2));
         php.waferSize_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("WaferSize", sv2);
         php.waferThick_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("WaferThickness", sv2);
         php.sensorSeparation_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("SensorSeparation", sv2);
+        php.sensorSizeOffset_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("SensorSizeOffset", sv2);
+        php.guardRingOffset_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("GuardRingOffset", sv2);
         php.mouseBite_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("MouseBite", sv2);
+        php.useOffset_ = static_cast<int>(getDDDValue("UseOffset", sv2));
         php.waferR_ = HGCalParameters::k_ScaleToDDD * php.waferSize_ * tan30deg_;
         php.cellSize_.emplace_back(HGCalParameters::k_ScaleToDDD * php.waferSize_ / php.nCellsFine_);
         php.cellSize_.emplace_back(HGCalParameters::k_ScaleToDDD * php.waferSize_ / php.nCellsCoarse_);
@@ -152,8 +130,9 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
                                       << HGCalGeometryMode::ExtrudedPolygon << " # of cells|size for fine/coarse "
                                       << php.nCellsFine_ << ":" << php.cellSize_[0] << ":" << php.nCellsCoarse_ << ":"
                                       << php.cellSize_[1] << " wafer Params " << php.waferSize_ << ":" << php.waferR_
-                                      << ":" << php.waferThick_ << ":" << php.sensorSeparation_ << ":" << php.mouseBite_
-                                      << ":" << php.waferR_;
+                                      << ":" << php.waferThick_ << ":" << php.sensorSeparation_ << ":"
+                                      << php.sensorSizeOffset_ << ":" << php.guardRingOffset_ << ":" << php.mouseBite_
+                                      << ":" << php.useOffset_ << ":" << php.waferR_;
 #endif
         for (int k = 0; k < 2; ++k)
           getCellPosition(php, k);
@@ -199,7 +178,8 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       php.defineFull_ = true;
       // Load wafer positions
       geom->loadWaferHexagon8(php);
-    } else if (php.mode_ == HGCalGeometryMode::Hexagon8Module) {
+    } else if ((php.mode_ == HGCalGeometryMode::Hexagon8Module) || (php.mode_ == HGCalGeometryMode::Hexagon8Cassette) ||
+               (php.mode_ == HGCalGeometryMode::Hexagon8CalibCell)) {
       // Load the SpecPars
       geom->loadSpecParsHexagon8(fv, php);
       // Load Geometry parameters
@@ -209,7 +189,8 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       // Load wafer positions
       geom->loadWaferHexagon8(php);
     } else if ((php.mode_ == HGCalGeometryMode::Trapezoid) || (php.mode_ == HGCalGeometryMode::TrapezoidFile) ||
-               (php.mode_ == HGCalGeometryMode::TrapezoidModule)) {
+               (php.mode_ == HGCalGeometryMode::TrapezoidModule) ||
+               (php.mode_ == HGCalGeometryMode::TrapezoidCassette)) {
       // Load maximum eta & top level
       php.levelT_ = dbl_to_int(getDDDArray("LevelTop", sv));
       php.firstLayer_ = (int)(getDDDValue("FirstLayer", sv));
@@ -219,13 +200,19 @@ bool HGCalParametersFromDD::build(const DDCompactView* cpv,
       php.minTileSize_ = HGCalParameters::k_ScaleFromDDD * getDDDValue("MinimumTileSize", sv);
       php.waferSize_ = php.waferR_ = 0;
       php.sensorSeparation_ = php.mouseBite_ = 0;
+      php.sensorSizeOffset_ = php.guardRingOffset_ = php.useOffset_ = 0;
       php.waferMaskMode_ = static_cast<int>(getDDDValue("WaferMaskMode", sv));
       php.waferZSide_ = static_cast<int>(getDDDValue("WaferZside", sv));
+      if ((php.mode_ == HGCalGeometryMode::TrapezoidModule) || (php.mode_ == HGCalGeometryMode::TrapezoidCassette))
+        php.useSimWt_ = static_cast<int>(getDDDValue("UseSimWt", sv));
+      if (php.waferMaskMode_ == HGCalGeomParameters::scintillatorCassette)
+        php.cassettes_ = getDDDValue("Cassettes", sv);
 #ifdef EDM_ML_DEBUG
       edm::LogVerbatim("HGCalGeom") << "Top levels " << php.levelT_[0] << ":" << php.levelT_[1] << " first layers "
                                     << php.firstLayer_ << ":" << php.firstMixedLayer_ << " Det Type "
                                     << php.detectorType_ << "  thickenss " << php.waferThick_ << " Tile Mask Mode "
-                                    << php.waferMaskMode_ << " Zside " << php.waferZSide_;
+                                    << php.waferMaskMode_ << " Zside " << php.waferZSide_ << " Cassettes "
+                                    << php.cassettes_ << " UseSimWt " << php.useSimWt_;
 #endif
       // Load the SpecPars
       geom->loadSpecParsTrapezoid(fv, php);
@@ -258,7 +245,7 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
                                   const std::string& namet,
                                   const std::string& name2) {
 #ifdef EDM_ML_DEBUG
-  edm::LogVerbatim("HGCalGeom") << "HGCalParametersFromDD (DD4Hep)::build called with "
+  edm::LogVerbatim("HGCalGeom") << "HGCalParametersFromDD (DD4hep)::build called with "
                                 << "names " << name << ":" << namew << ":" << namec << ":" << namet << ":" << name2;
 #endif
   cms::DDVectorsMap vmap = cpv->detector()->vectors();
@@ -273,26 +260,33 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
   }
   std::string sv = (!tempS.empty()) ? tempS[0] : "HGCalGeometryMode::Hexagon8Full";
   HGCalGeometryMode::WaferMode mode(HGCalGeometryMode::Polyhedra);
+#ifdef EDM_ML_DEBUG
+  edm::LogVerbatim("HGCalGeom") << "Volume " << name << " GeometryMode ";
+#endif
 
   if (ok) {
-    php.mode_ = getGeometryMode(sv);
+    php.mode_ = HGCalGeometryMode::getGeometryMode(sv);
 #ifdef EDM_ML_DEBUG
     edm::LogVerbatim("HGCalGeom") << "Volume " << name << " GeometryMode " << php.mode_ << ":"
                                   << HGCalGeometryMode::Hexagon << ":" << HGCalGeometryMode::HexagonFull << ":"
                                   << HGCalGeometryMode::Hexagon8 << ":" << HGCalGeometryMode::Hexagon8Full << ":"
                                   << HGCalGeometryMode::Hexagon8File << ":" << HGCalGeometryMode::Hexagon8Module << ":"
                                   << HGCalGeometryMode::Trapezoid << ":" << HGCalGeometryMode::TrapezoidFile << ":"
-                                  << HGCalGeometryMode::TrapezoidModule;
+                                  << HGCalGeometryMode::TrapezoidModule << ":" << HGCalGeometryMode::Hexagon8Cassette
+                                  << ":" << HGCalGeometryMode::TrapezoidCassette << ":"
+                                  << HGCalGeometryMode::Hexagon8CalibCell;
 #endif
     php.levelZSide_ = 3;        // Default level for ZSide
     php.detectorType_ = 0;      // These two parameters are
     php.firstMixedLayer_ = -1;  // defined for post TDR geometry
+    php.useSimWt_ = 1;          // energy weighting for SimHits
     php.layerRotation_ = 0;     // default layer rotation angle
+    php.cassettes_ = 0;         // default number of cassettes
     std::unique_ptr<HGCalGeomParameters> geom = std::make_unique<HGCalGeomParameters>();
     if ((php.mode_ == HGCalGeometryMode::Hexagon) || (php.mode_ == HGCalGeometryMode::HexagonFull)) {
       tempS = fv.get<std::vector<std::string> >(namet, "WaferMode");
       std::string sv2 = (!tempS.empty()) ? tempS[0] : "HGCalGeometryMode::Polyhedra";
-      mode = getGeometryWaferMode(sv2);
+      mode = HGCalGeometryMode::getGeometryWaferMode(sv2);
 #ifdef EDM_ML_DEBUG
       edm::LogVerbatim("HGCalGeom") << "WaferMode " << mode << ":" << HGCalGeometryMode::Polyhedra << ":"
                                     << HGCalGeometryMode::ExtrudedPolygon;
@@ -302,7 +296,8 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
       php.waferZSide_ = 0;
     }
     if ((php.mode_ == HGCalGeometryMode::Hexagon8) || (php.mode_ == HGCalGeometryMode::Hexagon8Full) ||
-        (php.mode_ == HGCalGeometryMode::Hexagon8File) || (php.mode_ == HGCalGeometryMode::Hexagon8Module)) {
+        (php.mode_ == HGCalGeometryMode::Hexagon8File) || (php.mode_ == HGCalGeometryMode::Hexagon8Module) ||
+        (php.mode_ == HGCalGeometryMode::Hexagon8Cassette) || (php.mode_ == HGCalGeometryMode::Hexagon8CalibCell)) {
       php.levelT_ = dbl_to_int(fv.get<std::vector<double> >(name, "LevelTop"));
       tempD = fv.get<std::vector<double> >(name, "LevelZSide");
       php.levelZSide_ = static_cast<int>(tempD[0]);
@@ -317,33 +312,48 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
       php.waferMaskMode_ = static_cast<int>(tempD[0]);
       tempD = fv.get<std::vector<double> >(name, "WaferZside");
       php.waferZSide_ = static_cast<int>(tempD[0]);
-      if (php.mode_ == HGCalGeometryMode::Hexagon8Module) {
+      if ((php.mode_ == HGCalGeometryMode::Hexagon8Module) || (php.mode_ == HGCalGeometryMode::Hexagon8Cassette) ||
+          (php.mode_ == HGCalGeometryMode::Hexagon8CalibCell)) {
         tempD = fv.get<std::vector<double> >(name, "LayerRotation");
         php.layerRotation_ = tempD[0];
+        tempD = fv.get<std::vector<double> >(name, "UseSimWt");
+        php.useSimWt_ = tempD[0];
+      }
+      if ((php.waferMaskMode_ == HGCalGeomParameters::siliconCassetteEE) ||
+          (php.waferMaskMode_ == HGCalGeomParameters::siliconCassetteHE)) {
+        tempD = fv.get<std::vector<double> >(name, "Cassettes");
+        php.cassettes_ = static_cast<int>(tempD[0]);
       }
 #ifdef EDM_ML_DEBUG
       edm::LogVerbatim("HGCalGeom") << "Top levels " << php.levelT_[0] << ":" << php.levelT_[1] << " ZSide Level "
                                     << php.levelZSide_ << " first layers " << php.firstLayer_ << ":"
                                     << php.firstMixedLayer_ << " Det Type " << php.detectorType_ << " Wafer Mask Mode "
                                     << php.waferMaskMode_ << " ZSide " << php.waferZSide_ << " Layer Rotation "
-                                    << convertRadToDeg(php.layerRotation_);
+                                    << convertRadToDeg(php.layerRotation_) << " Cassettes " << php.cassettes_
+                                    << " UseSimWt " << php.useSimWt_;
 #endif
 
       tempS = fv.get<std::vector<std::string> >(namet, "WaferMode");
       std::string sv2 = (!tempS.empty()) ? tempS[0] : "HGCalGeometryMode::ExtrudedPolygon";
-      mode = getGeometryWaferMode(sv2);
+      mode = HGCalGeometryMode::getGeometryWaferMode(sv2);
       tempD = fv.get<std::vector<double> >(namet, "NumberOfCellsFine");
       php.nCellsFine_ = static_cast<int>(tempD[0]);
       tempD = fv.get<std::vector<double> >(namet, "NumberOfCellsCoarse");
       php.nCellsCoarse_ = static_cast<int>(tempD[0]);
       tempD = fv.get<std::vector<double> >(namet, "WaferSize");
-      php.waferSize_ = HGCalParameters::k_ScaleFromDD4Hep * tempD[0];
+      php.waferSize_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
       tempD = fv.get<std::vector<double> >(namet, "WaferThickness");
-      php.waferThick_ = HGCalParameters::k_ScaleFromDD4Hep * tempD[0];
+      php.waferThick_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
       tempD = fv.get<std::vector<double> >(namet, "SensorSeparation");
-      php.sensorSeparation_ = HGCalParameters::k_ScaleFromDD4Hep * tempD[0];
+      php.sensorSeparation_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
+      tempD = fv.get<std::vector<double> >(namet, "SensorSizeOffset");
+      php.sensorSizeOffset_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
+      tempD = fv.get<std::vector<double> >(namet, "GuardRingOffset");
+      php.guardRingOffset_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
       tempD = fv.get<std::vector<double> >(namet, "MouseBite");
-      php.mouseBite_ = HGCalParameters::k_ScaleFromDD4Hep * tempD[0];
+      php.mouseBite_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
+      tempD = fv.get<std::vector<double> >(namet, "UseOffset");
+      php.useOffset_ = static_cast<int>(tempD[0]);
       php.waferR_ = HGCalParameters::k_ScaleToDDD * php.waferSize_ * tan30deg_;
       php.cellSize_.emplace_back(HGCalParameters::k_ScaleToDDD * php.waferSize_ / php.nCellsFine_);
       php.cellSize_.emplace_back(HGCalParameters::k_ScaleToDDD * php.waferSize_ / php.nCellsCoarse_);
@@ -352,8 +362,9 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
                                     << HGCalGeometryMode::ExtrudedPolygon << " # of cells|size for fine/coarse "
                                     << php.nCellsFine_ << ":" << php.cellSize_[0] << ":" << php.nCellsCoarse_ << ":"
                                     << php.cellSize_[1] << " wafer Params " << php.waferSize_ << ":" << php.waferR_
-                                    << ":" << php.waferThick_ << ":" << php.sensorSeparation_ << ":" << php.mouseBite_
-                                    << ":" << php.waferR_;
+                                    << ":" << php.waferThick_ << ":" << php.sensorSeparation_ << ":"
+                                    << php.sensorSizeOffset_ << ":" << php.guardRingOffset_ << ":" << php.mouseBite_
+                                    << ":" << php.useOffset_ << ":" << php.waferR_;
 #endif
       for (int k = 0; k < 2; ++k)
         getCellPosition(php, k);
@@ -398,7 +409,8 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
       php.defineFull_ = true;
       // Load wafer positions
       geom->loadWaferHexagon8(php);
-    } else if (php.mode_ == HGCalGeometryMode::Hexagon8Module) {
+    } else if ((php.mode_ == HGCalGeometryMode::Hexagon8Module) || (php.mode_ == HGCalGeometryMode::Hexagon8Cassette) ||
+               (php.mode_ == HGCalGeometryMode::Hexagon8CalibCell)) {
       // Load the SpecPars
       geom->loadSpecParsHexagon8(fv, vmap, php, name);
       // Load Geometry parameters
@@ -408,7 +420,8 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
       // Load wafer positions
       geom->loadWaferHexagon8(php);
     } else if ((php.mode_ == HGCalGeometryMode::Trapezoid) || (php.mode_ == HGCalGeometryMode::TrapezoidFile) ||
-               (php.mode_ == HGCalGeometryMode::TrapezoidModule)) {
+               (php.mode_ == HGCalGeometryMode::TrapezoidModule) ||
+               (php.mode_ == HGCalGeometryMode::TrapezoidCassette)) {
       // Load maximum eta & top level
       php.levelT_ = dbl_to_int(fv.get<std::vector<double> >(name, "LevelTop"));
       tempD = fv.get<std::vector<double> >(name, "LevelZSide");
@@ -421,21 +434,31 @@ bool HGCalParametersFromDD::build(const cms::DDCompactView* cpv,
       tempD = fv.get<std::vector<double> >(name, "DetectorType");
       php.detectorType_ = static_cast<int>(tempD[0]);
       tempD = fv.get<std::vector<double> >(name, "WaferThickness");
-      php.waferThick_ = HGCalParameters::k_ScaleFromDD4Hep * tempD[0];
+      php.waferThick_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
       tempD = fv.get<std::vector<double> >(name, "MinimumTileSize");
-      php.minTileSize_ = HGCalParameters::k_ScaleFromDD4Hep * tempD[0];
+      php.minTileSize_ = HGCalParameters::k_ScaleFromDD4hep * tempD[0];
       php.waferSize_ = php.waferR_ = 0;
       php.sensorSeparation_ = php.mouseBite_ = 0;
+      php.sensorSizeOffset_ = php.guardRingOffset_ = php.useOffset_ = 0;
       tempD = fv.get<std::vector<double> >(name, "WaferMaskMode");
       php.waferMaskMode_ = static_cast<int>(tempD[0]);
       tempD = fv.get<std::vector<double> >(name, "WaferZside");
       php.waferZSide_ = static_cast<int>(tempD[0]);
+      if ((php.mode_ == HGCalGeometryMode::TrapezoidModule) || (php.mode_ == HGCalGeometryMode::TrapezoidCassette)) {
+        tempD = fv.get<std::vector<double> >(name, "UseSimWt");
+        php.useSimWt_ = tempD[0];
+      }
+      if (php.waferMaskMode_ == HGCalGeomParameters::scintillatorCassette) {
+        tempD = fv.get<std::vector<double> >(name, "Cassettes");
+        php.cassettes_ = static_cast<int>(tempD[0]);
+      }
 #ifdef EDM_ML_DEBUG
       edm::LogVerbatim("HGCalGeom") << "Top levels " << php.levelT_[0] << ":" << php.levelT_[1] << " first layers "
                                     << php.firstLayer_ << ":" << php.firstMixedLayer_ << " Det Type "
                                     << php.detectorType_ << "  thickenss " << php.waferThick_ << " min tile size "
                                     << php.minTileSize_ << " Tile Mask Mode " << php.waferMaskMode_ << " ZSide "
-                                    << php.waferZSide_;
+                                    << php.waferZSide_ << " Cassettes " << php.cassettes_ << " UseSimWt "
+                                    << php.useSimWt_;
 #endif
       // Load the SpecPars
       geom->loadSpecParsTrapezoid(fv, vmap, php, name);
@@ -528,11 +551,11 @@ double HGCalParametersFromDD::getDDDValue(const char* s, const DDsvalues_type& s
   if (DDfetch(&sv, val)) {
     const std::vector<double>& fvec = val.doubles();
     if (fvec.empty()) {
-      throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag.";
+      throw cms::Exception("HGCalGeom") << "getDDDValue::Failed to get " << s << " tag.";
     }
     return fvec[0];
   } else {
-    throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag";
+    throw cms::Exception("HGCalGeom") << "getDDDValue::Failed to fetch " << s << " tag";
   }
 }
 
@@ -541,10 +564,10 @@ std::vector<double> HGCalParametersFromDD::getDDDArray(const char* s, const DDsv
   if (DDfetch(&sv, val)) {
     const std::vector<double>& fvec = val.doubles();
     if (fvec.empty()) {
-      throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag.";
+      throw cms::Exception("HGCalGeom") << "getDDDArray::Failed to get " << s << " tag.";
     }
     return fvec;
   } else {
-    throw cms::Exception("HGCalGeom") << "Failed to get " << s << " tag";
+    throw cms::Exception("HGCalGeom") << "getDDDArray:Failed to fetch " << s << " tag";
   }
 }

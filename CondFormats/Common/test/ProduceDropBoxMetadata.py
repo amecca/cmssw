@@ -5,6 +5,7 @@ import FWCore.ParameterSet.Config as cms
 process = cms.Process("myprocess")
 
 process.load("CondCore.CondDB.CondDB_cfi")
+process.load("FWCore.MessageService.MessageLogger_cfi")
 
 process.CondDB.connect = 'sqlite_file:DropBoxMetadata.db' 
 
@@ -16,11 +17,11 @@ process.source = cms.Source("EmptySource",
                             )
 
 # process.PoolDBOutputService.DBParameters.messageLevel = 3
-import json
+import json, os
 
 def encodeJsonInString(filename):
     """This function open the json file and encodes it in a string replacing probelamtic characters"""
-    thefile = open(filename)
+    thefile = open(os.path.join(os.path.dirname(__file__), "..", "data", filename))
     thejson = json.load(thefile)
     thefile.close()
     return json.JSONEncoder().encode(thejson).replace('"',"&quot;")
@@ -45,22 +46,28 @@ BeamSpotObjectsRcdHPByRun_prep_str = encodeJsonInString("BeamSpotObjectsRcdHPbyR
 SiStripBadStripRcd_prod_str = encodeJsonInString("SiStripBadStripRcd_prod.json")
 SiStripBadStripRcd_prep_str = encodeJsonInString("SiStripBadStripRcd_prep.json")
 
+#SiStripBadStripRcd from Hit Efficiency
+SiStripBadStripRcdHitEff_prod_str = encodeJsonInString("SiStripBadStripFromHitEffRcd_prod.json")
+SiStripBadStripRcdHitEff_prep_str = encodeJsonInString("SiStripBadStripFromHitEffRcd_prep.json")
+
 #SiStripApvGainRcd
 SiStripApvGainRcd_prod_str = encodeJsonInString("SiStripApvGainRcd_prod.json")
 SiStripApvGainRcd_multirun_prod_str = encodeJsonInString("SiStripApvGainRcd_multirun_prod.json") 
-SiStripApvGainRcdAfterAbortGap_prod_str = encodeJsonInString("SiStripApvGainRcdAfterAbortGap_prod.json") # can be removed, once 92x deployed
-SiStripApvGainRcdAAG_prod_str = encodeJsonInString("SiStripApvGainRcdAAG_prod.json") # will take over
+SiStripApvGainRcdAAG_prod_str = encodeJsonInString("SiStripApvGainRcdAAG_prod.json")
 SiStripApvGainRcdAAG_multirun_prod_str = encodeJsonInString("SiStripApvGainRcdAAG_multirun_prod.json")
 
 SiStripApvGainRcd_prep_str = encodeJsonInString("SiStripApvGainRcd_prep.json")
 SiStripApvGainRcd_multirun_prep_str = encodeJsonInString("SiStripApvGainRcd_multirun_prep.json")
-SiStripApvGainRcdAfterAbortGap_prep_str = encodeJsonInString("SiStripApvGainRcdAfterAbortGap_prep.json") # can be removed, once 92x deployed
-SiStripApvGainRcdAAG_prep_str = encodeJsonInString("SiStripApvGainRcdAAG_prep.json") # will take over
+SiStripApvGainRcdAAG_prep_str = encodeJsonInString("SiStripApvGainRcdAAG_prep.json")
 SiStripApvGainRcdAAG_multirun_prep_str = encodeJsonInString("SiStripApvGainRcdAAG_multirun_prep.json")
 
 #SiPixelAli
 SiPixelAliRcd_prod_str = encodeJsonInString("SiPixelAliRcd_prod.json")
 SiPixelAliRcd_prep_str = encodeJsonInString("SiPixelAliRcd_prep.json")
+
+#SiPixelAliHG
+SiPixelAliHGRcd_prod_str = encodeJsonInString("SiPixelAliHGRcd_prod.json")
+SiPixelAliHGRcd_prep_str = encodeJsonInString("SiPixelAliHGRcd_prep.json")
 
 #EcalPedestalsRcd
 EcalPedestalsRcd_prod_str = encodeJsonInString("EcalPedestal_prod.json")
@@ -84,6 +91,12 @@ SiPixelLorentzAngleRcd_multirun_prod_str =  encodeJsonInString("SiPixelLorentzAn
 SiPixelLorentzAngleRcd_prep_str = encodeJsonInString("SiPixelLorentzAngleRcd_prep.json")
 SiPixelLorentzAngleRcd_multirun_prep_str = encodeJsonInString("SiPixelLorentzAngleRcd_multirun_prep.json")
 
+#SiPixelLorenzAngle, FPix 
+SiPixelLorentzAngleRcd_MCS_prod_str =  encodeJsonInString("SiPixelLorentzAngleRcd_MCS_prod.json")
+SiPixelLorentzAngleRcd_MCS_multirun_prod_str =  encodeJsonInString("SiPixelLorentzAngleRcd_MCS_multirun_prod.json")
+SiPixelLorentzAngleRcd_MCS_prep_str = encodeJsonInString("SiPixelLorentzAngleRcd_MCS_prep.json")
+SiPixelLorentzAngleRcd_MCS_multirun_prep_str = encodeJsonInString("SiPixelLorentzAngleRcd_MCS_multirun_prep.json")
+
 #CT-PPS alignment and timing
 CTPPSRPAlignmentCorrectionsDataRcd_prod_str =  encodeJsonInString("CTPPSRPAlignmentCorrectionsDataRcd_prod.json")
 CTPPSRPAlignmentCorrectionsDataRcd_prep_str = encodeJsonInString("CTPPSRPAlignmentCorrectionsDataRcd_prep.json")
@@ -92,13 +105,19 @@ PPSTimingCalibrationRcd_prep_str = encodeJsonInString("PPSTimingCalibrationRcd_p
 PPSTimingCalibrationRcd_Sampic_prod_str = encodeJsonInString("PPSTimingCalibrationRcd_Sampic_prod.json")
 PPSTimingCalibrationRcd_Sampic_prep_str = encodeJsonInString("PPSTimingCalibrationRcd_Sampic_prep.json")
 
+#SiStripLorenzAngle
+SiStripLorentzAngleRcd_prod_str =  encodeJsonInString("SiStripLorentzAngleRcd_prod.json")
+SiStripLorentzAngleRcd_multirun_prod_str =  encodeJsonInString("SiStripLorentzAngleRcd_multirun_prod.json")
+SiStripLorentzAngleRcd_prep_str = encodeJsonInString("SiStripLorentzAngleRcd_prep.json")
+SiStripLorentzAngleRcd_multirun_prep_str = encodeJsonInString("SiStripLorentzAngleRcd_multirun_prep.json")
 
 # given a set of .json files in the current dir, ProduceDropBoxMetadata produces a sqlite containign the payload with the prod/and/prep metadata
 process.mywriter = cms.EDAnalyzer("ProduceDropBoxMetadata",
                                   # set to True if you want to write out a sqlite.db translating the json's into a payload
                                   write = cms.untracked.bool(True),
 
-                                  # toWrite holds a list of Pset's, one for each workflow you want to produce DropBoxMetadata for; you need to have 2 .json files for each PSet
+                                  # toWrite holds a list of Pset's, one for each workflow you want to produce DropBoxMetadata for;
+                                  # you need to have 2 .json files for each PSet
                                   toWrite = cms.VPSet(cms.PSet(record              = cms.untracked.string("BeamSpotObjectsRcdByRun"), 
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
@@ -129,6 +148,12 @@ process.mywriter = cms.EDAnalyzer("ProduceDropBoxMetadata",
                                                                prodMetaData        = cms.untracked.string(SiStripBadStripRcd_prod_str),
                                                                prepMetaData        = cms.untracked.string(SiStripBadStripRcd_prep_str),
                                                                ),
+                                                      cms.PSet(record              = cms.untracked.string('SiStripBadStripFromHitEffRcd'),
+                                                               Source              = cms.untracked.string("AlcaHarvesting"),
+                                                               FileClass           = cms.untracked.string("ALCA"),
+                                                               prodMetaData        = cms.untracked.string(SiStripBadStripRcdHitEff_prod_str),
+                                                               prepMetaData        = cms.untracked.string(SiStripBadStripRcdHitEff_prep_str),
+                                                               ),
                                                       cms.PSet(record              = cms.untracked.string('SiStripApvGainRcd'),
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
@@ -143,13 +168,13 @@ process.mywriter = cms.EDAnalyzer("ProduceDropBoxMetadata",
                                                                prodMetaData        = cms.untracked.string(SiPixelAliRcd_prod_str),
                                                                prepMetaData        = cms.untracked.string(SiPixelAliRcd_prep_str),
                                                                ),
-                                                      cms.PSet(record              = cms.untracked.string('SiStripApvGainRcdAfterAbortGap'), # can be removed, once 92x deployed...
+                                                      cms.PSet(record              = cms.untracked.string('TrackerAlignmentHGRcd'),
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
-                                                               prodMetaData        = cms.untracked.string(SiStripApvGainRcdAfterAbortGap_prod_str),
-                                                               prepMetaData        = cms.untracked.string(SiStripApvGainRcdAfterAbortGap_prep_str),
+                                                               prodMetaData        = cms.untracked.string(SiPixelAliHGRcd_prod_str),
+                                                               prepMetaData        = cms.untracked.string(SiPixelAliHGRcd_prep_str),
                                                                ),
-                                                      cms.PSet(record              = cms.untracked.string('SiStripApvGainRcdAAG'), # ... will take over
+                                                      cms.PSet(record              = cms.untracked.string('SiStripApvGainRcdAAG'),
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
                                                                prodMetaData        = cms.untracked.string(SiStripApvGainRcdAAG_prod_str),
@@ -194,32 +219,46 @@ process.mywriter = cms.EDAnalyzer("ProduceDropBoxMetadata",
                                                                prodMetaDataMultiRun = cms.untracked.string(SiPixelLorentzAngleRcd_multirun_prod_str),
                                                                prepMetaData        = cms.untracked.string(SiPixelLorentzAngleRcd_prep_str),
                                                                prepMetaDataMultiRun = cms.untracked.string(SiPixelLorentzAngleRcd_multirun_prep_str),
-                                                               ),
+                                                           ),
+                                                      cms.PSet(record              = cms.untracked.string('SiPixelLorentzAngleRcdMCS'),
+                                                               Source              = cms.untracked.string("AlcaHarvesting"),
+                                                               FileClass           = cms.untracked.string("ALCA"),
+                                                               prodMetaData        = cms.untracked.string(SiPixelLorentzAngleRcd_MCS_prod_str),
+                                                               prodMetaDataMultiRun = cms.untracked.string(SiPixelLorentzAngleRcd_MCS_multirun_prod_str),
+                                                               prepMetaData        = cms.untracked.string(SiPixelLorentzAngleRcd_MCS_prep_str),
+                                                               prepMetaDataMultiRun = cms.untracked.string(SiPixelLorentzAngleRcd_MCS_multirun_prep_str),
+                                                           ),
                                                       cms.PSet(record              = cms.untracked.string('CTPPSRPAlignmentCorrectionsDataRcd'),
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
                                                                prodMetaData        = cms.untracked.string(CTPPSRPAlignmentCorrectionsDataRcd_prod_str),
                                                                prepMetaData        = cms.untracked.string(CTPPSRPAlignmentCorrectionsDataRcd_prep_str),
                                                                ),
-                                                      cms.PSet(record              = cms.untracked.string('PPSTimingCalibrationRcd'),
+                                                      cms.PSet(record              = cms.untracked.string('PPSTimingCalibrationRcd_HPTDC'),
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
                                                                prodMetaData        = cms.untracked.string(PPSTimingCalibrationRcd_prod_str),
                                                                prepMetaData        = cms.untracked.string(PPSTimingCalibrationRcd_prep_str),
                                                                ),
-                                                      cms.PSet(record              = cms.untracked.string('PPSTimingCalibrationRcd_Sampic'),
+                                                      cms.PSet(record              = cms.untracked.string('PPSTimingCalibrationRcd_SAMPIC'),
                                                                Source              = cms.untracked.string("AlcaHarvesting"),
                                                                FileClass           = cms.untracked.string("ALCA"),
                                                                prodMetaData        = cms.untracked.string(PPSTimingCalibrationRcd_Sampic_prod_str),
                                                                prepMetaData        = cms.untracked.string(PPSTimingCalibrationRcd_Sampic_prep_str),
                                                                ),
+                                                      cms.PSet(record              = cms.untracked.string('SiStripLorentzAngleRcd'),
+                                                               Source              = cms.untracked.string("AlcaHarvesting"),
+                                                               FileClass           = cms.untracked.string("ALCA"),
+                                                               prodMetaData        = cms.untracked.string(SiStripLorentzAngleRcd_prod_str),
+                                                               prodMetaDataMultiRun = cms.untracked.string(SiStripLorentzAngleRcd_multirun_prod_str),
+                                                               prepMetaData        = cms.untracked.string(SiStripLorentzAngleRcd_prep_str),
+                                                               prepMetaDataMultiRun = cms.untracked.string(SiStripLorentzAngleRcd_multirun_prep_str),
+                                                               ),
                                                       ),
                                   # this boolean will read the content of whichever payload is available and print its content to stoutput
                                   # set this to false if you write out a sqlite.db translating the json's into a payload
                                   read = cms.untracked.bool(False),
-
-                                  # toRead lists of record names to be sought inside the DropBoxMetadataRcd payload avaialble to the ProduceDropBoxMetadata; for instance, if write is True, you're reading back the metadata you've just entered in the payload from the .json files
-                                  toRead = cms.untracked.vstring('BeamSpotObjectsRcdByRun','BeamSpotObjectsRcdByLumi','BeamSpotObjectsRcdHPByLumi','BeamSpotObjectsRcdHPByRun','SiStripBadStripRcd','SiStripApvGainRcd','TrackerAlignmentRcd','SiStripApvGainRcdAfterAbortGap','SiStripApvGainRcdAAG','EcalPedestalsRcd',"LumiCorrectionsRcd","SiPixelQualityFromDbRcd_prompt","SiPixelQualityFromDbRcd_stuckTBM","SiPixelQualityFromDbRcd_other","SiPixelLorentzAngleRcd","CTPPSRPAlignmentCorrectionsDataRcd","PPSTimingCalibrationRcd","PPSTimingCalibrationRcd_Sampic") # same strings as fType
+                                  toRead = cms.untracked.vstring() 
                                   )
 
 process.p = cms.Path(process.mywriter)
@@ -242,15 +281,4 @@ if process.mywriter.write:
                                               )
     
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
-process.GlobalTag.globaltag = '121X_dataRun3_Express_Queue'
-
-# Set to True if you want to read a DropBoxMetadata payload from a local sqlite
-# specify the name of the sqlitefile.db and the tag name; the payload loaded will be for run 300000
-readsqlite = False
-if readsqlite:
-    process.GlobalTag.toGet = cms.VPSet(
-        cms.PSet(record = cms.string("DropBoxMetadataRcd"),
-                 tag = cms.string("DropBoxMetadata"),
-                 connect = cms.string("sqlite_file:DropBoxMetadata_addHPbyRun.db")
-                )
-        )
+process.GlobalTag.globaltag = '124X_dataRun3_Express_Queue'

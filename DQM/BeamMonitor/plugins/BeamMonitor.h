@@ -25,6 +25,8 @@
 #include "RecoVertex/BeamSpotProducer/interface/BSTrkParameters.h"
 #include "RecoVertex/BeamSpotProducer/interface/BeamFitter.h"
 #include "CondCore/DBOutputService/interface/OnlineDBOutputService.h"
+#include "DataFormats/TCDS/interface/BSTRecord.h"
+#include "DataFormats/TCDS/interface/TCDSRecord.h"
 #include <fstream>
 
 //
@@ -119,6 +121,14 @@ private:
 
   bool processed_;
   bool useLockRecords_;
+
+  int nAnalyzedLS_;
+  int nLS_for_upload_;
+
+  edm::EDGetTokenT<TCDSRecord> tcdsToken_;
+  bool logToDb_;
+  bool loggerActive_;
+
   // ----------member data ---------------------------
 
   //   std::vector<BSTrkParameters> fBSvector;

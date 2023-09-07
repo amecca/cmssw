@@ -16,11 +16,9 @@
  ************************************************************/
 
 //#include <vector>
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "DataFormats/Common/interface/Handle.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
@@ -70,6 +68,8 @@ public:
 
   // Destructor
   virtual ~TrackerHitAssociator() {}
+
+  static void fillPSetDescription(edm::ParameterSetDescription& descriptions);
 
   typedef std::pair<unsigned int, unsigned int> simhitAddr, subDetTofBin;
   typedef unsigned int simHitCollectionID;

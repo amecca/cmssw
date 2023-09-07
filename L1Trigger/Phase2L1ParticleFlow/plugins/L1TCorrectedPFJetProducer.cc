@@ -1,12 +1,13 @@
 #include "DataFormats/L1TParticleFlow/interface/PFJet.h"
 #include "DataFormats/JetReco/interface/Jet.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
 
 #include "FWCore/Framework/interface/global/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
-#include "L1Trigger/Phase2L1ParticleFlow/src/corrector.h"
+#include "L1Trigger/Phase2L1ParticleFlow/interface/corrector.h"
 
 #include <vector>
 
@@ -18,22 +19,24 @@ public:
 private:
   void produce(edm::StreamID, edm::Event&, const edm::EventSetup&) const override;
 
-  edm::EDGetTokenT<edm::View<reco::Jet>> jets_;
+  edm::EDGetTokenT<edm::View<l1t::PFJet>> jets_;
   l1tpf::corrector corrector_;
-  bool copyDaughters_;
 };
 
 L1TCorrectedPFJetProducer::L1TCorrectedPFJetProducer(const edm::ParameterSet& iConfig)
-    : jets_(consumes<edm::View<reco::Jet>>(iConfig.getParameter<edm::InputTag>("jets"))),
-      corrector_(iConfig.getParameter<std::string>("correctorFile"), iConfig.getParameter<std::string>("correctorDir")),
-      copyDaughters_(iConfig.getParameter<bool>("copyDaughters")) {
+    : jets_(consumes<edm::View<l1t::PFJet>>(iConfig.getParameter<edm::InputTag>("jets"))),
+      corrector_(iConfig.getParameter<std::string>("correctorFile"),
+                 iConfig.getParameter<std::string>("correctorDir"),
+                 -1,
+                 false,
+                 iConfig.getParameter<bool>("emulate")) {
   produces<std::vector<l1t::PFJet>>();
 }
 
 L1TCorrectedPFJetProducer::~L1TCorrectedPFJetProducer() {}
 
 void L1TCorrectedPFJetProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup&) const {
-  edm::Handle<edm::View<reco::Jet>> jets;
+  edm::Handle<edm::View<l1t::PFJet>> jets;
   iEvent.getByToken(jets_, jets);
   auto out = std::make_unique<std::vector<l1t::PFJet>>();
 
@@ -42,10 +45,8 @@ void L1TCorrectedPFJetProducer::produce(edm::StreamID, edm::Event& iEvent, const
     out->emplace_back(srcjet.p4());
     auto& jet = out->back();
     // copy daughters
-    if (copyDaughters_) {
-      for (const auto& dau : srcjet.daughterPtrVector()) {
-        jet.addConstituent(edm::Ptr<l1t::L1Candidate>(dau));
-      }
+    for (const auto& dau : srcjet.constituents()) {
+      jet.addConstituent(dau);
     }
     // apply corrections
     jet.calibratePt(corrector_.correctedPt(jet.pt(), jet.eta()));

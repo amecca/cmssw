@@ -25,6 +25,7 @@
 #include "FWCore/Framework/interface/ProducesCollector.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "SimCalorimetry/EcalSimAlgos/interface/APDShape.h"
+#include "SimCalorimetry/EcalSimAlgos/interface/ComponentShapeCollection.h"
 #include "SimCalorimetry/EcalSimAlgos/interface/EBShape.h"
 #include "SimCalorimetry/EcalSimAlgos/interface/EEShape.h"
 #include "SimCalorimetry/EcalSimAlgos/interface/EcalElectronicsSim.h"
@@ -39,6 +40,7 @@
 #include "SimGeneral/MixingModule/interface/DigiAccumulatorMixMod.h"
 
 #include "SimCalorimetry/EcalSimAlgos/interface/EBHitResponse.h"
+#include "SimDataFormats/CaloHit/interface/PCaloHit.h"
 #include <vector>
 
 typedef EcalTDigitizer<EBDigitizerTraits> EBDigitizer;
@@ -48,6 +50,7 @@ typedef CaloTDigitizer<ESOldDigitizerTraits> ESOldDigitizer;
 class ESDigitizer;
 
 class APDSimParameters;
+class ComponentSimParameterMap;
 class EEHitResponse;
 class ESHitResponse;
 class CaloHitResponse;
@@ -109,6 +112,7 @@ private:
   void checkCalibrations(const edm::Event &event, const edm::EventSetup &eventSetup);
 
   APDShape m_APDShape;
+  ComponentShapeCollection m_ComponentShapes;
   EBShape m_EBShape;
   EEShape m_EEShape;
   ESShape m_ESShape;  // no const because gain must be set
@@ -117,6 +121,10 @@ private:
   const std::string m_EEdigiCollection;
   const std::string m_ESdigiCollection;
   const std::string m_hitsProducerTag;
+
+  const edm::EDGetTokenT<std::vector<PCaloHit>> m_HitsEBToken_;
+  const edm::EDGetTokenT<std::vector<PCaloHit>> m_HitsEEToken_;
+  const edm::EDGetTokenT<std::vector<PCaloHit>> m_HitsESToken_;
 
   const edm::ESGetToken<EcalPedestals, EcalPedestalsRcd> m_pedestalsToken;
   const edm::ESGetToken<EcalIntercalibConstantsMC, EcalIntercalibConstantsMCRcd> m_icalToken;
@@ -133,6 +141,7 @@ private:
   bool m_useLCcorrection;
 
   const bool m_apdSeparateDigi;
+  const bool m_componentSeparateDigi;
 
   const double m_EBs25notCont;
   const double m_EEs25notCont;
@@ -146,7 +155,12 @@ private:
   const std::string m_apdDigiTag;
   std::unique_ptr<const APDSimParameters> m_apdParameters;
 
+  const std::string m_componentDigiTag;
+  std::unique_ptr<const ComponentSimParameterMap> m_componentParameters;
+
   std::unique_ptr<EBHitResponse> m_APDResponse;
+
+  std::unique_ptr<EBHitResponse> m_ComponentResponse;
 
 protected:
   std::unique_ptr<EBHitResponse> m_EBResponse;
@@ -170,6 +184,7 @@ private:
   std::unique_ptr<ESDigitizer> m_ESDigitizer;
 
   std::unique_ptr<EBDigitizer> m_APDDigitizer;
+  std::unique_ptr<EBDigitizer> m_ComponentDigitizer;
   std::unique_ptr<EBDigitizer> m_BarrelDigitizer;
   std::unique_ptr<EEDigitizer> m_EndcapDigitizer;
 
@@ -181,6 +196,8 @@ private:
 
   std::unique_ptr<EcalElectronicsSim_Ph1> m_APDElectronicsSim;
   std::unique_ptr<EcalCoder> m_APDCoder;
+  std::unique_ptr<EcalElectronicsSim_Ph1> m_ComponentElectronicsSim;
+  std::unique_ptr<EcalCoder> m_ComponentCoder;
 
   const CaloGeometry *m_Geometry;
 

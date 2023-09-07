@@ -28,7 +28,7 @@ namespace trklet {
     void addOutput(MemoryBase* memory, std::string output) override;
     void addInput(MemoryBase* memory, std::string input) override;
 
-    void execute(double phioffset);
+    void execute(unsigned int iSector, double phioffset);
 
     std::vector<std::pair<std::pair<Tracklet*, int>, const Stub*> > mergeMatches(
         std::vector<CandidateMatchMemory*>& candmatch);
@@ -49,6 +49,10 @@ namespace trklet {
     TrackletLUT rphicut2Stable_;
     TrackletLUT rcutPStable_;
     TrackletLUT rcut2Stable_;
+    TrackletLUT alphainner_;
+    TrackletLUT alphaouter_;
+    TrackletLUT rSSinner_;
+    TrackletLUT rSSouter_;
 
     int ialphafactinner_[N_DSS_MOD * 2];
     int ialphafactouter_[N_DSS_MOD * 2];

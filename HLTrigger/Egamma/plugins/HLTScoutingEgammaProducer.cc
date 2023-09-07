@@ -16,6 +16,8 @@ Description: Producer for Run3ScoutingElectron and Run3ScoutingPhoton
 
 #include "HLTScoutingEgammaProducer.h"
 
+#include <cstdint>
+
 // function to find rechhit associated to detid and return energy
 float recHitE(const DetId id, const EcalRecHitCollection& recHits) {
   if (id == DetId(0)) {
@@ -60,11 +62,36 @@ HLTScoutingEgammaProducer::HLTScoutingEgammaProducer(const edm::ParameterSet& iC
       egammaPtCut(iConfig.getParameter<double>("egammaPtCut")),
       egammaEtaCut(iConfig.getParameter<double>("egammaEtaCut")),
       egammaHoverECut(iConfig.getParameter<double>("egammaHoverECut")),
+      egammaSigmaIEtaIEtaCut(iConfig.getParameter<std::vector<double>>("egammaSigmaIEtaIEtaCut")),
+      absEtaBinUpperEdges(iConfig.getParameter<std::vector<double>>("absEtaBinUpperEdges")),
       mantissaPrecision(iConfig.getParameter<int>("mantissaPrecision")),
       saveRecHitTiming(iConfig.getParameter<bool>("saveRecHitTiming")),
       rechitMatrixSize(iConfig.getParameter<int>("rechitMatrixSize")),  //(2n+1)^2
+      rechitZeroSuppression(iConfig.getParameter<bool>("rechitZeroSuppression")),
       ecalRechitEB_(consumes<EcalRecHitCollection>(iConfig.getParameter<edm::InputTag>("ecalRechitEB"))),
       ecalRechitEE_(consumes<EcalRecHitCollection>(iConfig.getParameter<edm::InputTag>("ecalRechitEE"))) {
+  // cross-check for compatibility in input vectors
+  if (absEtaBinUpperEdges.size() != egammaSigmaIEtaIEtaCut.size()) {
+    throw cms::Exception("IncompatibleVects")
+        << "size of \"absEtaBinUpperEdges\" (" << absEtaBinUpperEdges.size() << ") and \"egammaSigmaIEtaIEtaCut\" ("
+        << egammaSigmaIEtaIEtaCut.size() << ") differ";
+  }
+
+  for (auto aIt = 1u; aIt < absEtaBinUpperEdges.size(); ++aIt) {
+    if (absEtaBinUpperEdges[aIt - 1] < 0 || absEtaBinUpperEdges[aIt] < 0) {
+      throw cms::Exception("IncorrectValue") << "absEtaBinUpperEdges entries should be greater than or equal to zero.";
+    }
+    if (absEtaBinUpperEdges[aIt - 1] >= absEtaBinUpperEdges[aIt]) {
+      throw cms::Exception("ImproperBinning") << "absEtaBinUpperEdges entries should be in increasing order.";
+    }
+  }
+
+  if (not absEtaBinUpperEdges.empty() and absEtaBinUpperEdges[absEtaBinUpperEdges.size() - 1] < egammaEtaCut) {
+    throw cms::Exception("IncorrectValue")
+        << "Last entry in \"absEtaBinUpperEdges\" (" << absEtaBinUpperEdges[absEtaBinUpperEdges.size() - 1]
+        << ") should have a value larger than \"egammaEtaCut\" (" << egammaEtaCut << ").";
+  }
+
   //register products
   produces<Run3ScoutingElectronCollection>();
   produces<Run3ScoutingPhotonCollection>();
@@ -104,6 +131,7 @@ void HLTScoutingEgammaProducer::produce(edm::StreamID sid, edm::Event& iEvent, e
     return;
   }
 
+  // Get R9Map
   Handle<RecoEcalCandMap> R9Map;
   if (!iEvent.getByToken(R9Map_, R9Map)) {
     iEvent.put(std::move(outElectrons));
@@ -205,41 +233,79 @@ void HLTScoutingEgammaProducer::produce(edm::StreamID sid, edm::Event& iEvent, e
     float sMin = moments.sMin;
     float sMaj = moments.sMaj;
 
-    unsigned int seedId = (*SCseed).seed();
+    uint32_t seedId = (*SCseed).seed();
 
     std::vector<DetId> mDetIds = EcalClusterTools::matrixDetId((topology), (*SCseed).seed(), rechitMatrixSize);
 
     int detSize = mDetIds.size();
-    std::vector<float> mEnergies(detSize, 0.);
-    std::vector<float> mTimes(detSize, 0.);
+    std::vector<uint32_t> mDetIdIds;
+    std::vector<float> mEnergies;
+    std::vector<float> mTimes;
+    mDetIdIds.reserve(detSize);
+    mEnergies.reserve(detSize);
+    mTimes.reserve(detSize);
 
     for (int i = 0; i < detSize; i++) {
-      mEnergies[i] =
-          MiniFloatConverter::reduceMantissaToNbitsRounding(recHitE(mDetIds.at(i), *rechits), mantissaPrecision);
-      if (saveRecHitTiming)
-        mTimes[i] =
-            MiniFloatConverter::reduceMantissaToNbitsRounding(recHitT(mDetIds.at(i), *rechits), mantissaPrecision);
+      auto const recHit_en = recHitE(mDetIds[i], *rechits);
+      if (not rechitZeroSuppression or recHit_en > 0) {
+        mDetIdIds.push_back(mDetIds[i]);
+        mEnergies.push_back(MiniFloatConverter::reduceMantissaToNbitsRounding(recHit_en, mantissaPrecision));
+        if (saveRecHitTiming) {
+          mTimes.push_back(
+              MiniFloatConverter::reduceMantissaToNbitsRounding(recHitT(mDetIds[i], *rechits), mantissaPrecision));
+        }
+      }
     }
 
-    float HoE = 999.;
-    if (candidate.superCluster()->energy() != 0.)
-      HoE = (*HoverEMap)[candidateRef] / candidate.superCluster()->energy();
+    auto const HoE = candidate.superCluster()->energy() != 0.
+                         ? ((*HoverEMap)[candidateRef] / candidate.superCluster()->energy())
+                         : 999.;
+    if (HoE > egammaHoverECut)
+      continue;
 
-    float d0 = 0.0;
-    float dz = 0.0;
-    int charge = -999;
+    if (not absEtaBinUpperEdges.empty()) {
+      auto const sinin = candidate.superCluster()->energy() != 0. ? (*SigmaIEtaIEtaMap)[candidateRef] : 999.;
+      auto etaBinIdx = std::distance(
+          absEtaBinUpperEdges.begin(),
+          std::lower_bound(absEtaBinUpperEdges.begin(), absEtaBinUpperEdges.end(), std::abs(candidate.eta())));
+
+      if (sinin > egammaSigmaIEtaIEtaCut[etaBinIdx])
+        continue;
+    }
+
+    unsigned int const maxTrkSize = EgammaGsfTrackCollection->size();
+    std::vector<float> trkd0;
+    std::vector<float> trkdz;
+    std::vector<float> trkpt;
+    std::vector<float> trketa;
+    std::vector<float> trkphi;
+    std::vector<float> trkchi2overndf;
+    std::vector<int> trkcharge;
+    trkd0.reserve(maxTrkSize);
+    trkdz.reserve(maxTrkSize);
+    trkpt.reserve(maxTrkSize);
+    trketa.reserve(maxTrkSize);
+    trkphi.reserve(maxTrkSize);
+    trkchi2overndf.reserve(maxTrkSize);
+    trkcharge.reserve(maxTrkSize);
+
     for (auto& track : *EgammaGsfTrackCollection) {
       RefToBase<TrajectorySeed> seed = track.extra()->seedRef();
       reco::ElectronSeedRef elseed = seed.castTo<reco::ElectronSeedRef>();
       RefToBase<reco::CaloCluster> caloCluster = elseed->caloCluster();
       reco::SuperClusterRef scRefFromTrk = caloCluster.castTo<reco::SuperClusterRef>();
       if (scRefFromTrk == scRef) {
-        d0 = track.d0();
-        dz = track.dz();
-        charge = track.charge();
+        trkd0.push_back(track.d0());
+        trkdz.push_back(track.dz());
+        trkpt.push_back(track.pt());
+        trketa.push_back(track.eta());
+        trkphi.push_back(track.phi());
+        auto const trackndof = track.ndof();
+        trkchi2overndf.push_back(((trackndof == 0) ? -1 : (track.chi2() / trackndof)));
+        trkcharge.push_back(track.charge());
       }
     }
-    if (charge == -999) {  // No associated track. Candidate is a scouting photon
+    if (trkcharge.empty()) {  // No associated track. Candidate is a scouting photon
       outPhotons->emplace_back(candidate.pt(),
                                candidate.eta(),
                                candidate.phi(),
@@ -254,21 +320,27 @@ void HLTScoutingEgammaProducer::produce(edm::StreamID sid, edm::Event& iEvent, e
                                sMaj,
                                seedId,
                                mEnergies,
-                               mTimes);  //read for(ieta){for(iphi){}}
-    } else {                             // Candidate is a scouting electron
+                               mDetIdIds,
+                               mTimes,
+                               rechitZeroSuppression);  //read for(ieta){for(iphi){}}
+    } else {                                            // Candidate is a scouting electron
       outElectrons->emplace_back(candidate.pt(),
                                  candidate.eta(),
                                  candidate.phi(),
                                  candidate.mass(),
-                                 d0,
-                                 dz,
+                                 trkd0,
+                                 trkdz,
+                                 trkpt,
+                                 trketa,
+                                 trkphi,
+                                 trkchi2overndf,
                                  (*DetaMap)[candidateRef],
                                  (*DphiMap)[candidateRef],
                                  (*SigmaIEtaIEtaMap)[candidateRef],
                                  HoE,
                                  (*OneOEMinusOneOPMap)[candidateRef],
                                  (*MissingHitsMap)[candidateRef],
-                                 charge,
+                                 trkcharge,
                                  (*EcalPFClusterIsoMap)[candidateRef],
                                  (*HcalPFClusterIsoMap)[candidateRef],
                                  (*EleGsfTrackIsoMap)[candidateRef],
@@ -277,7 +349,9 @@ void HLTScoutingEgammaProducer::produce(edm::StreamID sid, edm::Event& iEvent, e
                                  sMaj,
                                  seedId,
                                  mEnergies,
-                                 mTimes);  //read for(ieta){for(iphi){}}
+                                 mDetIdIds,
+                                 mTimes,
+                                 rechitZeroSuppression);  //read for(ieta){for(iphi){}}
     }
   }
 
@@ -304,9 +378,12 @@ void HLTScoutingEgammaProducer::fillDescriptions(edm::ConfigurationDescriptions&
   desc.add<double>("egammaPtCut", 4.0);
   desc.add<double>("egammaEtaCut", 2.5);
   desc.add<double>("egammaHoverECut", 1.0);
+  desc.add<std::vector<double>>("egammaSigmaIEtaIEtaCut", {99999.0, 99999.0});
+  desc.add<std::vector<double>>("absEtaBinUpperEdges", {1.479, 5.0});
   desc.add<bool>("saveRecHitTiming", false);
   desc.add<int>("mantissaPrecision", 10)->setComment("default float16, change to 23 for float32");
   desc.add<int>("rechitMatrixSize", 10);
+  desc.add<bool>("rechitZeroSuppression", true);
   desc.add<edm::InputTag>("ecalRechitEB", edm::InputTag("hltEcalRecHit:EcalRecHitsEB"));
   desc.add<edm::InputTag>("ecalRechitEE", edm::InputTag("hltEcalRecHit:EcalRecHitsEE"));
   descriptions.add("hltScoutingEgammaProducer", desc);

@@ -38,7 +38,7 @@ from RecoVertex.Configuration.RecoVertex_EventContent_cff import *
 # raw2digi that are already the final RECO/AOD products
 from EventFilter.ScalersRawToDigi.Scalers_EventContent_cff import *
 from EventFilter.OnlineMetaDataRawToDigi.OnlineMetaData_EventContent_cff import *
-from EventFilter.Utilities.Tcds_EventContent_cff import *
+from EventFilter.OnlineMetaDataRawToDigi.Tcds_EventContent_cff import *
 # DigiToRaw content
 from EventFilter.Configuration.DigiToRaw_EventContent_cff import *
 # Simulation System
@@ -65,7 +65,7 @@ from Configuration.EventContent.EventContent_cff import DQMEventContent
 #include "RecoBTag/Configuration/data/RecoBTag_EventContent.cff"
 #include "RecoTauTag/Configuration/data/RecoTauTag_EventContent.cff"
 #include "RecoVertex/Configuration/data/RecoVertex_EventContent.cff"
-#include "RecoPixelVertexing/Configuration/data/RecoPixelVertexing_EventContent.cff"
+#include "RecoTracker/Configuration/data/RecoPixelVertexing_EventContent.cff"
 #include "RecoEgamma/Configuration/data/RecoEgamma_EventContent.cff"
 #include "RecoParticleFlow/Configuration/data/RecoParticleFlow_EventContent.cff"
 
@@ -132,6 +132,7 @@ AODEventContent.outputCommands.extend(MEtoEDMConverterAOD.outputCommands)
 AODEventContent.outputCommands.extend(EvtScalersAOD.outputCommands)
 AODEventContent.outputCommands.extend(OnlineMetaDataContent.outputCommands)
 AODEventContent.outputCommands.extend(TcdsEventContent.outputCommands)
+AODEventContent.outputCommands.extend(L1TriggerAOD.outputCommands)
 #
 #
 # RAWSIM Data Tier definition

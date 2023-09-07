@@ -13,8 +13,6 @@ L1TStage2EMTF::L1TStage2EMTF(const edm::ParameterSet& ps)
       monitorDir(ps.getUntrackedParameter<std::string>("monitorDir", "")),
       verbose(ps.getUntrackedParameter<bool>("verbose", false)) {}
 
-L1TStage2EMTF::~L1TStage2EMTF() {}
-
 void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, const edm::EventSetup&) {
   // Monitor Dir
   ibooker.setCurrentFolder(monitorDir);
@@ -60,14 +58,14 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
 
   //cscOccupancy designed to match the cscDQM plot
   cscDQMOccupancy = ibooker.book2D("cscDQMOccupancy", "CSC Chamber Occupancy", 42, 1, 43, 20, 0, 20);
-  cscDQMOccupancy->setAxisTitle("10#circ Chamber (N=neighbor)", 1);
+  cscDQMOccupancy->setAxisTitle("10#circ Chamber (Ni = Neighbor of Sector i)", 1);
   int count = 0;
   for (int xbin = 1; xbin < 43; ++xbin) {
     cscDQMOccupancy->setBinLabel(xbin, std::to_string(xbin - count), 1);
     if (xbin == 2 || xbin == 9 || xbin == 16 || xbin == 23 || xbin == 30 || xbin == 37) {
       ++xbin;
       ++count;
-      cscDQMOccupancy->setBinLabel(xbin, "N", 1);
+      cscDQMOccupancy->setBinLabel(xbin, "N" + std::to_string(count), 1);
     }
   }
   for (int ybin = 1; ybin <= 10; ++ybin) {
@@ -109,10 +107,10 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
   }
 
   rpcHitOccupancy = ibooker.book2D("rpcHitOccupancy", "RPC Chamber Occupancy", 42, 1, 43, 12, 0, 12);
-  rpcHitOccupancy->setAxisTitle("Sector (N=neighbor)", 1);
-  for (int bin = 1; bin < 7; ++bin) {
+  rpcHitOccupancy->setAxisTitle("Sector (Ni = Neighbor of Sector i)", 1);
+  for (int bin = 1; bin <= 6; ++bin) {
     rpcHitOccupancy->setBinLabel(bin * 7 - 6, std::to_string(bin), 1);
-    rpcHitOccupancy->setBinLabel(bin * 7, "N", 1);
+    rpcHitOccupancy->setBinLabel(bin * 7, "N" + std::to_string(bin), 1);
     rpcHitOccupancy->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
     rpcHitOccupancy->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1], 2);
   }
@@ -137,14 +135,14 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
   gemHitBX->setBinLabel(2, "GE+1/1", 2);
 
   gemHitOccupancy = ibooker.book2D("gemHitOccupancy", "GEM Chamber Occupancy", 42, 1, 43, 2, 0, 2);
-  gemHitOccupancy->setAxisTitle("10#circ Chambers (N=neighbor)", 1);
+  gemHitOccupancy->setAxisTitle("10#circ Chambers (Ni = Neighbor of Sector i)", 1);
   count = 0;
   for (int xbin = 1; xbin < 43; ++xbin) {
     gemHitOccupancy->setBinLabel(xbin, std::to_string(xbin - count), 1);
     if (xbin == 2 || xbin == 9 || xbin == 16 || xbin == 23 || xbin == 30 || xbin == 37) {
       ++xbin;
       ++count;
-      gemHitOccupancy->setBinLabel(xbin, "N", 1);
+      gemHitOccupancy->setBinLabel(xbin, "N" + std::to_string(count), 1);
     }
   }
 
@@ -177,6 +175,12 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
 
   emtfTrackPt = ibooker.book1D("emtfTrackPt", "EMTF Track p_{T}", 256, 1, 257);
   emtfTrackPt->setAxisTitle("Track p_{T} [GeV]", 1);
+
+  emtfTrackUnconstrainedPt = ibooker.book1D("emtfTrackUnconstrainedPt", "EMTF Track Unconstrained p_{T}", 256, 1, 257);
+  emtfTrackUnconstrainedPt->setAxisTitle("Track Unconstrained p_{T} [GeV]", 1);
+
+  emtfTrackDxy = ibooker.book1D("emtfTrackDxy", "EMTF Track d_{xy}", 3, 0, 3);
+  emtfTrackDxy->setAxisTitle("Track d_{xy}", 1);
 
   emtfTrackEta = ibooker.book1D("emtfTrackEta", "EMTF Track #eta", 100, -2.5, 2.5);
   emtfTrackEta->setAxisTitle("Track #eta", 1);
@@ -218,6 +222,10 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
   emtfTrackPtHighQuality = ibooker.book1D("emtfTrackPtHighQuality", "EMTF High Quality Track p_{T}", 256, 1, 257);
   emtfTrackPtHighQuality->setAxisTitle("Track p_{T} [GeV] (Quality #geq 12)", 1);
 
+  emtfTrackUnconstrainedPtHighQuality =
+      ibooker.book1D("emtfTrackUnconstrainedPtHighQuality", "EMTF High Quality Track Unconstrained p_{T}", 256, 1, 257);
+  emtfTrackUnconstrainedPtHighQuality->setAxisTitle("Track Unconstrained p_{T} [GeV] (Quality #geq 12)", 1);
+
   emtfTrackEtaHighQuality = ibooker.book1D("emtfTrackEtaHighQuality", "EMTF High Quality Track #eta", 100, -2.5, 2.5);
   emtfTrackEtaHighQuality->setAxisTitle("Track #eta (Quality #geq 12)", 1);
 
@@ -253,6 +261,30 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
   emtfTrackOccupancyHighQualityHighPT->setAxisTitle("#eta", 1);
   emtfTrackOccupancyHighQualityHighPT->setAxisTitle("#phi", 2);
   //Chad Freer May 8 2018 (END new plots)
+
+  emtfTrackUnconstrainedPtHighQualityHighUPT = ibooker.book1D(
+      "emtfTrackUnconstrainedPtHighQualityHighUPT", "EMTF High Quality High UPT Track Unconstrained p_{T}", 256, 1, 257);
+  emtfTrackUnconstrainedPtHighQualityHighUPT->setAxisTitle(
+      "Track Unconstrained p_{T} [GeV] (Quality #geq 12 and UpT>10)", 1);
+
+  emtfTrackEtaHighQualityHighUPT =
+      ibooker.book1D("emtfTrackEtaHighQualityHighUPT", "EMTF High Quality High UPT Track #eta", 100, -2.5, 2.5);
+  emtfTrackEtaHighQualityHighUPT->setAxisTitle("Track #eta (Quality #geq 12 and UpT>10)", 1);
+
+  emtfTrackPhiHighQualityHighUPT =
+      ibooker.book1D("emtfTrackPhiHighQualityHighUPT", "EMTF High Quality High UPT #phi", 126, -3.15, 3.15);
+  emtfTrackPhiHighQualityHighUPT->setAxisTitle("Track #phi (Quality #geq 12 and UpT>10)", 1);
+
+  emtfTrackOccupancyHighQualityHighUPT = ibooker.book2D("emtfTrackOccupancyHighQualityHighUPT",
+                                                        "EMTF High Quality High UPT Track Occupancy",
+                                                        100,
+                                                        -2.5,
+                                                        2.5,
+                                                        126,
+                                                        -3.15,
+                                                        3.15);
+  emtfTrackOccupancyHighQualityHighUPT->setAxisTitle("#eta", 1);
+  emtfTrackOccupancyHighQualityHighUPT->setAxisTitle("#phi", 2);
 
   // CSC Input
   ibooker.setCurrentFolder(monitorDir + "/CSCInput");
@@ -367,20 +399,80 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
       gemChamberPad[hist]->setBinLabel(bin, std::to_string(bin), 1);
       gemChamberPartition[hist]->setBinLabel(bin, std::to_string(bin), 1);
     }
-  }
+    //Added 07-21-22 **
+    for (int ch = 0; ch < 36; ch++) {
+      for (int lyr = 0; lyr < 2; lyr++) {
+        gemVFATBXPerChamber[ch][hist][lyr] = ibooker.book2D(
+            "gemVFATBXPerChamber_" + std::to_string(ch) + "_" + std::to_string(hist) + "_" + std::to_string(lyr + 1),
+            "GEM BX vs VFAT in Chamber " + std::to_string(ch + 1) + " " + label + " Layer " + std::to_string(lyr + 1),
+            7,
+            -3,
+            4,
+            24,
+            0,
+            24);
+        gemVFATBXPerChamber[ch][hist][lyr]->setAxisTitle("BX", 1);
+        gemVFATBXPerChamber[ch][hist][lyr]->setAxisTitle("VFAT #", 2);
 
+        for (int bin = 1; bin <= 24; ++bin) {
+          gemVFATBXPerChamber[ch][hist][lyr]->setBinLabel(bin, std::to_string(bin - 1), 2);
+        }
+        for (int bx = 1; bx <= 7; ++bx) {
+          gemVFATBXPerChamber[ch][hist][lyr]->setBinLabel(bx, std::to_string(bx - 4), 1);
+        }
+      }
+    }
+
+    //changed gemChamberVFATBX to be indexed by BX 07-21-2022
+    string bx_string;
+    for (int bx = 1; bx <= 7; ++bx) {
+      //Assign (m)inus or (p)us to plot name
+      if (bx < 4)
+        bx_string = "Neg" + std::to_string(-1 * (bx - 4));
+      else if (bx > 4)
+        bx_string = "Pos" + std::to_string(bx - 4);
+      else
+        bx_string = "0";
+
+      gemChamberVFATBX[hist][bx - 1] =
+          ibooker.book2D("gemChamberVFATBX" + bx_string + name,
+                         "GEM Chamber vs VFAT at BX = " + std::to_string(bx - 4) + ", " + label,
+                         42,
+                         1,
+                         43,
+                         24,
+                         0,
+                         24);  // 8* (0-2) phi part + (0-7) eta part
+      gemChamberVFATBX[hist][bx - 1]->setAxisTitle("Chamber, (Ni = Neighbor of Sector i), " + label, 1);
+      gemChamberVFATBX[hist][bx - 1]->setAxisTitle("VFAT #", 2);
+
+      for (int bin = 1; bin <= 24; bin++)
+        gemChamberVFATBX[hist][bx - 1]->setBinLabel(bin, std::to_string(bin - 1), 2);
+
+      int count = 0;
+      for (int bin = 1; bin <= 42; ++bin) {
+        gemChamberVFATBX[hist][bx - 1]->setBinLabel(bin, std::to_string(bin - count), 1);
+        if (bin == 2 || bin == 9 || bin == 16 || bin == 23 || bin == 30 || bin == 37) {
+          ++bin;
+          ++count;
+          gemChamberVFATBX[hist][bx - 1]->setBinLabel(bin, "N" + std::to_string(count), 1);
+        }
+      }
+      gemChamberVFATBX[hist][bx - 1]->getTH2F()->GetXaxis()->SetCanExtend(false);
+    }
+  }
   // CSC LCT and RPC Hit Timing
   ibooker.setCurrentFolder(monitorDir + "/Timing");
 
   cscTimingTot = ibooker.book2D("cscTimingTotal", "CSC Total BX ", 42, 1, 43, 20, 0, 20);
-  cscTimingTot->setAxisTitle("10#circ Chamber (N=neighbor)", 1);
+  cscTimingTot->setAxisTitle("10#circ Chamber, (Ni = Neighbor of Sector i)", 1);
 
   rpcHitTimingTot = ibooker.book2D("rpcHitTimingTot", "RPC Chamber Occupancy ", 42, 1, 43, 12, 0, 12);
-  rpcHitTimingTot->setAxisTitle("Sector (N=neighbor)", 1);
+  rpcHitTimingTot->setAxisTitle("Sector (Ni = Neighbor of Sector i)", 1);
 
   gemHitTimingTot =
       ibooker.book2D("gemHitTimingTot", "GEM Chamber Occupancy ", 42, 1, 43, 2, 0, 2);  // Add GEM Timing Oct 27 2020
-  gemHitTimingTot->setAxisTitle("10#circ Chamber (N=neighbor)", 1);
+  gemHitTimingTot->setAxisTitle("10#circ Chamber (Ni = Neighbor of Sector i)", 1);
   const std::array<std::string, 5> nameBX{{"BXNeg1", "BXPos1", "BXNeg2", "BXPos2", "BX0"}};
   const std::array<std::string, 5> labelBX{{"BX -1", "BX +1", "BX -2", "BX +2", "BX 0"}};
 
@@ -388,7 +480,7 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     count = 0;
     cscLCTTiming[hist] =
         ibooker.book2D("cscLCTTiming" + nameBX[hist], "CSC Chamber Occupancy " + labelBX[hist], 42, 1, 43, 20, 0, 20);
-    cscLCTTiming[hist]->setAxisTitle("10#circ Chamber", 1);
+    cscLCTTiming[hist]->setAxisTitle("10#circ Chamber, (Ni = Neighbor of Sector i)", 1);
 
     for (int xbin = 1; xbin < 43; ++xbin) {
       cscLCTTiming[hist]->setBinLabel(xbin, std::to_string(xbin - count), 1);
@@ -397,9 +489,9 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
       if (xbin == 2 || xbin == 9 || xbin == 16 || xbin == 23 || xbin == 30 || xbin == 37) {
         ++xbin;
         ++count;
-        cscLCTTiming[hist]->setBinLabel(xbin, "N", 1);
+        cscLCTTiming[hist]->setBinLabel(xbin, "N" + std::to_string(count), 1);
         if (hist == 0)
-          cscTimingTot->setBinLabel(xbin, "N", 1);
+          cscTimingTot->setBinLabel(xbin, "N" + std::to_string(count), 1);
       }
     }
 
@@ -417,10 +509,10 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
 
     rpcHitTiming[hist] =
         ibooker.book2D("rpcHitTiming" + nameBX[hist], "RPC Chamber Occupancy " + labelBX[hist], 42, 1, 43, 12, 0, 12);
-    rpcHitTiming[hist]->setAxisTitle("Sector (N=neighbor)", 1);
+    rpcHitTiming[hist]->setAxisTitle("Sector, (Ni=Neighbor of Sector i )", 1);
     for (int bin = 1; bin < 7; ++bin) {
       rpcHitTiming[hist]->setBinLabel(bin * 7 - 6, std::to_string(bin), 1);
-      rpcHitTiming[hist]->setBinLabel(bin * 7, "N", 1);
+      rpcHitTiming[hist]->setBinLabel(bin * 7, "N" + std::to_string(bin), 1);
       rpcHitTiming[hist]->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
       rpcHitTiming[hist]->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1], 2);
     }
@@ -428,7 +520,7 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     if (hist == 0) {
       for (int bin = 1; bin < 7; ++bin) {
         rpcHitTimingTot->setBinLabel(bin * 7 - 6, std::to_string(bin), 1);
-        rpcHitTimingTot->setBinLabel(bin * 7, "N", 1);
+        rpcHitTimingTot->setBinLabel(bin * 7, "N" + std::to_string(bin), 1);
         rpcHitTimingTot->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
         rpcHitTimingTot->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1], 2);
       }
@@ -439,7 +531,7 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     // Add GEM Timing Oct 27 2020
     gemHitTiming[hist] =
         ibooker.book2D("gemHitTiming" + nameBX[hist], "GEM Chamber Occupancy " + labelBX[hist], 42, 1, 43, 2, 0, 2);
-    gemHitTiming[hist]->setAxisTitle("10#circ Chamber", 1);
+    gemHitTiming[hist]->setAxisTitle("10#circ Chamber, (Ni = Neighbor of Sector i)", 1);
     count = 0;
     for (int xbin = 1; xbin < 43; ++xbin) {
       gemHitTiming[hist]->setBinLabel(xbin, std::to_string(xbin - count), 1);
@@ -448,9 +540,9 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
       if (xbin == 2 || xbin == 9 || xbin == 16 || xbin == 23 || xbin == 30 || xbin == 37) {
         ++xbin;
         ++count;
-        gemHitTiming[hist]->setBinLabel(xbin, "N", 1);
+        gemHitTiming[hist]->setBinLabel(xbin, "N" + std::to_string(count), 1);
         if (hist == 0)
-          gemHitTimingTot->setBinLabel(xbin, "N", 1);
+          gemHitTimingTot->setBinLabel(xbin, "N" + std::to_string(count), 1);
       }
     }
 
@@ -466,13 +558,13 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     count = 0;
     cscLCTTimingFrac[hist] = ibooker.book2D(
         "cscLCTTimingFrac" + nameBX[hist], "CSC Chamber Occupancy " + labelBX[hist], 42, 1, 43, 20, 0, 20);
-    cscLCTTimingFrac[hist]->setAxisTitle("10#circ Chambers", 1);
+    cscLCTTimingFrac[hist]->setAxisTitle("10#circ Chambers, (Ni = Neighbor of Sector i)", 1);
     for (int xbin = 1; xbin < 43; ++xbin) {
       cscLCTTimingFrac[hist]->setBinLabel(xbin, std::to_string(xbin - count), 1);
       if (xbin == 2 || xbin == 9 || xbin == 16 || xbin == 23 || xbin == 30 || xbin == 37) {
         ++xbin;
         ++count;
-        cscLCTTimingFrac[hist]->setBinLabel(xbin, "N", 1);
+        cscLCTTimingFrac[hist]->setBinLabel(xbin, "N" + std::to_string(count), 1);
       }
     }
     for (int ybin = 1; ybin <= 10; ++ybin) {
@@ -483,10 +575,10 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
 
     rpcHitTimingFrac[hist] = ibooker.book2D(
         "rpcHitTimingFrac" + nameBX[hist], "RPC Chamber Fraction in " + labelBX[hist], 42, 1, 43, 12, 0, 12);
-    rpcHitTimingFrac[hist]->setAxisTitle("Sector (N=neighbor)", 1);
+    rpcHitTimingFrac[hist]->setAxisTitle("Sector, (Ni = Neighbor of Sector i)", 1);
     for (int bin = 1; bin < 7; ++bin) {
       rpcHitTimingFrac[hist]->setBinLabel(bin * 7 - 6, std::to_string(bin), 1);
-      rpcHitTimingFrac[hist]->setBinLabel(bin * 7, "N", 1);
+      rpcHitTimingFrac[hist]->setBinLabel(bin * 7, "N" + std::to_string(bin), 1);
       rpcHitTimingFrac[hist]->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
       rpcHitTimingFrac[hist]->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1], 2);
     }
@@ -494,14 +586,14 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     // Add GEM Timing Oct 27 2020
     gemHitTimingFrac[hist] =
         ibooker.book2D("gemHitTimingFrac" + nameBX[hist], "GEM Chamber Occupancy " + labelBX[hist], 42, 1, 43, 2, 0, 2);
-    gemHitTimingFrac[hist]->setAxisTitle("10#circ Chambers", 1);
+    gemHitTimingFrac[hist]->setAxisTitle("10#circ Chambers, (Ni = Neighbor of Sector i)", 1);
     count = 0;
     for (int xbin = 1; xbin < 43; ++xbin) {
       gemHitTimingFrac[hist]->setBinLabel(xbin, std::to_string(xbin - count), 1);
       if (xbin == 2 || xbin == 9 || xbin == 16 || xbin == 23 || xbin == 30 || xbin == 37) {
         ++xbin;
         ++count;
-        gemHitTimingFrac[hist]->setBinLabel(xbin, "N", 1);
+        gemHitTimingFrac[hist]->setBinLabel(xbin, "N" + std::to_string(count), 1);
       }
     }
     gemHitTimingFrac[hist]->setBinLabel(1, "GE-1/1", 2);
@@ -575,8 +667,9 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
   const std::array<std::string, 8> nameCSCStation{
       {"MENeg4", "MENeg3", "MENeg2", "MENeg1", "MEPos1", "MEPos2", "MEPos3", "MEPos4"}};
   const std::array<std::string, 8> labelCSCStation{{"ME-4", "ME-3", "ME-2", "ME-1", "ME+1", "ME+2", "ME+3", "ME+4"}};
-  const std::array<std::string, 6> nameRPCStation{{"RENeg4", "RENeg3", "RENeg2", "REPos2", "REPos3", "REPos4"}};
-  const std::array<std::string, 6> labelRPCStation{{"RE-4", "RE-3", "RE-2", "RE+2", "RE+3", "RE+4"}};
+  const std::array<std::string, 8> nameRPCStation{
+      {"RENeg4", "RENeg3", "RENeg2", "RENeg1", "REPos1", "REPos2", "REPos3", "REPos4"}};
+  const std::array<std::string, 8> labelRPCStation{{"RE-4", "RE-3", "RE-2", "RE-1", "RE+1", "RE+2", "RE+3", "RE+4"}};
 
   for (int iGEM = 0; iGEM < 2; iGEM++) {
     emtfTrackModeVsGEMBXDiff[iGEM] = ibooker.book2D("emtfTrackModeVsGEMBXDiff" + nameGEMStation[iGEM],
@@ -602,7 +695,7 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     emtfTrackModeVsCSCBXDiff[iCSC]->setAxisTitle("Track BX - LCT BX", 1);
     emtfTrackModeVsCSCBXDiff[iCSC]->setAxisTitle("Track Mode", 2);
   }
-  for (int iRPC = 0; iRPC < 6; iRPC++) {
+  for (int iRPC = 0; iRPC < 8; iRPC++) {
     emtfTrackModeVsRPCBXDiff[iRPC] = ibooker.book2D("emtfTrackModeVsRPCBXDiff" + nameRPCStation[iRPC],
                                                     "EMTF Track Mode vs (Track BX - RPC BX) " + labelRPCStation[iRPC],
                                                     9,
@@ -672,6 +765,13 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
 
   emtfMuonhwPt = ibooker.book1D("emtfMuonhwPt", "EMTF Muon Cand p_{T}", 512, 0, 512);
   emtfMuonhwPt->setAxisTitle("Hardware p_{T}", 1);
+
+  emtfMuonhwPtUnconstrained =
+      ibooker.book1D("emtfMuonhwPtUnconstrained", "EMTF Muon Cand Unconstrained p_{T}", 256, 0, 256);
+  emtfMuonhwPtUnconstrained->setAxisTitle("Hardware Unconstrained p_{T}", 1);
+
+  emtfMuonhwDxy = ibooker.book1D("emtfMuonhwDxy", "EMTF Muon Cand d_{xy}", 3, 0, 3);
+  emtfMuonhwDxy->setAxisTitle("Hardware d_{xy}", 1);
 
   emtfMuonhwEta = ibooker.book1D("emtfMuonhwEta", "EMTF Muon Cand #eta", 460, -230, 230);
   emtfMuonhwEta->setAxisTitle("Hardware #eta", 1);
@@ -810,7 +910,10 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
                                                            {{4, 1}, 1},
                                                            {{4, 2}, 0}};
 
-  // Maps RPC staion and ring to the monitor element index and uses symmetry of the endcaps
+  // Maps CSC BX from -2 to 2 to monitor element cscLCTTIming
+  const std::map<int, int> histIndexBX = {{0, 4}, {-1, 0}, {1, 1}, {-2, 2}, {2, 3}};
+
+  // Maps RPC station and ring to the monitor element index and uses symmetry of the endcaps
   const std::map<std::pair<int, int>, int> histIndexRPC = {
       {{4, 3}, 0}, {{4, 2}, 1}, {{3, 3}, 2}, {{3, 2}, 3}, {{2, 2}, 4}, {{1, 2}, 5}};
 
@@ -894,11 +997,22 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
     if (Hit->Is_GEM() == true) {
       gemHitBX->Fill(Hit->BX(), (endcap > 0) ? 1.5 : 0.5);
       hist_index = (endcap > 0) ? 1 : 0;
+      //Added def of layer
+      int layer = Hit->Layer();
+      int phi_part = Hit->Pad() / 64;  // 0-2
+      int vfat = phi_part * 8 + Hit->Partition();
       if (Hit->Neighbor() == false) {
         gemChamberPad[hist_index]->Fill(chamber, Hit->Pad());
         gemChamberPartition[hist_index]->Fill(chamber, Hit->Partition());
         gemHitOccupancy->Fill(chamber_bin(1, 1, chamber), (endcap > 0) ? 1.5 : 0.5);  // follow CSC convention
-      } else {
+        //Added plots 07-21-22 ***
+        gemVFATBXPerChamber[chamber - 1][hist_index][layer]->Fill(Hit->BX(), vfat);
+        //indexed plots by BX 07-21-22
+        gemChamberVFATBX[hist_index][Hit->BX() + 3]->Fill(chamber_bin(1, 1, chamber), vfat);
+      }
+      //Added plots 06-07-22
+
+      else {
         gemChamberPad[hist_index]->Fill((Hit->Sector() % 6) * 6 + 2, Hit->Pad());
         gemChamberPartition[hist_index]->Fill((Hit->Sector() % 6) * 6 + 2, Hit->Partition());
         gemHitOccupancy->Fill((Hit->Sector() % 6 + 1) * 7 - 4, (endcap > 0) ? 1.5 : 0.5);  // follow CSC convention
@@ -914,6 +1028,10 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
 
   emtfnTracks->Fill(std::min(nTracks, emtfnTracks->getTH1F()->GetNbinsX() - 1));
 
+  constexpr int singleMuQuality = 12;
+  constexpr float singleMuPT = 22;
+  constexpr float singleMuUPT = 10;
+
   for (auto Track = TrackCollection->begin(); Track != TrackCollection->end(); ++Track) {
     int endcap = Track->Endcap();
     int sector = Track->Sector();
@@ -924,8 +1042,6 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
     int numHits = Track->NumHits();
     int modeNeighbor = Track->Mode_neighbor();
     int modeRPC = Track->Mode_RPC();
-    int singleMuQuality = 12;
-    int singleMuPT = 22;
 
     // Only plot if there are <= 1 neighbor hits in the track to avoid spikes at sector boundaries
     if (modeNeighbor >= 2 && modeNeighbor != 4 && modeNeighbor != 8)
@@ -934,6 +1050,8 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
     emtfTracknHits->Fill(numHits);
     emtfTrackBX->Fill(endcap * (sector - 0.5), Track->BX());
     emtfTrackPt->Fill(Track->Pt());
+    emtfTrackDxy->Fill(Track->GMT_dxy());
+    emtfTrackUnconstrainedPt->Fill(Track->Pt_dxy());
     emtfTrackEta->Fill(eta);
 
     emtfTrackOccupancy->Fill(eta, phi_glob_rad);
@@ -945,6 +1063,7 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
 
     if (quality >= singleMuQuality) {
       emtfTrackPtHighQuality->Fill(Track->Pt());
+      emtfTrackUnconstrainedPtHighQuality->Fill(Track->Pt_dxy());
       emtfTrackEtaHighQuality->Fill(eta);
       emtfTrackPhiHighQuality->Fill(phi_glob_rad);
       emtfTrackOccupancyHighQuality->Fill(eta, phi_glob_rad);
@@ -953,6 +1072,12 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
         emtfTrackEtaHighQualityHighPT->Fill(eta);
         emtfTrackPhiHighQualityHighPT->Fill(phi_glob_rad);
         emtfTrackOccupancyHighQualityHighPT->Fill(eta, phi_glob_rad);
+      }
+      if (Track->Pt_dxy() >= singleMuUPT) {
+        emtfTrackUnconstrainedPtHighQualityHighUPT->Fill(Track->Pt_dxy());
+        emtfTrackEtaHighQualityHighUPT->Fill(eta);
+        emtfTrackPhiHighQualityHighUPT->Fill(phi_glob_rad);
+        emtfTrackOccupancyHighQualityHighUPT->Fill(eta, phi_glob_rad);
       }
     }
 
@@ -963,22 +1088,21 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
       // LCT and RPC Timing
       if (numHits < 2 || numHits > 4)
         continue;
-      l1t::EMTFHitCollection tmp_hits = Track->Hits();
       int numHitsInTrack_BX0 = 0;
       unsigned int hist_index2 = 4 - numHits;
 
       for (const auto& iTrkHit : Track->Hits()) {
-        if (iTrkHit.Is_CSC() == true) {
+        if (iTrkHit.Is_CSC()) {
           emtfTrackBXVsCSCLCT[hist_index2]->Fill(iTrkHit.BX(), Track->BX());
           int iCSC = (endcap > 0) ? (iTrkHit.Station() + 3) : (4 - iTrkHit.Station());
           emtfTrackModeVsCSCBXDiff[iCSC]->Fill(Track->BX() - iTrkHit.BX(),
                                                mode);  // Add mode vs BXdiff comparison Dec 07 2020
-        } else if (iTrkHit.Is_RPC() == true) {
+        } else if (iTrkHit.Is_RPC()) {
           emtfTrackBXVsRPCHit[hist_index2]->Fill(iTrkHit.BX(), Track->BX());
-          int iRPC = (endcap > 0) ? (iTrkHit.Station() + 2) : (4 - iTrkHit.Station());
+          int iRPC = (endcap > 0) ? (iTrkHit.Station() + 3) : (4 - iTrkHit.Station());
           emtfTrackModeVsRPCBXDiff[iRPC]->Fill(Track->BX() - iTrkHit.BX(),
                                                mode);  // Add mode vs BXdiff comparison Dec 07 2020
-        } else if (iTrkHit.Is_GEM() == true) {
+        } else if (iTrkHit.Is_GEM()) {
           emtfTrackBXVsGEMHit[hist_index2]->Fill(iTrkHit.BX(), Track->BX());
           int iGEM = (endcap > 0) ? 1 : 0;
           emtfTrackModeVsGEMBXDiff[iGEM]->Fill(Track->BX() - iTrkHit.BX(),
@@ -998,6 +1122,8 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
 
       for (const auto& TrkHit : Track->Hits()) {
         int trackHitBX = TrkHit.BX();
+        if (std::abs(trackHitBX) > 2)
+          continue;  // Should never happen, but just to be safe ...
         //int cscid        = TrkHit.CSC_ID();
         int ring = TrkHit.Ring();
         int station = TrkHit.Station();
@@ -1009,10 +1135,6 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
 
         int hist_index = 0;
         float evt_wgt = (TrkHit.Station() > 1 && TrkHit.Ring() == 1) ? 0.5 : 1.0;
-        // Maps CSC BX from -2 to 2 to monitor element cscLCTTIming
-        const std::map<int, int> histIndexBX = {{0, 4}, {-1, 0}, {1, 1}, {-2, 2}, {2, 3}};
-        if (std::abs(trackHitBX) > 2)
-          continue;  // Should never happen, but just to be safe ...
 
         if (TrkHit.Is_CSC() == true) {
           hist_index = histIndexCSC.at({station, ring});
@@ -1087,10 +1209,6 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
           }    // End conditional: if (trackHitBX == 0 && station == 1 && ring == 1)
         }      // End conditional: if (TrkHit.Is_CSC() == true)
 
-        // Maps RPC station and ring to monitor element index
-        const std::map<std::pair<int, int>, int> histIndexRPC = {
-            {{4, 3}, 0}, {{4, 2}, 1}, {{3, 3}, 2}, {{3, 2}, 3}, {{2, 2}, 4}, {{1, 2}, 5}};
-
         if (TrkHit.Is_RPC() == true && neighbor == false) {
           hist_index = histIndexRPC.at({station, ring});
           if (endcap > 0)
@@ -1143,6 +1261,8 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
          ++Muon) {
       emtfMuonBX->Fill(itBX);
       emtfMuonhwPt->Fill(Muon->hwPt());
+      emtfMuonhwPtUnconstrained->Fill(Muon->hwPtUnconstrained());
+      emtfMuonhwDxy->Fill(Muon->hwDXY());
       emtfMuonhwEta->Fill(Muon->hwEta());
       emtfMuonhwPhi->Fill(Muon->hwPhi());
       emtfMuonhwQual->Fill(Muon->hwQual());

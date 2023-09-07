@@ -282,17 +282,13 @@ namespace pat {
     void setJetPtRatio(float jetPtRatio) { jetPtRatio_ = jetPtRatio; }
     void setJetPtRel(float jetPtRel) { jetPtRel_ = jetPtRel; }
 
-    /// Muon MVA
-    float mvaValue() const { return mvaValue_; }
-    void setMvaValue(float mva) { mvaValue_ = mva; }
-
-    // Low pt Muon MVA
-    float lowptMvaValue() const { return lowptMvaValue_; }
-    void setLowPtMvaValue(float lowptmva) { lowptMvaValue_ = lowptmva; }
-
     /// Soft Muon MVA
     float softMvaValue() const { return softMvaValue_; }
     void setSoftMvaValue(float softmva) { softMvaValue_ = softmva; }
+
+    /// Muon MVA ID
+    float mvaIDValue() const { return mvaIDValue_; }
+    void setMvaIDValue(float mvaID) { mvaIDValue_ = mvaID; }
 
     // 1/beta for prompt particle hypothesis
     /// (time is constraint to the bunch crossing time)
@@ -416,8 +412,7 @@ namespace pat {
     float jetPtRel_;
 
     /// Muon MVA
-    float mvaValue_;
-    float lowptMvaValue_;
+    float mvaIDValue_;
     float softMvaValue_;
 
     /// Inverse beta

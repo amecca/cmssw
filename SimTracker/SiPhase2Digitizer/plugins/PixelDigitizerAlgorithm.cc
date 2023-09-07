@@ -10,8 +10,14 @@
 #include "CalibTracker/SiPixelESProducers/interface/SiPixelGainCalibrationOfflineSimService.h"
 
 // Geometry
+#include "CondFormats/SiPixelObjects/interface/GlobalPixel.h"
+#include "CondFormats/SiPixelObjects/interface/SiPixelLorentzAngle.h"
 #include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
+#include "CondFormats/SiPixelObjects/interface/SiPixelQuality.h"
+#include "CondFormats/SiPixelObjects/interface/PixelROC.h"
+#include "CondFormats/SiPixelObjects/interface/LocalPixel.h"
+#include "CondFormats/SiPixelObjects/interface/CablingPathToDetUnit.h"
 
 using namespace edm;
 using namespace sipixelobjects;
@@ -29,6 +35,9 @@ void PixelDigitizerAlgorithm::init(const edm::EventSetup& es) {
   // gets the map and geometry from the DB (to kill ROCs)
   fedCablingMap_ = &es.getData(fedCablingMapToken_);
   geom_ = &es.getData(geomToken_);
+  if (useChargeReweighting_) {
+    theSiPixelChargeReweightingAlgorithm_->init(es);
+  }
 }
 
 PixelDigitizerAlgorithm::PixelDigitizerAlgorithm(const edm::ParameterSet& conf, edm::ConsumesCollector iC)
@@ -64,13 +73,16 @@ PixelDigitizerAlgorithm::PixelDigitizerAlgorithm(const edm::ParameterSet& conf, 
                                       << " The delta cut-off is set to " << tMax_ << " pix-inefficiency "
                                       << addPixelInefficiency_;
 }
+
 PixelDigitizerAlgorithm::~PixelDigitizerAlgorithm() { LogDebug("PixelDigitizerAlgorithm") << "Algorithm deleted"; }
+
 //
 // -- Select the Hit for Digitization
 //
 bool PixelDigitizerAlgorithm::select_hit(const PSimHit& hit, double tCorr, double& sigScale) const {
-  double time = hit.tof() - tCorr;
-  return (time >= theTofLowerCut_ && time < theTofUpperCut_);
+  // in case of signal-shape emulation do not apply [TofLower,TofUpper] selection
+  double toa = hit.tof() - tCorr;
+  return apply_timewalk_ || (toa >= theTofLowerCut_ && toa < theTofUpperCut_);
 }
 
 // ======================================================================
@@ -125,10 +137,10 @@ void PixelDigitizerAlgorithm::add_cross_talk(const Phase2TrackerGeomDetUnit* pix
                                      : Phase2TrackerDigi::pixelToChannel(XtalkPrev.first, XtalkPrev.second);
       if (hitChan.first % 2 == 1)
         signalNew.emplace(chanXtalkPrev,
-                          DigitizerUtility::Amplitude(signalInElectrons_even_row_Xtalk_next_row, nullptr, -1.0));
+                          digitizerUtility::Ph2Amplitude(signalInElectrons_even_row_Xtalk_next_row, nullptr, -1.0));
       else
         signalNew.emplace(chanXtalkPrev,
-                          DigitizerUtility::Amplitude(signalInElectrons_odd_row_Xtalk_next_row, nullptr, -1.0));
+                          digitizerUtility::Ph2Amplitude(signalInElectrons_odd_row_Xtalk_next_row, nullptr, -1.0));
     }
     if (hitChan.first < numRows - 1) {
       auto XtalkNext = std::make_pair(hitChan.first + 1, hitChan.second);
@@ -136,10 +148,10 @@ void PixelDigitizerAlgorithm::add_cross_talk(const Phase2TrackerGeomDetUnit* pix
                                      : Phase2TrackerDigi::pixelToChannel(XtalkNext.first, XtalkNext.second);
       if (hitChan.first % 2 == 1)
         signalNew.emplace(chanXtalkNext,
-                          DigitizerUtility::Amplitude(signalInElectrons_odd_row_Xtalk_next_row, nullptr, -1.0));
+                          digitizerUtility::Ph2Amplitude(signalInElectrons_odd_row_Xtalk_next_row, nullptr, -1.0));
       else
         signalNew.emplace(chanXtalkNext,
-                          DigitizerUtility::Amplitude(signalInElectrons_even_row_Xtalk_next_row, nullptr, -1.0));
+                          digitizerUtility::Ph2Amplitude(signalInElectrons_even_row_Xtalk_next_row, nullptr, -1.0));
     }
 
     if (hitChan.second != 0) {
@@ -147,22 +159,26 @@ void PixelDigitizerAlgorithm::add_cross_talk(const Phase2TrackerGeomDetUnit* pix
       int chanXtalkPrev = pixelFlag_ ? PixelDigi::pixelToChannel(XtalkPrev.first, XtalkPrev.second)
                                      : Phase2TrackerDigi::pixelToChannel(XtalkPrev.first, XtalkPrev.second);
       if (hitChan.second % 2 == 1)
-        signalNew.emplace(chanXtalkPrev,
-                          DigitizerUtility::Amplitude(signalInElectrons_even_column_Xtalk_next_column, nullptr, -1.0));
+        signalNew.emplace(
+            chanXtalkPrev,
+            digitizerUtility::Ph2Amplitude(signalInElectrons_even_column_Xtalk_next_column, nullptr, -1.0));
       else
-        signalNew.emplace(chanXtalkPrev,
-                          DigitizerUtility::Amplitude(signalInElectrons_odd_column_Xtalk_next_column, nullptr, -1.0));
+        signalNew.emplace(
+            chanXtalkPrev,
+            digitizerUtility::Ph2Amplitude(signalInElectrons_odd_column_Xtalk_next_column, nullptr, -1.0));
     }
     if (hitChan.second < numColumns - 1) {
       auto XtalkNext = std::make_pair(hitChan.first, hitChan.second + 1);
       int chanXtalkNext = pixelFlag_ ? PixelDigi::pixelToChannel(XtalkNext.first, XtalkNext.second)
                                      : Phase2TrackerDigi::pixelToChannel(XtalkNext.first, XtalkNext.second);
       if (hitChan.second % 2 == 1)
-        signalNew.emplace(chanXtalkNext,
-                          DigitizerUtility::Amplitude(signalInElectrons_odd_column_Xtalk_next_column, nullptr, -1.0));
+        signalNew.emplace(
+            chanXtalkNext,
+            digitizerUtility::Ph2Amplitude(signalInElectrons_odd_column_Xtalk_next_column, nullptr, -1.0));
       else
-        signalNew.emplace(chanXtalkNext,
-                          DigitizerUtility::Amplitude(signalInElectrons_even_column_Xtalk_next_column, nullptr, -1.0));
+        signalNew.emplace(
+            chanXtalkNext,
+            digitizerUtility::Ph2Amplitude(signalInElectrons_even_column_Xtalk_next_column, nullptr, -1.0));
     }
   }
   for (auto const& l : signalNew) {
@@ -171,7 +187,7 @@ void PixelDigitizerAlgorithm::add_cross_talk(const Phase2TrackerGeomDetUnit* pix
     if (iter != theSignal.end()) {
       iter->second += l.second.ampl();
     } else {
-      theSignal.emplace(chan, DigitizerUtility::Amplitude(l.second.ampl(), nullptr, -1.0));
+      theSignal.emplace(chan, digitizerUtility::Ph2Amplitude(l.second.ampl(), nullptr, -1.0));
     }
   }
 }
@@ -228,7 +244,7 @@ std::size_t PixelDigitizerAlgorithm::TimewalkModel::find_closest_index(const std
 //
 // -- Compare Signal with Threshold
 //
-bool PixelDigitizerAlgorithm::isAboveThreshold(const DigitizerUtility::SimHitInfo* hitInfo,
+bool PixelDigitizerAlgorithm::isAboveThreshold(const digitizerUtility::SimHitInfo* hitInfo,
                                                float charge,
                                                float thr) const {
   if (charge < thr)
@@ -239,4 +255,68 @@ bool PixelDigitizerAlgorithm::isAboveThreshold(const DigitizerUtility::SimHitInf
     return (time >= theTofLowerCut_ && time < theTofUpperCut_);
   } else
     return true;
+}
+//
+// -- Read Bad Channels from the Condidion DB and kill channels/module accordingly
+//
+void PixelDigitizerAlgorithm::module_killing_DB(const Phase2TrackerGeomDetUnit* pixdet) {
+  bool isbad = false;
+  uint32_t detID = pixdet->geographicalId().rawId();
+  int ncol = pixdet->specificTopology().ncolumns();
+  if (ncol < 0)
+    return;
+  std::vector<SiPixelQuality::disabledModuleType> disabledModules = siPixelBadModule_->getBadComponentList();
+
+  SiPixelQuality::disabledModuleType badmodule;
+  for (const auto& mod : disabledModules) {
+    if (detID == mod.DetID) {
+      isbad = true;
+      badmodule = mod;
+      break;
+    }
+  }
+
+  if (!isbad)
+    return;
+
+  signal_map_type& theSignal = _signal[detID];  // check validity
+  if (badmodule.errorType == 0) {               // this is a whole dead module.
+    for (auto& s : theSignal)
+      s.second.set(0.);  // reset amplitude
+  } else {               // all other module types: half-modules and single ROCs.
+    // Get Bad ROC position:
+    // follow the example of getBadRocPositions in CondFormats/SiPixelObjects/src/SiPixelQuality.cc
+    std::vector<GlobalPixel> badrocpositions;
+    for (size_t j = 0; j < static_cast<size_t>(ncol); j++) {
+      if (siPixelBadModule_->IsRocBad(detID, j)) {
+        std::vector<CablingPathToDetUnit> path = fedCablingMap_->pathToDetUnit(detID);
+        for (auto const& p : path) {
+          const PixelROC* myroc = fedCablingMap_->findItem(p);
+          if (myroc->idInDetUnit() == j) {
+            LocalPixel::RocRowCol local = {39, 25};  //corresponding to center of ROC row, col
+            GlobalPixel global = myroc->toGlobal(LocalPixel(local));
+            badrocpositions.push_back(global);
+            break;
+          }
+        }
+      }
+    }
+
+    for (auto& s : theSignal) {
+      std::pair<int, int> ip;
+      if (pixelFlag_)
+        ip = PixelDigi::channelToPixel(s.first);
+      else
+        ip = Phase2TrackerDigi::channelToPixel(s.first);
+
+      for (auto const& p : badrocpositions) {
+        for (auto& k : badPixels_) {
+          if (p.row == k.getParameter<int>("row") && ip.first == k.getParameter<int>("row") &&
+              std::abs(ip.second - p.col) < k.getParameter<int>("col")) {
+            s.second.set(0.);
+          }
+        }
+      }
+    }
+  }
 }

@@ -27,17 +27,21 @@
 #include "TH2.h"
 #include "TProfile.h"
 
-#include "tbb/task_arena.h"
+#include "oneapi/tbb/task_arena.h"
 
 // user include files
+#include "FWCore/Framework/interface/GetterOfProducts.h"
 #include "FWCore/Framework/interface/one/OutputModule.h"
 #include "FWCore/Framework/interface/RunForOutput.h"
 #include "FWCore/Framework/interface/LuminosityBlockForOutput.h"
+#include "FWCore/Framework/interface/TypeMatch.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/MessageLogger/interface/JobReport.h"
+#include "FWCore/Utilities/interface/BranchType.h"
 #include "FWCore/Utilities/interface/Digest.h"
+#include "FWCore/Utilities/interface/GlobalIdentifier.h"
 
 #include "DataFormats/Provenance/interface/ProcessHistory.h"
 #include "DataFormats/Provenance/interface/ProcessHistoryID.h"
@@ -234,6 +238,9 @@ private:
   std::vector<edm::ProcessHistoryID> m_seenHistories;
   edm::ProcessHistoryRegistry m_processHistoryRegistry;
   edm::JobReport::Token m_jrToken;
+
+  edm::GetterOfProducts<DQMToken> m_getterOfProductsLumi;
+  edm::GetterOfProducts<DQMToken> m_getterOfProductsRun;
 };
 
 //
@@ -254,12 +261,16 @@ static TreeHelperBase* makeHelper(unsigned int iTypeIndex, TTree* iTree, std::st
       return new TreeHelper<TH1S>(iTree, iFullNameBufferPtr);
     case kTH1DIndex:
       return new TreeHelper<TH1D>(iTree, iFullNameBufferPtr);
+    case kTH1IIndex:
+      return new TreeHelper<TH1I>(iTree, iFullNameBufferPtr);
     case kTH2FIndex:
       return new TreeHelper<TH2F>(iTree, iFullNameBufferPtr);
     case kTH2SIndex:
       return new TreeHelper<TH2S>(iTree, iFullNameBufferPtr);
     case kTH2DIndex:
       return new TreeHelper<TH2D>(iTree, iFullNameBufferPtr);
+    case kTH2IIndex:
+      return new TreeHelper<TH2I>(iTree, iFullNameBufferPtr);
     case kTH3FIndex:
       return new TreeHelper<TH3F>(iTree, iFullNameBufferPtr);
     case kTProfileIndex:
@@ -288,14 +299,20 @@ DQMRootOutputModule::DQMRootOutputModule(edm::ParameterSet const& pset)
       m_presentHistoryIndex(0),
       m_filterOnRun(pset.getUntrackedParameter<unsigned int>("filterOnRun")),
       m_fullNameBufferPtr(&m_fullNameBuffer),
-      m_indicesTree(nullptr) {
+      m_indicesTree(nullptr),
+      m_getterOfProductsLumi(edm::TypeMatch(), this, edm::InLumi),
+      m_getterOfProductsRun(edm::TypeMatch(), this, edm::InRun) {
   // Declare dependencies for all Lumi and Run tokens here. In
   // principle could use the keep statements, but then DQMToken would
   // have to be made persistent (transient products are ignored),
   // which would lead to a need to (finally) remove underscores from
   // DQM module labels.
-  consumesMany<DQMToken, edm::InLumi>();
-  consumesMany<DQMToken, edm::InRun>();
+  // This is needed to support unscheduled DQM modules now that
+  // non-consumed EDProducers are deleted from the job at beginJob.
+  callWhenNewProductsRegistered([this](edm::BranchDescription const& bd) {
+    m_getterOfProductsLumi(bd);
+    m_getterOfProductsRun(bd);
+  });
 }
 
 // DQMRootOutputModule::DQMRootOutputModule(const DQMRootOutputModule& rhs)
@@ -334,8 +351,10 @@ void DQMRootOutputModule::openFile(edm::FileBlock const&) {
 
   edm::Service<edm::JobReport> jr;
   cms::Digest branchHash;
-  std::string guid{m_file->GetUUID().AsString()};
+  std::string guid{edm::createGlobalIdentifier()};
   std::transform(guid.begin(), guid.end(), guid.begin(), (int (*)(int))std::toupper);
+
+  m_file->WriteObject(&guid, kCmsGuid);
   m_jrToken = jr->outputFileOpened(m_fileName,
                                    m_logicalFileName,
                                    std::string(),
@@ -373,9 +392,11 @@ void DQMRootOutputModule::openFile(edm::FileBlock const&) {
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1F] = kTH1FIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1S] = kTH1SIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1D] = kTH1DIndex;
+  m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH1I] = kTH1IIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2F] = kTH2FIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2S] = kTH2SIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2D] = kTH2DIndex;
+  m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH2I] = kTH2IIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TH3F] = kTH3FIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TPROFILE] = kTProfileIndex;
   m_dqmKindToTypeIndex[(int)MonitorElement::Kind::TPROFILE2D] = kTProfile2DIndex;

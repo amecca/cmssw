@@ -60,7 +60,6 @@ private:
 
   const edm::ESGetToken<GeometricDet, IdealGeometryRecord> geomDetToken_;
   const edm::ESGetToken<PTrackerParameters, PTrackerParametersRcd> ptpToken_;
-  const edm::ESGetToken<PTrackerAdditionalParametersPerDet, PTrackerAdditionalParametersPerDetRcd> ptitpToken_;
   const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoToken_;
   const edm::ESGetToken<Alignments, TrackerAlignmentRcd> aliToken_;
   const edm::ESGetToken<AlignmentErrorsExtended, TrackerAlignmentErrorExtendedRcd> aliErrorToken_;
@@ -100,7 +99,6 @@ private:
 TrackerSystematicMisalignments::TrackerSystematicMisalignments(const edm::ParameterSet& cfg)
     : geomDetToken_(esConsumes()),
       ptpToken_(esConsumes()),
-      ptitpToken_(esConsumes()),
       topoToken_(esConsumes()),
       aliToken_(esConsumes()),
       aliErrorToken_(esConsumes()),
@@ -173,10 +171,9 @@ void TrackerSystematicMisalignments::analyze(const edm::Event& event, const edm:
   //Retrieve tracker topology from geometry
   const GeometricDet* geom = &setup.getData(geomDetToken_);
   const PTrackerParameters& ptp = setup.getData(ptpToken_);
-  const PTrackerAdditionalParametersPerDet* ptitp = &setup.getData(ptitpToken_);
   const TrackerTopology* tTopo = &setup.getData(topoToken_);
 
-  TrackerGeometry* tracker = TrackerGeomBuilderFromGeometricDet().build(geom, ptitp, ptp, tTopo);
+  TrackerGeometry* tracker = TrackerGeomBuilderFromGeometricDet().build(geom, ptp, tTopo);
 
   //take geometry from DB or randomly generate geometry
   if (m_fromDBGeom) {
@@ -198,8 +195,8 @@ void TrackerSystematicMisalignments::analyze(const edm::Event& event, const edm:
   applySystematicMisalignment(&(*theAlignableTracker));
 
   // -------------- writing out to alignment record --------------
-  Alignments* myAlignments = theAlignableTracker->alignments();
-  AlignmentErrorsExtended* myAlignmentErrorsExtended = theAlignableTracker->alignmentErrors();
+  Alignments myAlignments = *(theAlignableTracker->alignments());
+  AlignmentErrorsExtended myAlignmentErrorsExtended = *(theAlignableTracker->alignmentErrors());
 
   // Store alignment[Error]s to DB
   edm::Service<cond::service::PoolDBOutputService> poolDbService;
@@ -210,9 +207,9 @@ void TrackerSystematicMisalignments::analyze(const edm::Event& event, const edm:
   if (!poolDbService.isAvailable())  // Die if not available
     throw cms::Exception("NotAvailable") << "PoolDBOutputService not available";
 
-  poolDbService->writeOne<Alignments>(&(*myAlignments), poolDbService->beginOfTime(), theAlignRecordName);
-  poolDbService->writeOne<AlignmentErrorsExtended>(
-      &(*myAlignmentErrorsExtended), poolDbService->beginOfTime(), theErrorRecordName);
+  poolDbService->writeOneIOV<Alignments>(myAlignments, poolDbService->beginOfTime(), theAlignRecordName);
+  poolDbService->writeOneIOV<AlignmentErrorsExtended>(
+      myAlignmentErrorsExtended, poolDbService->beginOfTime(), theErrorRecordName);
 }
 
 void TrackerSystematicMisalignments::applySystematicMisalignment(Alignable* ali) {

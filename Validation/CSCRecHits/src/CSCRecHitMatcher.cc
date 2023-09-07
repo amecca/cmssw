@@ -1,8 +1,6 @@
 #include <memory>
 
 #include "Validation/CSCRecHits/interface/CSCRecHitMatcher.h"
-#include "Geometry/Records/interface/MuonGeometryRecord.h"
-#include "Geometry/CSCGeometry/interface/CSCGeometry.h"
 
 using namespace std;
 
@@ -22,6 +20,8 @@ CSCRecHitMatcher::CSCRecHitMatcher(const edm::ParameterSet& pset, edm::ConsumesC
 
   cscRecHit2DToken_ = iC.consumes<CSCRecHit2DCollection>(cscRecHit2D.getParameter<edm::InputTag>("inputTag"));
   cscSegmentToken_ = iC.consumes<CSCSegmentCollection>(cscSegment.getParameter<edm::InputTag>("inputTag"));
+
+  cscGeomToken_ = iC.esConsumes<CSCGeometry, MuonGeometryRecord>();
 }
 
 void CSCRecHitMatcher::init(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
@@ -30,9 +30,9 @@ void CSCRecHitMatcher::init(const edm::Event& iEvent, const edm::EventSetup& iSe
   iEvent.getByToken(cscRecHit2DToken_, cscRecHit2DH_);
   iEvent.getByToken(cscSegmentToken_, cscSegmentH_);
 
-  iSetup.get<MuonGeometryRecord>().get(csc_geom_);
-  if (csc_geom_.isValid()) {
-    cscGeometry_ = &*csc_geom_;
+  const auto& csc_geom = iSetup.getHandle(cscGeomToken_);
+  if (csc_geom.isValid()) {
+    cscGeometry_ = csc_geom.product();
   } else {
     edm::LogWarning("CSCSimHitMatcher") << "+++ Info: CSC geometry is unavailable. +++\n";
   }
@@ -101,7 +101,7 @@ void CSCRecHitMatcher::matchCSCRecHit2DsToSimTrack(const CSCRecHit2DCollection& 
       // does the strip number match?
       bool stripMatch(false);
       for (size_t iS = 0; iS < d->nStrips(); ++iS) {
-        if (std::find(hit_strips.begin(), hit_strips.end(), d->channels(iS)) != hit_strips.end())
+        if (hit_strips.find(d->channels(iS)) != hit_strips.end())
           stripMatch = true;
       }
 

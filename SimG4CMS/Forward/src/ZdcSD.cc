@@ -7,10 +7,12 @@
 #include <memory>
 
 #include "SimG4CMS/Forward/interface/ZdcSD.h"
+#include "SimG4CMS/Forward/interface/ForwardName.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "SimG4Core/Notification/interface/TrackInformation.h"
+#include "SimG4CMS/Forward/interface/ZdcNumberingScheme.h"
 
 #include "G4SDManager.hh"
 #include "G4Step.hh"
@@ -37,9 +39,7 @@ ZdcSD::ZdcSD(const std::string& name,
   zdcHitEnergyCut = m_ZdcSD.getParameter<double>("ZdcHitEnergyCut") * GeV;
   thFibDir = m_ZdcSD.getParameter<double>("FiberDirection");
   verbosity = m_ZdcSD.getParameter<int>("Verbosity");
-  int verbn = verbosity / 10;
   verbosity %= 10;
-  setNumberingScheme(new ZdcNumberingScheme(verbn));
 
   edm::LogVerbatim("ForwardSim") << "***************************************************\n"
                                  << "*                                                 *\n"
@@ -122,7 +122,7 @@ double ZdcSD::getEnergyDeposit(const G4Step* aStep) {
   // preStepPoint information
   G4StepPoint* preStepPoint = aStep->GetPreStepPoint();
   G4VPhysicalVolume* currentPV = preStepPoint->GetPhysicalVolume();
-  const G4String& nameVolume = currentPV->GetName();
+  std::string nameVolume = ForwardName::getName(currentPV->GetName());
 
   const G4ThreeVector& hitPoint = preStepPoint->GetPosition();
   const G4ThreeVector& hit_mom = preStepPoint->GetMomentumDirection();
@@ -155,7 +155,7 @@ double ZdcSD::getEnergyDeposit(const G4Step* aStep) {
   // postStepPoint information
   G4StepPoint* postStepPoint = aStep->GetPostStepPoint();
   G4VPhysicalVolume* postPV = postStepPoint->GetPhysicalVolume();
-  const G4String& postnameVolume = postPV->GetName();
+  std::string postnameVolume = ForwardName::getName(postPV->GetName());
   edm::LogVerbatim("ForwardSim") << "ZdcSD::  getEnergyDeposit: \n"
                                  << "  preStepPoint: " << nameVolume << "," << stepL << "," << stepE << "," << beta
                                  << "," << charge << "\n"
@@ -301,13 +301,4 @@ double ZdcSD::getEnergyDeposit(const G4Step* aStep) {
   return NCherPhot;
 }
 
-uint32_t ZdcSD::setDetUnitId(const G4Step* aStep) {
-  return (numberingScheme.get() == nullptr ? 0 : numberingScheme.get()->getUnitID(aStep));
-}
-
-void ZdcSD::setNumberingScheme(ZdcNumberingScheme* scheme) {
-  if (scheme != nullptr) {
-    edm::LogVerbatim("ForwardSim") << "ZdcSD: updates numbering scheme for " << GetName();
-    numberingScheme.reset(scheme);
-  }
-}
+uint32_t ZdcSD::setDetUnitId(const G4Step* aStep) { return ZdcNumberingScheme::getUnitID(aStep); }

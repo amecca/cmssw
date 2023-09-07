@@ -50,14 +50,12 @@ SiStripRegFEDSelector::~SiStripRegFEDSelector() {}
 void SiStripRegFEDSelector::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   auto producedData = std::make_unique<FEDRawDataCollection>();
 
-  edm::Handle<trigger::TriggerFilterObjectWithRefs> trigSeedTrks;
-  iEvent.getByToken(tok_seed_, trigSeedTrks);
+  const edm::Handle<trigger::TriggerFilterObjectWithRefs>& trigSeedTrks = iEvent.getHandle(tok_seed_);
 
   std::vector<edm::Ref<reco::IsolatedPixelTrackCandidateCollection> > isoPixTrackRefs;
   trigSeedTrks->getObjects(trigger::TriggerTrack, isoPixTrackRefs);
 
-  edm::Handle<FEDRawDataCollection> rawIn;
-  iEvent.getByToken(tok_raw_, rawIn);
+  const edm::Handle<FEDRawDataCollection>& rawIn = iEvent.getHandle(tok_raw_);
 
   const SiStripRegionCabling* strip_cabling = &iSetup.getData(tok_strip_);
   std::vector<int> stripFEDVec;
@@ -93,10 +91,10 @@ void SiStripRegFEDSelector::produce(edm::StreamID, edm::Event& iEvent, const edm
       //cycle on subdets
       for (uint32_t idet = 0; idet < SiStripRegionCabling::ALLSUBDETS; idet++) {
         //get vector of layers within subdet of region
-        const SiStripRegionCabling::WedgeCabling regSubdetLayers = regSubdets[idet];
+        const SiStripRegionCabling::WedgeCabling& regSubdetLayers = regSubdets[idet];
         for (uint32_t ilayer = 0; ilayer < SiStripRegionCabling::ALLLAYERS; ilayer++) {
           //get map of vectors of feds withing the layer of subdet of region
-          const SiStripRegionCabling::ElementCabling fedVectorMap = regSubdetLayers[ilayer];
+          const SiStripRegionCabling::ElementCabling& fedVectorMap = regSubdetLayers[ilayer];
           SiStripRegionCabling::ElementCabling::const_iterator it = fedVectorMap.begin();
           for (; it != fedVectorMap.end(); it++) {
             for (uint32_t op = 0; op < (it->second).size(); op++) {
@@ -120,7 +118,7 @@ void SiStripRegFEDSelector::produce(edm::StreamID, edm::Event& iEvent, const edm
   //   if ( ( rawData[i].provenance()->processName() != e.processHistory().rbegin()->processName() ) )
   //       continue ; // skip all raw collections not produced by the current process
 
-  for (int j = 0; j < FEDNumbering::MAXFEDID; ++j) {
+  for (int j = 0; j <= FEDNumbering::MAXFEDID; ++j) {
     bool rightFED = false;
     for (uint32_t k = 0; k < stripFEDVec.size(); k++) {
       if (j == stripFEDVec[k]) {

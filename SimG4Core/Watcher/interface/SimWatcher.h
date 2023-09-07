@@ -15,22 +15,36 @@ internally
 into the OscarProducer.  To do useful work, one must inherit from this class
 and one or more 'Observer<T>' classes.
 
-    A class that inherits from OscarProducer must have a constructor that takes
-a 'const edm::ParameterSet&' as its only argument.  This constructor will be
-called by the dynamic loading code.
 */
 //
 // Original Author:
 //         Created:  Tue Nov 22 15:35:11 EST 2005
 //
 
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
+
 class SimWatcher {
 public:
   SimWatcher() {}
   virtual ~SimWatcher() {}
 
+  // Two methods are needed to be implemented in the thread
+  // safe watchers and producers
+  virtual void registerConsumes(edm::ConsumesCollector){};
+  virtual void beginRun(edm::EventSetup const &){};
+
+  bool isMT() const { return applicableForMT; }
+
   SimWatcher(const SimWatcher &) = delete;
   const SimWatcher &operator=(const SimWatcher &) = delete;
+
+protected:
+  // Set "true" for thread safe watchers/producers
+  void setMT(bool val) { applicableForMT = val; }
+
+private:
+  bool applicableForMT{false};
 };
 
 #endif

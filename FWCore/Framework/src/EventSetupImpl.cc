@@ -23,7 +23,7 @@
 
 namespace edm {
 
-  EventSetupImpl::EventSetupImpl(tbb::task_arena* iArena) : taskArena_{iArena} {}
+  EventSetupImpl::EventSetupImpl() {}
 
   EventSetupImpl::~EventSetupImpl() {}
 
@@ -44,7 +44,7 @@ namespace edm {
 
   std::optional<eventsetup::EventSetupRecordGeneric> EventSetupImpl::find(const eventsetup::EventSetupRecordKey& iKey,
                                                                           unsigned int iTransitionID,
-                                                                          ESProxyIndex const* getTokenIndices,
+                                                                          ESResolverIndex const* getTokenIndices,
                                                                           ESParentContext const& iParent) const {
     auto lb = std::lower_bound(keysBegin_, keysEnd_, iKey);
     if (lb == keysEnd_ || iKey != *lb) {

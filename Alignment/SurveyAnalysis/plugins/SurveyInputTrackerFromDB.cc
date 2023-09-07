@@ -24,7 +24,6 @@ SurveyInputTrackerFromDB::SurveyInputTrackerFromDB(const edm::ParameterSet& cfg)
     : tTopoToken_(esConsumes()),
       geomDetToken_(esConsumes()),
       ptpToken_(esConsumes()),
-      ptitpToken_(esConsumes()),
       textFileName(cfg.getParameter<std::string>("textFileName")) {}
 
 void SurveyInputTrackerFromDB::analyze(const edm::Event&, const edm::EventSetup& setup) {
@@ -41,8 +40,7 @@ void SurveyInputTrackerFromDB::analyze(const edm::Event&, const edm::EventSetup&
 
     const GeometricDet* geom = &setup.getData(geomDetToken_);
     const PTrackerParameters& ptp = setup.getData(ptpToken_);
-    const PTrackerAdditionalParametersPerDet* ptitp = &setup.getData(ptitpToken_);
-    TrackerGeometry* tracker = TrackerGeomBuilderFromGeometricDet().build(geom, ptitp, ptp, tTopo);
+    TrackerGeometry* tracker = TrackerGeomBuilderFromGeometricDet().build(geom, ptp, tTopo);
 
     addComponent(new AlignableTracker(tracker, tTopo));
     addSurveyInfo(detector());
@@ -58,9 +56,9 @@ void SurveyInputTrackerFromDB::analyze(const edm::Event&, const edm::EventSetup&
     if (!poolDbService.isAvailable())  // Die if not available
       throw cms::Exception("NotAvailable") << "PoolDBOutputService not available";
 
-    poolDbService->writeOne<Alignments>(myAlignments, poolDbService->beginOfTime(), "TrackerAlignmentRcd");
-    poolDbService->writeOne<AlignmentErrorsExtended>(
-        myAlignmentErrorsExtended, poolDbService->beginOfTime(), "TrackerAlignmentErrorExtendedRcd");
+    poolDbService->writeOneIOV<Alignments>(*myAlignments, poolDbService->beginOfTime(), "TrackerAlignmentRcd");
+    poolDbService->writeOneIOV<AlignmentErrorsExtended>(
+        *myAlignmentErrorsExtended, poolDbService->beginOfTime(), "TrackerAlignmentErrorExtendedRcd");
 
     theFirstEvent = false;
   }

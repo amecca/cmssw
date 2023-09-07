@@ -31,10 +31,10 @@ hiHighPtTripletStepSeedLayers = highPtTripletStepSeedLayers.clone(
 # SEEDS
 from RecoTracker.TkTrackingRegions.globalTrackingRegionWithVertices_cfi import globalTrackingRegionWithVertices as _globalTrackingRegionWithVertices
 from RecoTracker.TkHitPairs.hitPairEDProducer_cfi import hitPairEDProducer as _hitPairEDProducer
-from RecoPixelVertexing.PixelTriplets.pixelTripletHLTEDProducer_cfi import pixelTripletHLTEDProducer as _pixelTripletHLTEDProducer
-from RecoPixelVertexing.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
-from RecoPixelVertexing.PixelLowPtUtilities.trackCleaner_cfi import *
-from RecoPixelVertexing.PixelTrackFitting.pixelFitterByHelixProjections_cfi import *
+from RecoTracker.PixelSeeding.pixelTripletHLTEDProducer_cfi import pixelTripletHLTEDProducer as _pixelTripletHLTEDProducer
+from RecoTracker.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
+from RecoTracker.PixelLowPtUtilities.trackCleaner_cfi import *
+from RecoTracker.PixelTrackFitting.pixelFitterByHelixProjections_cfi import *
 from RecoHI.HiTracking.HIPixelTrackFilter_cff import *
 from RecoHI.HiTracking.HITrackingRegionProducer_cfi import *
 
@@ -61,11 +61,11 @@ hiHighPtTripletStepTracksHitDoubletsCA = _hitPairEDProducer.clone(
     layerPairs = [0,1]
 )
 
-from RecoPixelVertexing.PixelTriplets.caHitTripletEDProducer_cfi import caHitTripletEDProducer as _caHitTripletEDProducer
+from RecoTracker.PixelSeeding.caHitTripletEDProducer_cfi import caHitTripletEDProducer as _caHitTripletEDProducer
 hiHighPtTripletStepTracksHitTripletsCA = _caHitTripletEDProducer.clone(
     doublets = "hiHighPtTripletStepTracksHitDoubletsCA",
     extraHitRPhitolerance = 0.0,
-    SeedComparitorPSet = RecoPixelVertexing.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi.LowPtClusterShapeSeedComparitor.clone(),
+    SeedComparitorPSet = RecoTracker.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi.LowPtClusterShapeSeedComparitor.clone(),
     maxChi2 = dict(
         pt1    = 0.8, pt2    = 8,
         value1 = 100, value2 = 6,
@@ -83,7 +83,7 @@ hiHighPtTripletStepPixelTracksFilter = hiFilter.clone(
     ptMin = 1.0, #seeding region is 0.6
 )
 
-import RecoPixelVertexing.PixelTrackFitting.pixelTracks_cfi as _mod
+import RecoTracker.PixelTrackFitting.pixelTracks_cfi as _mod
 
 hiHighPtTripletStepPixelTracks = _mod.pixelTracks.clone(
     passLabel  = 'Pixel detached tracks with vertex constraint',
@@ -97,8 +97,8 @@ hiHighPtTripletStepPixelTracks = _mod.pixelTracks.clone(
     Cleaner = "trackCleaner"
 )
 
-import RecoPixelVertexing.PixelLowPtUtilities.TrackSeeds_cfi
-hiHighPtTripletStepSeeds = RecoPixelVertexing.PixelLowPtUtilities.TrackSeeds_cfi.pixelTrackSeeds.clone(
+import RecoTracker.PixelLowPtUtilities.TrackSeeds_cfi
+hiHighPtTripletStepSeeds = RecoTracker.PixelLowPtUtilities.TrackSeeds_cfi.pixelTrackSeeds.clone(
         InputCollection = 'hiHighPtTripletStepPixelTracks'
 )
 
@@ -122,14 +122,13 @@ hiHighPtTripletStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimat
 # TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
 hiHighPtTripletStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
     trajectoryFilter = dict(refToPSet_ = 'hiHighPtTripletStepTrajectoryFilter'),
-    maxCand = 3,#3 for pp
+    maxCand = 3, # 3 for pp
     estimator = 'hiHighPtTripletStepChi2Est',
-    maxDPhiForLooperReconstruction = cms.double(2.0),#2.0 for pp
+    maxDPhiForLooperReconstruction = 2.0, # 2.0 for pp
     # 0.63 GeV is the maximum pT for a charged particle to loop within the 1.1m radius
     # of the outermost Tracker barrel layer (B=3.8T)
-    maxPtForLooperReconstruction = cms.double(0.7),# 0.7 for pp
+    maxPtForLooperReconstruction = 0.7, # 0.7 for pp
     alwaysUseInvalidHits = False
 )
 
@@ -141,11 +140,10 @@ import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
 hiHighPtTripletStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
     src = 'hiHighPtTripletStepSeeds',
     ### these two parameters are relevant only for the CachingSeedCleanerBySharedInput
-    numHitsForSeedCleaner = cms.int32(50),
-    onlyPixelHitsForSeedCleaner = cms.bool(True),
+    numHitsForSeedCleaner = 50,
+    onlyPixelHitsForSeedCleaner = True,
     TrajectoryBuilderPSet = dict(refToPSet_ = 'hiHighPtTripletStepTrajectoryBuilder'),
-    TrajectoryBuilder = 'hiHighPtTripletStepTrajectoryBuilder',
-    clustersToSkip = cms.InputTag('hiHighPtTripletStepClusters'),
+    clustersToSkip = 'hiHighPtTripletStepClusters',
     doSeedingRegionRebuilding = True,
     useHitsSplitting = True
 )

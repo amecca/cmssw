@@ -1,13 +1,12 @@
-#include "CondCore/Utilities/interface/PayloadInspectorModule.h"
-#include "CondCore/Utilities/interface/PayloadInspector.h"
-#include "CondCore/CondDB/interface/Time.h"
-
 #include "CondCore/BeamSpotPlugins/interface/BeamSpotPayloadInspectorHelper.h"
+#include "CondCore/CondDB/interface/Time.h"
+#include "CondCore/Utilities/interface/PayloadInspector.h"
+#include "CondCore/Utilities/interface/PayloadInspectorModule.h"
 #include "CondFormats/BeamSpotObjects/interface/BeamSpotObjects.h"
 
 namespace {
 
-  using namespace BeamSpotPI;
+  using namespace beamSpotPI;
 
   class BeamSpot_hx : public cond::payloadInspector::HistoryPlot<BeamSpotObjects, std::pair<double, double> > {
   public:
@@ -15,7 +14,7 @@ namespace {
         : cond::payloadInspector::HistoryPlot<BeamSpotObjects, std::pair<double, double> >("x vs run number", "x") {}
 
     std::pair<double, double> getFromPayload(BeamSpotObjects& payload) override {
-      return std::make_pair(payload.GetX(), payload.GetXError());
+      return std::make_pair(payload.x(), payload.xError());
     }
   };
 
@@ -25,7 +24,7 @@ namespace {
         : cond::payloadInspector::RunHistoryPlot<BeamSpotObjects, std::pair<double, double> >("x vs run number", "x") {}
 
     std::pair<double, double> getFromPayload(BeamSpotObjects& payload) override {
-      return std::make_pair(payload.GetX(), payload.GetXError());
+      return std::make_pair(payload.x(), payload.xError());
     }
   };
   class BeamSpot_x : public cond::payloadInspector::TimeHistoryPlot<BeamSpotObjects, std::pair<double, double> > {
@@ -34,7 +33,7 @@ namespace {
         : cond::payloadInspector::TimeHistoryPlot<BeamSpotObjects, std::pair<double, double> >("x vs time", "x") {}
 
     std::pair<double, double> getFromPayload(BeamSpotObjects& payload) override {
-      return std::make_pair(payload.GetX(), payload.GetXError());
+      return std::make_pair(payload.x(), payload.xError());
     }
   };
 
@@ -44,7 +43,7 @@ namespace {
         : cond::payloadInspector::TimeHistoryPlot<BeamSpotObjects, std::pair<double, double> >("y vs time", "y") {}
 
     std::pair<double, double> getFromPayload(BeamSpotObjects& payload) override {
-      return std::make_pair(payload.GetY(), payload.GetYError());
+      return std::make_pair(payload.y(), payload.yError());
     }
   };
 
@@ -98,6 +97,13 @@ namespace {
 
   typedef DisplayParameters<BeamSpotObjects> BeamSpotParameters;
 
+  /************************************************
+    Display of Beam Spot parameters Differences
+  *************************************************/
+
+  typedef DisplayParametersDiff<BeamSpotObjects, cond::payloadInspector::MULTI_IOV, 1> BeamSpotParametersDiffSingleTag;
+  typedef DisplayParametersDiff<BeamSpotObjects, cond::payloadInspector::SINGLE_IOV, 2> BeamSpotParametersDiffTwoTags;
+
 }  // namespace
 
 PAYLOAD_INSPECTOR_MODULE(BeamSpot) {
@@ -107,6 +113,8 @@ PAYLOAD_INSPECTOR_MODULE(BeamSpot) {
   PAYLOAD_INSPECTOR_CLASS(BeamSpot_y);
   PAYLOAD_INSPECTOR_CLASS(BeamSpot_xy);
   PAYLOAD_INSPECTOR_CLASS(BeamSpotParameters);
+  PAYLOAD_INSPECTOR_CLASS(BeamSpotParametersDiffSingleTag);
+  PAYLOAD_INSPECTOR_CLASS(BeamSpotParametersDiffTwoTags);
   PAYLOAD_INSPECTOR_CLASS(BeamSpot_HistoryX);
   PAYLOAD_INSPECTOR_CLASS(BeamSpot_HistoryY);
   PAYLOAD_INSPECTOR_CLASS(BeamSpot_HistoryZ);

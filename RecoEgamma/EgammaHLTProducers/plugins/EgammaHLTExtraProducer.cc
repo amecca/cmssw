@@ -7,6 +7,8 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/Framework/interface/GetterOfProducts.h"
+#include "FWCore/Framework/interface/ProcessMatch.h"
 
 #include "DataFormats/HLTReco/interface/EgammaObject.h"
 #include "DataFormats/HLTReco/interface/EgammaObjectFwd.h"
@@ -177,10 +179,13 @@ private:
 
   const Tokens tokens_;
 
+  edm::ESGetToken<CaloGeometry, CaloGeometryRecord> const caloGeomToken_;
+
   float minPtToSaveHits_;
   bool saveHitsPlusPi_;
   bool saveHitsPlusHalfPi_;
   std::vector<double> recHitCountThresholds_;
+  edm::GetterOfProducts<reco::RecoEcalCandidateIsolationMap> getterOfProducts_;
 };
 
 EgammaHLTExtraProducer::Tokens::Tokens(const edm::ParameterSet& pset, edm::ConsumesCollector&& cc) {
@@ -193,12 +198,13 @@ EgammaHLTExtraProducer::Tokens::Tokens(const edm::ParameterSet& pset, edm::Consu
 
 EgammaHLTExtraProducer::EgammaHLTExtraProducer(const edm::ParameterSet& pset)
     : tokens_(pset, consumesCollector()),
+      caloGeomToken_{esConsumes()},
       minPtToSaveHits_(pset.getParameter<double>("minPtToSaveHits")),
       saveHitsPlusPi_(pset.getParameter<bool>("saveHitsPlusPi")),
       saveHitsPlusHalfPi_(pset.getParameter<bool>("saveHitsPlusHalfPi")),
       recHitCountThresholds_(pset.getParameter<std::vector<double>>("recHitCountThresholds")) {
-  consumesMany<reco::RecoEcalCandidateIsolationMap>();
-
+  getterOfProducts_ = edm::GetterOfProducts<reco::RecoEcalCandidateIsolationMap>(edm::ProcessMatch("*"), this);
+  callWhenNewProductsRegistered(getterOfProducts_);
   for (auto& tokenLabel : tokens_.egCands) {
     produces<trigger::EgammaObjectCollection>(tokenLabel.second);
   }
@@ -275,8 +281,7 @@ void EgammaHLTExtraProducer::produce(edm::StreamID streamID,
                                      edm::Event& event,
                                      const edm::EventSetup& eventSetup) const {
   std::vector<edm::Handle<reco::RecoEcalCandidateIsolationMap>> valueMapHandles;
-  event.getManyByType(valueMapHandles);
-
+  getterOfProducts_.fillHandles(event, valueMapHandles);
   std::vector<std::unique_ptr<trigger::EgammaObjectCollection>> egTrigObjColls;
   for (const auto& egCandsToken : tokens_.egCands) {
     auto ecalCandsHandle = event.getHandle(egCandsToken.first.ecalCands);
@@ -295,8 +300,7 @@ void EgammaHLTExtraProducer::produce(edm::StreamID streamID,
     egTrigObjColls.emplace_back(std::move(egTrigObjs));
   }
 
-  edm::ESHandle<CaloGeometry> caloGeomHandle;
-  eventSetup.get<CaloGeometryRecord>().get(caloGeomHandle);
+  auto const caloGeomHandle = eventSetup.getHandle(caloGeomToken_);
 
   auto filterAndStoreRecHits = [caloGeomHandle, &event, this](const auto& egTrigObjs, const auto& tokenLabels) {
     for (const auto& tokenLabel : tokenLabels) {

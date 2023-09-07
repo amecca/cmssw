@@ -19,6 +19,7 @@
 //
 
 // system include files
+#include <array>
 #include <map>
 #include <string>
 #include <vector>
@@ -65,7 +66,7 @@ namespace edm {
   class WillGetIfMatch;
 
   namespace eventsetup {
-    class ESRecordsToProxyIndices;
+    class ESRecordsToProductResolverIndices;
   }
 
   class EDConsumerBase {
@@ -88,6 +89,7 @@ namespace edm {
     void itemsToGet(BranchType, std::vector<ProductResolverIndexAndSkipBit>&) const;
     void itemsMayGet(BranchType, std::vector<ProductResolverIndexAndSkipBit>&) const;
 
+    //used for prefetching
     std::vector<ProductResolverIndexAndSkipBit> const& itemsToGetFrom(BranchType iType) const {
       return itemsToGetFromBranch_[iType];
     }
@@ -95,13 +97,11 @@ namespace edm {
     ///\return true if the product corresponding to the index was registered via consumes or mayConsume call
     bool registeredToConsume(ProductResolverIndex, bool, BranchType) const;
 
-    ///\return true of TypeID corresponds to a type specified in a consumesMany call
-    bool registeredToConsumeMany(TypeID const&, BranchType) const;
     // ---------- static member functions --------------------
 
     // ---------- member functions ---------------------------
     void updateLookup(BranchType iBranchType, ProductResolverIndexHelper const&, bool iPrefetchMayGet);
-    void updateLookup(eventsetup::ESRecordsToProxyIndices const&);
+    void updateLookup(eventsetup::ESRecordsToProductResolverIndices const&);
     void selectInputProcessBlocks(ProductRegistry const& productRegistry,
                                   ProcessBlockHelperBase const& processBlockHelperBase) {
       doSelectInputProcessBlocks(productRegistry, processBlockHelperBase);
@@ -121,7 +121,7 @@ namespace edm {
 
     std::vector<ConsumesInfo> consumesInfo() const;
 
-    ESProxyIndex const* esGetTokenIndices(edm::Transition iTrans) const {
+    ESResolverIndex const* esGetTokenIndices(edm::Transition iTrans) const {
       if (iTrans < edm::Transition::NumberOfEventSetupTransitions) {
         auto const& v = esItemsToGetFromTransition_[static_cast<unsigned int>(iTrans)];
         if (v.empty()) {
@@ -132,7 +132,7 @@ namespace edm {
       return nullptr;
     }
 
-    std::vector<ESProxyIndex> const& esGetTokenIndicesVector(edm::Transition iTrans) const {
+    std::vector<ESResolverIndex> const& esGetTokenIndicesVector(edm::Transition iTrans) const {
       assert(iTrans < edm::Transition::NumberOfEventSetupTransitions);
       return esItemsToGetFromTransition_[static_cast<unsigned int>(iTrans)];
     }
@@ -188,19 +188,6 @@ namespace edm {
       return EDGetToken{recordConsumes(B, id, checkIfEmpty(tag), false)};
     }
 
-    template <typename ProductType, BranchType B = InEvent>
-    void consumesMany() {
-      TypeToGet tid = TypeToGet::make<ProductType>();
-      consumesMany<B>(tid);
-    }
-
-    void consumesMany(const TypeToGet& id) { consumesMany<InEvent>(id); }
-
-    template <BranchType B>
-    void consumesMany(const TypeToGet& id) {
-      recordConsumes(B, id, edm::InputTag{}, true);
-    }
-
     // For consuming event-setup products
     template <typename ESProduct, typename ESRecord, Transition Tr = Transition::Event>
     auto esConsumes() {
@@ -220,12 +207,12 @@ namespace edm {
     }
 
     template <Transition Tr = Transition::Event>
-    [[nodiscard]] constexpr auto esConsumes() noexcept {
+    [[nodiscard]] constexpr auto esConsumes() {
       return EDConsumerBaseESAdaptor<Tr>(this);
     }
 
     template <Transition Tr = Transition::Event>
-    [[nodiscard]] auto esConsumes(ESInputTag tag) noexcept {
+    [[nodiscard]] auto esConsumes(ESInputTag tag) {
       return EDConsumerBaseWithTagESAdaptor<Tr>(this, std::move(tag));
     }
 
@@ -237,8 +224,12 @@ namespace edm {
                                iRecord.type());
     }
 
+    //used for FinalPath
+    void resetItemsToGetFrom(BranchType iType) { itemsToGetFromBranch_[iType].clear(); }
+
   private:
-    virtual void registerLateConsumes(eventsetup::ESRecordsToProxyIndices const&) {}
+    virtual void extendUpdateLookup(BranchType iBranchType, ProductResolverIndexHelper const&);
+    virtual void registerLateConsumes(eventsetup::ESRecordsToProductResolverIndices const&) {}
     unsigned int recordConsumes(BranchType iBranch, TypeToGet const& iType, edm::InputTag const& iTag, bool iAlwaysGets);
     ESTokenIndex recordESConsumes(Transition,
                                   eventsetup::EventSetupRecordKey const&,
@@ -307,9 +298,9 @@ namespace edm {
     // esItemsToGetFromTransition_. This is something for future
     // development and might require a change to SoATuple to support
     // inserts in the middle of the data structure.
-    enum { kESLookupInfo, kESProxyIndex };
-    edm::SoATuple<ESTokenLookupInfo, ESProxyIndex> m_esTokenInfo;
-    std::array<std::vector<ESProxyIndex>, static_cast<unsigned int>(edm::Transition::NumberOfEventSetupTransitions)>
+    enum { kESLookupInfo, kESResolverIndex };
+    edm::SoATuple<ESTokenLookupInfo, ESResolverIndex> m_esTokenInfo;
+    std::array<std::vector<ESResolverIndex>, static_cast<unsigned int>(edm::Transition::NumberOfEventSetupTransitions)>
         esItemsToGetFromTransition_;
     std::array<std::vector<ESRecordIndex>, static_cast<unsigned int>(edm::Transition::NumberOfEventSetupTransitions)>
         esRecordsToGetFromTransition_;

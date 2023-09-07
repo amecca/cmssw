@@ -2,6 +2,7 @@
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
@@ -28,6 +29,7 @@ private:
   TFile* file_;
   const bool printOut_;
   const bool posOnly_;
+  const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> tokTrackerGeometry_;
 
   mutable float maxerrU = 0.;
   mutable float maxerrUV = 0.;
@@ -37,7 +39,8 @@ ValidateRadial::ValidateRadial(const edm::ParameterSet& cfg)
     : epsilon_(cfg.getParameter<double>("Epsilon")),
       file_(new TFile(cfg.getParameter<std::string>("FileName").c_str(), "RECREATE")),
       printOut_(cfg.getParameter<bool>("PrintOut")),
-      posOnly_(cfg.getParameter<bool>("PosOnly")) {
+      posOnly_(cfg.getParameter<bool>("PosOnly")),
+      tokTrackerGeometry_(esConsumes<TrackerGeometry, TrackerDigiGeometryRecord>()) {
   std::cout << "I'm ALIVE" << std::endl;
 }
 
@@ -52,8 +55,7 @@ void ValidateRadial::analyze(const edm::Event& e, const edm::EventSetup& es) {
 std::vector<const TkRadialStripTopology*> ValidateRadial::get_list_of_radial_topologies(const edm::Event& e,
                                                                                         const edm::EventSetup& es) {
   std::vector<const TkRadialStripTopology*> topos;
-  edm::ESHandle<TrackerGeometry> theTrackerGeometry;
-  es.get<TrackerDigiGeometryRecord>().get(theTrackerGeometry);
+  auto theTrackerGeometry = es.getHandle(tokTrackerGeometry_);
   const uint32_t radial_detids[] = {402666125,   //TID r1
                                     402668833,   //TID r2
                                     402673476,   //TID r3
@@ -115,7 +117,6 @@ void compare(const TkRadialStripTopology& t,
     std::cout << "FAILED " << le.yy() << " " << ole.xy() << std::endl;
   if (fabs(le.xy() - ole.xy()) > 0.001)
     std::cout << "FAILED " << le.xy() << " " << ole.yy() << std::endl;
-
   if (fabs(mp.x() - omp.x()) > 0.001)
     std::cout << "FAILED " << mp.x() << " " << omp.x() << std::endl;
   if (fabs(me.uu() - ome.uu()) > 0.001)

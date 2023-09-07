@@ -31,7 +31,7 @@ PSet script.   See notes in EventProcessor.cpp for details about it.
 #include "TError.h"
 
 #include "boost/program_options.hpp"
-#include "tbb/task_arena.h"
+#include "oneapi/tbb/task_arena.h"
 
 #include <cstring>
 #include <exception>
@@ -240,6 +240,8 @@ int main(int argc, char* argv[]) {
       try {
         std::unique_ptr<edm::ParameterSet> parameterSet = edm::readConfig(fileName, argc, argv);
         processDesc.reset(new edm::ProcessDesc(std::move(parameterSet)));
+      } catch (edm::Exception const&) {
+        throw;
       } catch (cms::Exception& iException) {
         edm::Exception e(edm::errors::ConfigFileReadError, "", iException);
         throw e;
@@ -293,7 +295,7 @@ int main(int argc, char* argv[]) {
         edm::MessageDrop::instance()->jobMode = jobMode;
       }
 
-      tbb::task_arena arena(nThreads);
+      oneapi::tbb::task_arena arena(nThreads);
       arena.execute([&]() {
         context = "Constructing the EventProcessor";
         EventProcessorWithSentry procTmp(

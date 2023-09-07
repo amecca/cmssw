@@ -22,7 +22,6 @@ Implementation:
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 
 #include "FWCore/Framework/interface/Event.h"
 
@@ -89,7 +88,6 @@ void RPCPhiEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   float etaGen = 0, phiGen = 0, ptGen = 0;
 
-  int noOfMuons = 0;
   int noOfRecMuons = 0;
   int noOfMatchedRecMuons = 0;
 
@@ -126,7 +124,6 @@ void RPCPhiEff::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       etaGen = momentum.eta();
       ptGen = momentum.Pt();
       phiGen = momentum.phi();
-      noOfMuons++;
 
       bool matched = false;
       int ptCodeRec = 0;

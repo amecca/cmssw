@@ -45,7 +45,6 @@ class test_ep : public CppUnit::TestFixture {
   CPPUNIT_TEST_SUITE(test_ep);
   CPPUNIT_TEST(failgetbyIdTest);
   CPPUNIT_TEST(failgetbyLabelTest);
-  CPPUNIT_TEST(failgetManybyTypeTest);
   CPPUNIT_TEST(failgetbyInvalidIdTest);
   CPPUNIT_TEST(failgetProvenanceTest);
   CPPUNIT_TEST_SUITE_END();
@@ -55,7 +54,6 @@ public:
   void tearDown();
   void failgetbyIdTest();
   void failgetbyLabelTest();
-  void failgetManybyTypeTest();
   void failgetbyInvalidIdTest();
   void failgetProvenanceTest();
 
@@ -173,8 +171,8 @@ void test_ep::setUp() {
     assert(process);
     std::string uuid = edm::createGlobalIdentifier();
     edm::Timestamp now(1234567UL);
-    auto runAux = std::make_shared<edm::RunAuxiliary>(eventID_.run(), now, now);
-    auto rp = std::make_shared<edm::RunPrincipal>(runAux, pProductRegistry_, *process, &historyAppender_, 0);
+    auto rp = std::make_shared<edm::RunPrincipal>(pProductRegistry_, *process, &historyAppender_, 0);
+    rp->setAux(edm::RunAuxiliary(eventID_.run(), now, now));
     edm::LuminosityBlockAuxiliary lumiAux(rp->run(), 1, now, now);
     lbp_ = std::make_shared<edm::LuminosityBlockPrincipal>(pProductRegistry_, *process, &historyAppender_, 0);
     lbp_->setAux(lumiAux);
@@ -230,15 +228,6 @@ void test_ep::failgetbyLabelTest() {
   edm::BasicHandle h(
       pEvent_->getByLabel(edm::PRODUCT_TYPE, tid, label, std::string(), std::string(), nullptr, nullptr, nullptr));
   CPPUNIT_ASSERT(h.failedToGet());
-}
-
-void test_ep::failgetManybyTypeTest() {
-  edmtest::IntProduct dummy;
-  edm::TypeID tid(dummy);
-  std::vector<edm::BasicHandle> handles;
-
-  pEvent_->getManyByType(tid, handles, nullptr, nullptr, nullptr);
-  CPPUNIT_ASSERT(handles.empty());
 }
 
 void test_ep::failgetbyInvalidIdTest() {

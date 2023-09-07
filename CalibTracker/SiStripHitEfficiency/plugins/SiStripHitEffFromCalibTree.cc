@@ -1,85 +1,84 @@
 //Original Author:  Christopher Edelmaier
 //        Created:  Feb. 11, 2010
+
+// system includes
 #include <memory>
 #include <string>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 
-#include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
-#include "FWCore/Framework/interface/Event.h"
-#include "FWCore/Framework/interface/MakerMacros.h"
-#include "FWCore/Framework/interface/ESHandle.h"
-#include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "FWCore/ParameterSet/interface/FileInPath.h"
-
-#include "CalibTracker/SiStripHitEfficiency/interface/HitEff.h"
-#include "DataFormats/SiStripDetId/interface/StripSubdetector.h"
-#include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
+// user includes
+#include "CalibFormats/SiStripObjects/interface/SiStripDetCabling.h"
+#include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
+#include "CalibTracker/Records/interface/SiStripDetCablingRcd.h"
+#include "CalibTracker/Records/interface/SiStripQualityRcd.h"
+#include "CalibTracker/SiStripCommon/interface/SiStripDetInfoFileReader.h"
+#include "CalibTracker/SiStripHitEfficiency/interface/SiStripHitEfficiencyHelpers.h"
+#include "CalibTracker/SiStripHitEfficiency/interface/TrajectoryAtInvalidHit.h"
+#include "CalibTracker/SiStripHitEfficiency/plugins/HitEff.h"
+#include "CommonTools/ConditionDBWriter/interface/ConditionDBWriter.h"
+#include "CommonTools/TrackerMap/interface/TrackerMap.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "DataFormats/Common/interface/DetSetVector.h"
+#include "DataFormats/Common/interface/DetSetVectorNew.h"
 #include "DataFormats/Common/interface/Handle.h"
+#include "DataFormats/GeometrySurface/interface/TrapezoidalPlaneBounds.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "DataFormats/GeometryVector/interface/GlobalVector.h"
 #include "DataFormats/GeometryVector/interface/LocalVector.h"
-#include "DataFormats/TrackReco/interface/Track.h"
-#include "DataFormats/TrackReco/interface/TrackFwd.h"
-#include "DataFormats/TrackReco/interface/TrackExtra.h"
-#include "DataFormats/GeometrySurface/interface/TrapezoidalPlaneBounds.h"
-#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
-#include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
-#include "Geometry/CommonDetUnit/interface/GeomDetType.h"
-#include "Geometry/CommonDetUnit/interface/GeomDet.h"
-#include "TrackingTools/Records/interface/TransientRecHitRecord.h"
-#include "DataFormats/TrackingRecHit/interface/TrackingRecHit.h"
-#include "CalibTracker/SiStripHitEfficiency/interface/TrajectoryAtInvalidHit.h"
-#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-#include "Geometry/Records/interface/TrackerTopologyRcd.h"
-#include "RecoLocalTracker/ClusterParameterEstimator/interface/StripClusterParameterEstimator.h"
-#include "TrackingTools/GeomPropagators/interface/AnalyticalPropagator.h"
-#include "DataFormats/TrackReco/interface/DeDxData.h"
-#include "DataFormats/DetId/interface/DetIdCollection.h"
-#include "TrackingTools/DetLayers/interface/DetLayer.h"
-#include "RecoTracker/MeasurementDet/interface/MeasurementTracker.h"
-
-#include "RecoTracker/Record/interface/CkfComponentsRecord.h"
-#include "RecoLocalTracker/SiStripClusterizer/interface/SiStripClusterInfo.h"
-#include "CalibTracker/Records/interface/SiStripDetCablingRcd.h"
-#include "CalibFormats/SiStripObjects/interface/SiStripDetCabling.h"
-#include "CalibTracker/Records/interface/SiStripQualityRcd.h"
-#include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
-#include "CalibTracker/SiStripCommon/interface/SiStripDetInfoFileReader.h"
-#include "DataFormats/Common/interface/DetSetVector.h"
-#include "DataFormats/Common/interface/DetSetVectorNew.h"
-#include "DataFormats/SiStripCluster/interface/SiStripCluster.h"
-
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/MuonReco/interface/MuonFwd.h"
-
+#include "DataFormats/SiStripCluster/interface/SiStripCluster.h"
+#include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
+#include "DataFormats/SiStripDetId/interface/StripSubdetector.h"
+#include "DataFormats/TrackReco/interface/DeDxData.h"
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/TrackReco/interface/TrackExtra.h"
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+#include "DataFormats/TrackingRecHit/interface/TrackingRecHit.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ParameterSet/interface/FileInPath.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "CommonTools/UtilAlgos/interface/TFileService.h"
-#include "CommonTools/TrackerMap/interface/TrackerMap.h"
-#include "CommonTools/ConditionDBWriter/interface/ConditionDBWriter.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
+#include "Geometry/CommonDetUnit/interface/GeomDetType.h"
+#include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
+#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
+#include "RecoLocalTracker/ClusterParameterEstimator/interface/StripClusterParameterEstimator.h"
+#include "RecoLocalTracker/SiStripClusterizer/interface/SiStripClusterInfo.h"
+#include "RecoTracker/MeasurementDet/interface/MeasurementTracker.h"
+#include "RecoTracker/Record/interface/CkfComponentsRecord.h"
+#include "TrackingTools/DetLayers/interface/DetLayer.h"
+#include "TrackingTools/GeomPropagators/interface/AnalyticalPropagator.h"
+#include "TrackingTools/Records/interface/TransientRecHitRecord.h"
 
-#include "TFile.h"
+// ROOT includes
 #include "TCanvas.h"
-#include "TObjString.h"
-#include "TString.h"
-#include "TH1F.h"
-#include "TH2F.h"
-#include "TProfile.h"
+#include "TEfficiency.h"
 #include "TF1.h"
-#include "TROOT.h"
-#include "TTree.h"
-#include "TStyle.h"
-#include "TLeaf.h"
+#include "TFile.h"
 #include "TGaxis.h"
 #include "TGraphAsymmErrors.h"
+#include "TH1F.h"
+#include "TH2F.h"
 #include "TLatex.h"
+#include "TLeaf.h"
 #include "TLegend.h"
-#include "TEfficiency.h"
+#include "TObjString.h"
+#include "TProfile.h"
+#include "TROOT.h"
+#include "TString.h"
+#include "TStyle.h"
+#include "TTree.h"
 
-#include <memory>
+// custom made printout
+#define LOGPRINT edm::LogPrint("SiStripHitEffFromCalibTree")
 
 using namespace edm;
 using namespace reco;
@@ -95,13 +94,15 @@ struct hit {
 class SiStripHitEffFromCalibTree : public ConditionDBWriter<SiStripBadStrip> {
 public:
   explicit SiStripHitEffFromCalibTree(const edm::ParameterSet&);
-  ~SiStripHitEffFromCalibTree() override;
+  ~SiStripHitEffFromCalibTree() override = default;
 
 private:
-  void algoBeginJob(const edm::EventSetup&) override;
-  void algoEndJob() override;
+  // overridden from ConditionDBWriter
   void algoAnalyze(const edm::Event& e, const edm::EventSetup& c) override;
-  void SetBadComponents(int i,
+  std::unique_ptr<SiStripBadStrip> getNewObject() override;
+
+  // native methods
+  void setBadComponents(int i,
                         int component,
                         SiStripQuality::BadComponent& BC,
                         std::stringstream ssV[4][19],
@@ -112,44 +113,45 @@ private:
   void totalStatistics();
   void makeSummary();
   void makeSummaryVsBx();
-  void ComputeEff(vector<TH1F*>& vhfound, vector<TH1F*>& vhtotal, string name);
+  void computeEff(vector<TH1F*>& vhfound, vector<TH1F*>& vhtotal, string name);
   void makeSummaryVsLumi();
   void makeSummaryVsCM();
-  TString GetLayerName(Long_t k);
-  TString GetLayerSideName(Long_t k);
-  float calcPhi(float x, float y);
+  TString getLayerSideName(Long_t k);
+
+  // to be used everywhere
+  static constexpr int siStripLayers_ = 22;
+  static constexpr double nBxInAnOrbit_ = 3565;
 
   edm::Service<TFileService> fs;
-  SiStripDetInfo _detInfo;
-  edm::FileInPath FileInPath_;
+  SiStripDetInfo detInfo_;
+  edm::FileInPath fileInPath_;
   SiStripQuality* quality_;
-  std::unique_ptr<SiStripBadStrip> getNewObject() override;
 
-  TTree* CalibTree;
-  vector<string> CalibTreeFilenames;
-  float threshold;
-  unsigned int nModsMin;
-  unsigned int doSummary;
-  string _badModulesFile;
-  bool _autoIneffModTagging;
-  unsigned int _clusterMatchingMethod;
-  float _ResXSig;
-  float _clusterTrajDist;
-  float _stripsApvEdge;
-  bool _useOnlyHighPurityTracks;
-  unsigned int _bunchx;
-  unsigned int _spaceBetweenTrains;
-  bool _useCM;
-  bool _showEndcapSides;
-  bool _showRings;
-  bool _showTOB6TEC9;
-  bool _showOnlyGoodModules;
-  float _tkMapMin;
-  float _effPlotMin;
-  TString _title;
+  const edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> tkGeomToken_;
+  const edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> tTopoToken_;
 
-  edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> _tkGeomToken;
-  edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> _tTopoToken;
+  TTree* calibTree_;
+  vector<string> calibTreeFileNames_;
+  float threshold_;
+  unsigned int nModsMin_;
+  string badModulesFile_;
+  bool autoIneffModTagging_;
+  unsigned int clusterMatchingMethod_;
+  float resXSig_;
+  float clusterTrajDist_;
+  float stripsApvEdge_;
+  bool useOnlyHighPurityTracks_;
+  unsigned int bunchX_;
+  unsigned int spaceBetweenTrains_;
+  bool useCM_;
+  bool showEndcapSides_;
+  bool showRings_;
+  bool showTOB6TEC9_;
+  bool showOnlyGoodModules_;
+  float tkMapMin_;
+  float effPlotMin_;
+  TString title_;
+  bool storeModEff_;
 
   unsigned int nTEClayers;
 
@@ -157,8 +159,14 @@ private:
   TH1F* instLumiHisto;
   TH1F* PUHisto;
 
+  TH1F* bxHisto_cutOnTracks;
+  TH1F* instLumiHisto_cutOnTracks;
+  TH1F* PUHisto_cutOnTracks;
+
   // for association of informations of the hitEff tree and the event infos tree
   map<pair<unsigned int, unsigned int>, array<double, 3> > eventInfos;
+  // for using events after number of tracks cut
+  map<pair<unsigned int, unsigned int>, bool> event_used;
 
   vector<hit> hits[23];
   vector<TH2F*> HotColdMaps;
@@ -178,6 +186,8 @@ private:
   vector<TH1F*> layertotal_vsPU;
   vector<TH1F*> layerfound_vsCM;
   vector<TH1F*> layertotal_vsCM;
+  vector<TH1F*> layerfound_vsBX;
+  vector<TH1F*> layertotal_vsBX;
   int goodlayertotal[35];
   int goodlayerfound[35];
   int alllayertotal[35];
@@ -186,59 +196,50 @@ private:
 };
 
 SiStripHitEffFromCalibTree::SiStripHitEffFromCalibTree(const edm::ParameterSet& conf)
-    : ConditionDBWriter<SiStripBadStrip>(conf), FileInPath_(SiStripDetInfoFileReader::kDefaultFile) {
-  CalibTreeFilenames = conf.getUntrackedParameter<vector<std::string> >("CalibTreeFilenames");
-  threshold = conf.getParameter<double>("Threshold");
-  nModsMin = conf.getParameter<int>("nModsMin");
-  doSummary = conf.getParameter<int>("doSummary");
-  _badModulesFile = conf.getUntrackedParameter<std::string>("BadModulesFile", "");
-  _autoIneffModTagging = conf.getUntrackedParameter<bool>("AutoIneffModTagging", false);
-  _clusterMatchingMethod = conf.getUntrackedParameter<int>("ClusterMatchingMethod", 0);
-  _ResXSig = conf.getUntrackedParameter<double>("ResXSig", -1);
-  _clusterTrajDist = conf.getUntrackedParameter<double>("ClusterTrajDist", 64.0);
-  _stripsApvEdge = conf.getUntrackedParameter<double>("StripsApvEdge", 10.0);
-  _useOnlyHighPurityTracks = conf.getUntrackedParameter<bool>("UseOnlyHighPurityTracks", true);
-  _bunchx = conf.getUntrackedParameter<int>("BunchCrossing", 0);
-  _spaceBetweenTrains = conf.getUntrackedParameter<int>("SpaceBetweenTrains", 25);
-  _useCM = conf.getUntrackedParameter<bool>("UseCommonMode", false);
-  _showEndcapSides = conf.getUntrackedParameter<bool>("ShowEndcapSides", true);
-  _showRings = conf.getUntrackedParameter<bool>("ShowRings", false);
-  _showTOB6TEC9 = conf.getUntrackedParameter<bool>("ShowTOB6TEC9", false);
-  _showOnlyGoodModules = conf.getUntrackedParameter<bool>("ShowOnlyGoodModules", false);
-  _tkMapMin = conf.getUntrackedParameter<double>("TkMapMin", 0.9);
-  _effPlotMin = conf.getUntrackedParameter<double>("EffPlotMin", 0.9);
-  _title = conf.getParameter<std::string>("Title");
-  _tkGeomToken = esConsumes();
-  _tTopoToken = esConsumes();
-  _detInfo = SiStripDetInfoFileReader::read(FileInPath_.fullPath());
+    : ConditionDBWriter<SiStripBadStrip>(conf),
+      fileInPath_(SiStripDetInfoFileReader::kDefaultFile),
+      tkGeomToken_(esConsumes()),
+      tTopoToken_(esConsumes()) {
+  usesResource(TFileService::kSharedResource);
+  calibTreeFileNames_ = conf.getUntrackedParameter<vector<std::string> >("CalibTreeFilenames");
+  threshold_ = conf.getParameter<double>("Threshold");
+  nModsMin_ = conf.getParameter<int>("nModsMin");
+  badModulesFile_ = conf.getUntrackedParameter<std::string>("BadModulesFile", "");
+  autoIneffModTagging_ = conf.getUntrackedParameter<bool>("AutoIneffModTagging", false);
+  clusterMatchingMethod_ = conf.getUntrackedParameter<int>("ClusterMatchingMethod", 0);
+  resXSig_ = conf.getUntrackedParameter<double>("ResXSig", -1);
+  clusterTrajDist_ = conf.getUntrackedParameter<double>("ClusterTrajDist", 64.0);
+  stripsApvEdge_ = conf.getUntrackedParameter<double>("StripsApvEdge", 10.0);
+  useOnlyHighPurityTracks_ = conf.getUntrackedParameter<bool>("UseOnlyHighPurityTracks", true);
+  bunchX_ = conf.getUntrackedParameter<int>("BunchCrossing", 0);
+  spaceBetweenTrains_ = conf.getUntrackedParameter<int>("SpaceBetweenTrains", 25);
+  useCM_ = conf.getUntrackedParameter<bool>("UseCommonMode", false);
+  showEndcapSides_ = conf.getUntrackedParameter<bool>("ShowEndcapSides", true);
+  showRings_ = conf.getUntrackedParameter<bool>("ShowRings", false);
+  showTOB6TEC9_ = conf.getUntrackedParameter<bool>("ShowTOB6TEC9", false);
+  showOnlyGoodModules_ = conf.getUntrackedParameter<bool>("ShowOnlyGoodModules", false);
+  tkMapMin_ = conf.getUntrackedParameter<double>("TkMapMin", 0.9);
+  effPlotMin_ = conf.getUntrackedParameter<double>("EffPlotMin", 0.9);
+  title_ = conf.getParameter<std::string>("Title");
+  storeModEff_ = conf.getUntrackedParameter<bool>("StoreModuleEff", false);
+  detInfo_ = SiStripDetInfoFileReader::read(fileInPath_.fullPath());
 
   nTEClayers = 9;  // number of wheels
-  if (_showRings)
+  if (showRings_)
     nTEClayers = 7;  // number of rings
 
-  quality_ = new SiStripQuality(_detInfo);
-}
-
-SiStripHitEffFromCalibTree::~SiStripHitEffFromCalibTree() {}
-
-void SiStripHitEffFromCalibTree::algoBeginJob(const edm::EventSetup&) {
-  //I have no idea what goes here
-  //fs->make<TTree>("HitEffHistos","Tree of the inefficient hit histograms");
-}
-
-void SiStripHitEffFromCalibTree::algoEndJob() {
-  //Still have no idea what goes here
+  quality_ = new SiStripQuality(detInfo_);
 }
 
 void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::EventSetup& c) {
-  const auto& tkgeom = c.getData(_tkGeomToken);
-  const auto& tTopo = c.getData(_tTopoToken);
+  const auto& tkgeom = c.getData(tkGeomToken_);
+  const auto& tTopo = c.getData(tTopoToken_);
 
   // read bad modules to mask
   ifstream badModules_file;
   set<uint32_t> badModules_list;
-  if (!_badModulesFile.empty()) {
-    badModules_file.open(_badModulesFile.c_str());
+  if (!badModulesFile_.empty()) {
+    badModules_file.open(badModulesFile_.c_str());
     uint32_t badmodule_detid;
     int mods, fiber1, fiber2, fiber3;
     if (badModules_file.is_open()) {
@@ -255,16 +256,21 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
     }
   }
   if (!badModules_list.empty())
-    cout << "Remove additionnal bad modules from the analysis: " << endl;
+    LOGPRINT << "Remove additionnal bad modules from the analysis: ";
   set<uint32_t>::iterator itBadMod;
-  for (itBadMod = badModules_list.begin(); itBadMod != badModules_list.end(); ++itBadMod)
-    cout << " " << *itBadMod << endl;
+  for (const auto& badMod : badModules_list) {
+    LOGPRINT << " " << badMod;
+  }
 
   // initialze counters and histos
 
   bxHisto = fs->make<TH1F>("bx", "bx", 3600, 0, 3600);
   instLumiHisto = fs->make<TH1F>("instLumi", "inst. lumi.", 250, 0, 25000);
-  PUHisto = fs->make<TH1F>("PU", "PU", 200, 0, 200);
+  PUHisto = fs->make<TH1F>("PU", "PU", 300, 0, 300);
+
+  bxHisto_cutOnTracks = fs->make<TH1F>("bx_cutOnTracks", "bx", 3600, 0, 3600);
+  instLumiHisto_cutOnTracks = fs->make<TH1F>("instLumi_cutOnTracks", "inst. lumi.", 250, 0, 25000);
+  PUHisto_cutOnTracks = fs->make<TH1F>("PU_cutOnTracks", "PU", 300, 0, 300);
 
   for (int l = 0; l < 35; l++) {
     goodlayertotal[l] = 0;
@@ -275,49 +281,55 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
 
   TH1F* resolutionPlots[23];
   for (Long_t ilayer = 0; ilayer < 23; ilayer++) {
-    resolutionPlots[ilayer] =
-        fs->make<TH1F>(Form("resol_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 125, -125, 125);
+    std::string lyrName = ::layerName(ilayer, showRings_, nTEClayers);
+
+    resolutionPlots[ilayer] = fs->make<TH1F>(Form("resol_layer_%i", (int)(ilayer)), lyrName.c_str(), 125, -125, 125);
     resolutionPlots[ilayer]->GetXaxis()->SetTitle("trajX-clusX [strip unit]");
 
     layerfound_vsLumi.push_back(
-        fs->make<TH1F>(Form("layerfound_vsLumi_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 100, 0, 25000));
+        fs->make<TH1F>(Form("layerfound_vsLumi_layer_%i", (int)(ilayer)), lyrName.c_str(), 100, 0, 25000));
     layertotal_vsLumi.push_back(
-        fs->make<TH1F>(Form("layertotal_vsLumi_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 100, 0, 25000));
+        fs->make<TH1F>(Form("layertotal_vsLumi_layer_%i", (int)(ilayer)), lyrName.c_str(), 100, 0, 25000));
     layerfound_vsPU.push_back(
-        fs->make<TH1F>(Form("layerfound_vsPU_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 45, 0, 90));
+        fs->make<TH1F>(Form("layerfound_vsPU_layer_%i", (int)(ilayer)), lyrName.c_str(), 45, 0, 90));
     layertotal_vsPU.push_back(
-        fs->make<TH1F>(Form("layertotal_vsPU_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 45, 0, 90));
+        fs->make<TH1F>(Form("layertotal_vsPU_layer_%i", (int)(ilayer)), lyrName.c_str(), 45, 0, 90));
 
-    if (_useCM) {
+    layerfound_vsBX.push_back(fs->make<TH1F>(
+        Form("foundVsBx_layer%i", (int)ilayer), Form("layer %i", (int)ilayer), nBxInAnOrbit_, 0, nBxInAnOrbit_));
+    layertotal_vsBX.push_back(fs->make<TH1F>(
+        Form("totalVsBx_layer%i", (int)ilayer), Form("layer %i", (int)ilayer), nBxInAnOrbit_, 0, nBxInAnOrbit_));
+
+    if (useCM_) {
       layerfound_vsCM.push_back(
-          fs->make<TH1F>(Form("layerfound_vsCM_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 20, 0, 400));
+          fs->make<TH1F>(Form("layerfound_vsCM_layer_%i", (int)(ilayer)), lyrName.c_str(), 20, 0, 400));
       layertotal_vsCM.push_back(
-          fs->make<TH1F>(Form("layertotal_vsCM_layer_%i", (int)(ilayer)), GetLayerName(ilayer), 20, 0, 400));
+          fs->make<TH1F>(Form("layertotal_vsCM_layer_%i", (int)(ilayer)), lyrName.c_str(), 20, 0, 400));
     }
     layertotal[ilayer] = 0;
     layerfound[ilayer] = 0;
   }
 
-  if (!_autoIneffModTagging)
-    cout << "A module is bad if efficiency < " << threshold << " and has at least " << nModsMin << " nModsMin." << endl;
+  if (!autoIneffModTagging_)
+    LOGPRINT << "A module is bad if efficiency < " << threshold_ << " and has at least " << nModsMin_ << " nModsMin.";
   else
-    cout << "A module is bad if efficiency < the avg in layer - " << threshold << " and has at least " << nModsMin
-         << " nModsMin." << endl;
+    LOGPRINT << "A module is bad if the upper limit on the efficiency is < to the avg in the layer - " << threshold_
+             << " and has at least " << nModsMin_ << " nModsMin.";
 
   unsigned int run, evt, bx{0};
   double instLumi, PU;
 
   //Open the ROOT Calib Tree
-  for (unsigned int ifile = 0; ifile < CalibTreeFilenames.size(); ifile++) {
-    cout << "Loading file: " << CalibTreeFilenames[ifile] << endl;
-    TFile* CalibTreeFile = TFile::Open(CalibTreeFilenames[ifile].c_str(), "READ");
+  for (const auto& calibTreeFileName : calibTreeFileNames_) {
+    LOGPRINT << "Loading file: " << calibTreeFileName;
+    TFile* CalibTreeFile = TFile::Open(calibTreeFileName.c_str(), "READ");
 
     // Get event infos
     bool foundEventInfos = false;
     try {
       CalibTreeFile->cd("eventInfo");
     } catch (exception& e) {
-      cout << "No event infos tree" << endl;
+      LOGPRINT << "No event infos tree";
     }
     TTree* EventTree = (TTree*)(gDirectory->Get("tree"));
 
@@ -327,7 +339,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
     TLeaf* InstLumiLf;
     TLeaf* PULf;
     if (EventTree) {
-      cout << "Found event infos tree" << endl;
+      LOGPRINT << "Found event infos tree";
 
       runLf = EventTree->GetLeaf("run");
       evtLf = EventTree->GetLeaf("event");
@@ -353,44 +365,46 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
         PUHisto->Fill(PU);
 
         eventInfos[make_pair(run, evt)] = array<double, 3>{{(double)bx, instLumi, PU}};
+        event_used[make_pair(run, evt)] = false;
       }
     }
 
     // Get hit infos
     CalibTreeFile->cd("anEff");
-    CalibTree = (TTree*)(gDirectory->Get("traj"));
+    calibTree_ = (TTree*)(gDirectory->Get("traj"));
 
-    runLf = CalibTree->GetLeaf("run");
-    evtLf = CalibTree->GetLeaf("event");
-    TLeaf* BadLf = CalibTree->GetLeaf("ModIsBad");
-    TLeaf* sistripLf = CalibTree->GetLeaf("SiStripQualBad");
-    TLeaf* idLf = CalibTree->GetLeaf("Id");
-    TLeaf* acceptLf = CalibTree->GetLeaf("withinAcceptance");
-    TLeaf* layerLf = CalibTree->GetLeaf("layer");
-    //TLeaf* nHitsLf = CalibTree->GetLeaf("nHits");
-    TLeaf* highPurityLf = CalibTree->GetLeaf("highPurity");
-    TLeaf* xLf = CalibTree->GetLeaf("TrajGlbX");
-    TLeaf* yLf = CalibTree->GetLeaf("TrajGlbY");
-    TLeaf* zLf = CalibTree->GetLeaf("TrajGlbZ");
-    TLeaf* ResXSigLf = CalibTree->GetLeaf("ResXSig");
-    TLeaf* TrajLocXLf = CalibTree->GetLeaf("TrajLocX");
-    TLeaf* TrajLocYLf = CalibTree->GetLeaf("TrajLocY");
-    TLeaf* ClusterLocXLf = CalibTree->GetLeaf("ClusterLocX");
-    BunchLf = CalibTree->GetLeaf("bunchx");
-    InstLumiLf = CalibTree->GetLeaf("instLumi");
-    PULf = CalibTree->GetLeaf("PU");
+    runLf = calibTree_->GetLeaf("run");
+    evtLf = calibTree_->GetLeaf("event");
+    TLeaf* BadLf = calibTree_->GetLeaf("ModIsBad");
+    TLeaf* sistripLf = calibTree_->GetLeaf("SiStripQualBad");
+    TLeaf* idLf = calibTree_->GetLeaf("Id");
+    TLeaf* acceptLf = calibTree_->GetLeaf("withinAcceptance");
+    TLeaf* layerLf = calibTree_->GetLeaf("layer");
+    //TLeaf* nHitsLf = calibTree_->GetLeaf("nHits");
+    TLeaf* highPurityLf = calibTree_->GetLeaf("highPurity");
+    TLeaf* xLf = calibTree_->GetLeaf("TrajGlbX");
+    TLeaf* yLf = calibTree_->GetLeaf("TrajGlbY");
+    TLeaf* zLf = calibTree_->GetLeaf("TrajGlbZ");
+    TLeaf* ResXSigLf = calibTree_->GetLeaf("ResXSig");
+    TLeaf* TrajLocXLf = calibTree_->GetLeaf("TrajLocX");
+    TLeaf* TrajLocYLf = calibTree_->GetLeaf("TrajLocY");
+    TLeaf* ClusterLocXLf = calibTree_->GetLeaf("ClusterLocX");
+    BunchLf = calibTree_->GetLeaf("bunchx");
+    InstLumiLf = calibTree_->GetLeaf("instLumi");
+    PULf = calibTree_->GetLeaf("PU");
     TLeaf* CMLf = nullptr;
-    if (_useCM)
-      CMLf = CalibTree->GetLeaf("commonMode");
+    if (useCM_)
+      CMLf = calibTree_->GetLeaf("commonMode");
 
-    int nevents = CalibTree->GetEntries();
-    cout << "Successfully loaded analyze function with " << nevents << " events!\n";
+    int nevents = calibTree_->GetEntries();
+    LOGPRINT << "Successfully loaded analyze function with " << nevents << " events!\n";
 
     map<pair<unsigned int, unsigned int>, array<double, 3> >::iterator itEventInfos;
+    map<pair<unsigned int, unsigned int>, bool>::iterator itEventUsed;
 
     //Loop through all of the events
     for (int j = 0; j < nevents; j++) {
-      CalibTree->GetEntry(j);
+      calibTree_->GetEntry(j);
       run = (unsigned int)runLf->GetValue();
       evt = (unsigned int)evtLf->GetValue();
       unsigned int isBad = (unsigned int)BadLf->GetValue();
@@ -399,7 +413,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       unsigned int accept = (unsigned int)acceptLf->GetValue();
       unsigned int layer_wheel = (unsigned int)layerLf->GetValue();
       unsigned int layer = layer_wheel;
-      if (_showRings && layer > 10) {  // use rings instead of wheels
+      if (showRings_ && layer > 10) {  // use rings instead of wheels
         if (layer < 14)
           layer = 10 + ((id >> 9) & 0x3);  //TID   3 disks and also 3 rings -> use the same container
         else
@@ -429,9 +443,13 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
           instLumi = InstLumiLf->GetValue();  // branch not filled by default
         if (PULf != nullptr)
           PU = PULf->GetValue();  // branch not filled by default
+        // Mark new event
+        itEventUsed = event_used.find(make_pair(run, evt));
+        if (itEventUsed == event_used.end())
+          event_used[make_pair(run, evt)] = false;
       }
       int CM = -100;
-      if (_useCM)
+      if (useCM_)
         CM = CMLf->GetValue();
 
       // Get infos from eventInfos if they exist
@@ -444,22 +462,34 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
         }
       }
 
+      // Fill event info for events from the anEff tree
+      // They can differ from the eventInfo tree due to an optional cut on the #tracks when filling the anEff tree
+      itEventUsed = event_used.find(make_pair(run, evt));
+      if (itEventUsed != event_used.end()) {
+        if (itEventUsed->second == false) {
+          bxHisto_cutOnTracks->Fill(bx);
+          instLumiHisto_cutOnTracks->Fill(instLumi);
+          PUHisto_cutOnTracks->Fill(PU);
+          itEventUsed->second = true;
+        }
+      }
+
       //We have two things we want to do, both an XY color plot, and the efficiency measurement
       //First, ignore anything that isn't in acceptance and isn't good quality
 
-      if (_bunchx > 0 && _bunchx != bx)
+      if (bunchX_ > 0 && bunchX_ != bx)
         continue;
 
       //if(quality == 1 || accept != 1 || nHits < 8) continue;
       if (accept != 1)
         continue;
-      if (_useOnlyHighPurityTracks && !highPurity)
+      if (useOnlyHighPurityTracks_ && !highPurity)
         continue;
       if (quality == 1)
         badquality = true;
 
       // don't compute efficiencies in modules from TOB6 and TEC9
-      if (!_showTOB6TEC9 && (layer_wheel == 10 || layer_wheel == 22))
+      if (!showTOB6TEC9_ && (layer_wheel == 10 || layer_wheel == siStripLayers_))
         continue;
 
       // don't use bad modules given in the bad module list
@@ -473,11 +503,11 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       bool badflag = false;
 
       // By default uses the old matching method
-      if (_ResXSig < 0) {
+      if (resXSig_ < 0) {
         if (isBad == 1)
           badflag = true;  // isBad set to false in the tree when resxsig<999.0
       } else {
-        if (isBad == 1 || resxsig > _ResXSig)
+        if (isBad == 1 || resxsig > resXSig_)
           badflag = true;
       }
 
@@ -530,24 +560,24 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       int capv = -9;
       float stripInAPV = 64.;
 
-      if (_clusterMatchingMethod >= 1) {
+      if (clusterMatchingMethod_ >= 1) {
         badflag = false;          // reset
         if (resxsig == 1000.0) {  // default value when no cluster found in the module
           badflag = true;         // consider the module inefficient in this case
         } else {
-          if (_clusterMatchingMethod == 2 ||
-              _clusterMatchingMethod == 4) {  // check the distance between cluster and trajectory position
-            if (abs(stripCluster - stripTrajMid) > _clusterTrajDist)
+          if (clusterMatchingMethod_ == 2 ||
+              clusterMatchingMethod_ == 4) {  // check the distance between cluster and trajectory position
+            if (abs(stripCluster - stripTrajMid) > clusterTrajDist_)
               badflag = true;
           }
-          if (_clusterMatchingMethod == 3 ||
-              _clusterMatchingMethod ==
+          if (clusterMatchingMethod_ == 3 ||
+              clusterMatchingMethod_ ==
                   4) {  // cluster and traj have to be in the same APV (don't take edges into accounts)
             tapv = (int)stripTrajMid / 128;
             capv = (int)stripCluster / 128;
             stripInAPV = stripTrajMid - tapv * 128;
 
-            if (stripInAPV < _stripsApvEdge || stripInAPV > 128 - _stripsApvEdge)
+            if (stripInAPV < stripsApvEdge_ || stripInAPV > 128 - stripsApvEdge_)
               continue;
             if (tapv != capv)
               badflag = true;
@@ -594,7 +624,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
           layerfound_vsPU[layer]->Fill(PU);
         layertotal_vsPU[layer]->Fill(PU);
 
-        if (_useCM) {
+        if (useCM_) {
           if (!badflag)
             layerfound_vsCM[layer]->Fill(CM);
           layertotal_vsCM[layer]->Fill(CM);
@@ -615,7 +645,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
               goodlayerfound[layer + 3]++;
             goodlayertotal[layer + 3]++;
           }
-        } else if (layer > 13 && layer <= 22) {
+        } else if (layer > 13 && layer <= siStripLayers_) {
           if (((id >> 18) & 0x3) == 1) {
             if (!badflag)
               goodlayerfound[layer + 3]++;
@@ -642,7 +672,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
             alllayerfound[layer + 3]++;
           alllayertotal[layer + 3]++;
         }
-      } else if (layer > 13 && layer <= 22) {
+      } else if (layer > 13 && layer <= siStripLayers_) {
         if (((id >> 18) & 0x3) == 1) {
           if (!badflag)
             alllayerfound[layer + 3]++;
@@ -658,13 +688,13 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
   }  // go to next CalibTreeFile
 
   makeHotColdMaps();
-  makeTKMap(_autoIneffModTagging);
+  makeTKMap(autoIneffModTagging_);
   makeSQLite();
   totalStatistics();
   makeSummary();
   makeSummaryVsBx();
   makeSummaryVsLumi();
-  if (_useCM)
+  if (useCM_)
     makeSummaryVsCM();
 
   ////////////////////////////////////////////////////////////////////////
@@ -713,7 +743,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       //&&&&&&&&&&&&&&&&&
 
       component = tTopo.tibLayer(BC[i].detid);
-      SetBadComponents(0, component, BC[i], ssV, NBadComponent);
+      setBadComponents(0, component, BC[i], ssV, NBadComponent);
 
     } else if (a.subdetId() == SiStripDetId::TID) {
       //&&&&&&&&&&&&&&&&&
@@ -721,7 +751,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       //&&&&&&&&&&&&&&&&&
 
       component = tTopo.tidSide(BC[i].detid) == 2 ? tTopo.tidWheel(BC[i].detid) : tTopo.tidWheel(BC[i].detid) + 3;
-      SetBadComponents(1, component, BC[i], ssV, NBadComponent);
+      setBadComponents(1, component, BC[i], ssV, NBadComponent);
 
     } else if (a.subdetId() == SiStripDetId::TOB) {
       //&&&&&&&&&&&&&&&&&
@@ -729,7 +759,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       //&&&&&&&&&&&&&&&&&
 
       component = tTopo.tobLayer(BC[i].detid);
-      SetBadComponents(2, component, BC[i], ssV, NBadComponent);
+      setBadComponents(2, component, BC[i], ssV, NBadComponent);
 
     } else if (a.subdetId() == SiStripDetId::TEC) {
       //&&&&&&&&&&&&&&&&&
@@ -737,7 +767,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       //&&&&&&&&&&&&&&&&&
 
       component = tTopo.tecSide(BC[i].detid) == 2 ? tTopo.tecWheel(BC[i].detid) : tTopo.tecWheel(BC[i].detid) + 9;
-      SetBadComponents(3, component, BC[i], ssV, NBadComponent);
+      setBadComponents(3, component, BC[i], ssV, NBadComponent);
     }
   }
 
@@ -781,72 +811,74 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
       percentage += range;
     }
     if (percentage != 0)
-      percentage /= 128. * _detInfo.getNumberOfApvsAndStripLength(detid).first;
+      percentage /= 128. * detInfo_.getNumberOfApvsAndStripLength(detid).first;
     if (percentage > 1)
       edm::LogError("SiStripQualityStatistics") << "PROBLEM detid " << detid << " value " << percentage << std::endl;
   }
   //&&&&&&&&&&&&&&&&&&
   // printout
   //&&&&&&&&&&&&&&&&&&
+  std::ostringstream ss;
 
-  cout << "\n-----------------\nNew IOV starting from run " << e.id().run() << " event " << e.id().event()
-       << " lumiBlock " << e.luminosityBlock() << " time " << e.time().value() << "\n-----------------\n";
-  cout << "\n-----------------\nGlobal Info\n-----------------";
-  cout << "\nBadComponent \t	Modules \tFibers "
-          "\tApvs\tStrips\n----------------------------------------------------------------";
-  cout << "\nTracker:\t\t" << NTkBadComponent[0] << "\t" << NTkBadComponent[1] << "\t" << NTkBadComponent[2] << "\t"
-       << NTkBadComponent[3];
-  cout << endl;
-  cout << "\nTIB:\t\t\t" << NBadComponent[0][0][0] << "\t" << NBadComponent[0][0][1] << "\t" << NBadComponent[0][0][2]
-       << "\t" << NBadComponent[0][0][3];
-  cout << "\nTID:\t\t\t" << NBadComponent[1][0][0] << "\t" << NBadComponent[1][0][1] << "\t" << NBadComponent[1][0][2]
-       << "\t" << NBadComponent[1][0][3];
-  cout << "\nTOB:\t\t\t" << NBadComponent[2][0][0] << "\t" << NBadComponent[2][0][1] << "\t" << NBadComponent[2][0][2]
-       << "\t" << NBadComponent[2][0][3];
-  cout << "\nTEC:\t\t\t" << NBadComponent[3][0][0] << "\t" << NBadComponent[3][0][1] << "\t" << NBadComponent[3][0][2]
-       << "\t" << NBadComponent[3][0][3];
-  cout << "\n";
+  ss << "\n-----------------\nNew IOV starting from run " << e.id().run() << " event " << e.id().event()
+     << " lumiBlock " << e.luminosityBlock() << " time " << e.time().value() << "\n-----------------\n";
+  ss << "\n-----------------\nGlobal Info\n-----------------";
+  ss << "\nBadComponent \t	Modules \tFibers "
+        "\tApvs\tStrips\n----------------------------------------------------------------";
+  ss << "\nTracker:\t\t" << NTkBadComponent[0] << "\t" << NTkBadComponent[1] << "\t" << NTkBadComponent[2] << "\t"
+     << NTkBadComponent[3];
+  ss << "\nTIB:\t\t\t" << NBadComponent[0][0][0] << "\t" << NBadComponent[0][0][1] << "\t" << NBadComponent[0][0][2]
+     << "\t" << NBadComponent[0][0][3];
+  ss << "\nTID:\t\t\t" << NBadComponent[1][0][0] << "\t" << NBadComponent[1][0][1] << "\t" << NBadComponent[1][0][2]
+     << "\t" << NBadComponent[1][0][3];
+  ss << "\nTOB:\t\t\t" << NBadComponent[2][0][0] << "\t" << NBadComponent[2][0][1] << "\t" << NBadComponent[2][0][2]
+     << "\t" << NBadComponent[2][0][3];
+  ss << "\nTEC:\t\t\t" << NBadComponent[3][0][0] << "\t" << NBadComponent[3][0][1] << "\t" << NBadComponent[3][0][2]
+     << "\t" << NBadComponent[3][0][3];
+  ss << "\n";
 
   for (int i = 1; i < 5; ++i)
-    cout << "\nTIB Layer " << i << " :\t\t" << NBadComponent[0][i][0] << "\t" << NBadComponent[0][i][1] << "\t"
-         << NBadComponent[0][i][2] << "\t" << NBadComponent[0][i][3];
-  cout << "\n";
+    ss << "\nTIB Layer " << i << " :\t\t" << NBadComponent[0][i][0] << "\t" << NBadComponent[0][i][1] << "\t"
+       << NBadComponent[0][i][2] << "\t" << NBadComponent[0][i][3];
+  ss << "\n";
   for (int i = 1; i < 4; ++i)
-    cout << "\nTID+ Disk " << i << " :\t\t" << NBadComponent[1][i][0] << "\t" << NBadComponent[1][i][1] << "\t"
-         << NBadComponent[1][i][2] << "\t" << NBadComponent[1][i][3];
+    ss << "\nTID+ Disk " << i << " :\t\t" << NBadComponent[1][i][0] << "\t" << NBadComponent[1][i][1] << "\t"
+       << NBadComponent[1][i][2] << "\t" << NBadComponent[1][i][3];
   for (int i = 4; i < 7; ++i)
-    cout << "\nTID- Disk " << i - 3 << " :\t\t" << NBadComponent[1][i][0] << "\t" << NBadComponent[1][i][1] << "\t"
-         << NBadComponent[1][i][2] << "\t" << NBadComponent[1][i][3];
-  cout << "\n";
+    ss << "\nTID- Disk " << i - 3 << " :\t\t" << NBadComponent[1][i][0] << "\t" << NBadComponent[1][i][1] << "\t"
+       << NBadComponent[1][i][2] << "\t" << NBadComponent[1][i][3];
+  ss << "\n";
   for (int i = 1; i < 7; ++i)
-    cout << "\nTOB Layer " << i << " :\t\t" << NBadComponent[2][i][0] << "\t" << NBadComponent[2][i][1] << "\t"
-         << NBadComponent[2][i][2] << "\t" << NBadComponent[2][i][3];
-  cout << "\n";
+    ss << "\nTOB Layer " << i << " :\t\t" << NBadComponent[2][i][0] << "\t" << NBadComponent[2][i][1] << "\t"
+       << NBadComponent[2][i][2] << "\t" << NBadComponent[2][i][3];
+  ss << "\n";
   for (int i = 1; i < 10; ++i)
-    cout << "\nTEC+ Disk " << i << " :\t\t" << NBadComponent[3][i][0] << "\t" << NBadComponent[3][i][1] << "\t"
-         << NBadComponent[3][i][2] << "\t" << NBadComponent[3][i][3];
+    ss << "\nTEC+ Disk " << i << " :\t\t" << NBadComponent[3][i][0] << "\t" << NBadComponent[3][i][1] << "\t"
+       << NBadComponent[3][i][2] << "\t" << NBadComponent[3][i][3];
   for (int i = 10; i < 19; ++i)
-    cout << "\nTEC- Disk " << i - 9 << " :\t\t" << NBadComponent[3][i][0] << "\t" << NBadComponent[3][i][1] << "\t"
-         << NBadComponent[3][i][2] << "\t" << NBadComponent[3][i][3];
-  cout << "\n";
+    ss << "\nTEC- Disk " << i - 9 << " :\t\t" << NBadComponent[3][i][0] << "\t" << NBadComponent[3][i][1] << "\t"
+       << NBadComponent[3][i][2] << "\t" << NBadComponent[3][i][3];
+  ss << "\n";
 
-  cout << "\n----------------------------------------------------------------\n\t\t   Detid  \tModules Fibers "
-          "Apvs\n----------------------------------------------------------------";
+  ss << "\n----------------------------------------------------------------\n\t\t   Detid  \tModules Fibers "
+        "Apvs\n----------------------------------------------------------------";
   for (int i = 1; i < 5; ++i)
-    cout << "\nTIB Layer " << i << " :" << ssV[0][i].str();
-  cout << "\n";
+    ss << "\nTIB Layer " << i << " :" << ssV[0][i].str();
+  ss << "\n";
   for (int i = 1; i < 4; ++i)
-    cout << "\nTID+ Disk " << i << " :" << ssV[1][i].str();
+    ss << "\nTID+ Disk " << i << " :" << ssV[1][i].str();
   for (int i = 4; i < 7; ++i)
-    cout << "\nTID- Disk " << i - 3 << " :" << ssV[1][i].str();
-  cout << "\n";
+    ss << "\nTID- Disk " << i - 3 << " :" << ssV[1][i].str();
+  ss << "\n";
   for (int i = 1; i < 7; ++i)
-    cout << "\nTOB Layer " << i << " :" << ssV[2][i].str();
-  cout << "\n";
+    ss << "\nTOB Layer " << i << " :" << ssV[2][i].str();
+  ss << "\n";
   for (int i = 1; i < 10; ++i)
-    cout << "\nTEC+ Disk " << i << " :" << ssV[3][i].str();
+    ss << "\nTEC+ Disk " << i << " :" << ssV[3][i].str();
   for (int i = 10; i < 19; ++i)
-    cout << "\nTEC- Disk " << i - 9 << " :" << ssV[3][i].str();
+    ss << "\nTEC- Disk " << i - 9 << " :" << ssV[3][i].str();
+
+  LOGPRINT << ss.str();
 
   // store also bad modules in log file
   ofstream badModules;
@@ -872,7 +904,7 @@ void SiStripHitEffFromCalibTree::algoAnalyze(const edm::Event& e, const edm::Eve
 }
 
 void SiStripHitEffFromCalibTree::makeHotColdMaps() {
-  cout << "Entering hot cold map generation!\n";
+  LOGPRINT << "Entering hot cold map generation!\n";
   TStyle* gStyle = new TStyle("gStyle", "myStyle");
   gStyle->cd();
   gStyle->SetPalette(1);
@@ -882,7 +914,7 @@ void SiStripHitEffFromCalibTree::makeHotColdMaps() {
   //Already have access to the data as a private variable
   //Create all of the histograms in the TFileService
   TH2F* temph2;
-  for (Long_t maplayer = 1; maplayer <= 22; maplayer++) {
+  for (Long_t maplayer = 1; maplayer <= siStripLayers_; maplayer++) {
     //Initialize all of the histograms
     if (maplayer > 0 && maplayer <= 4) {
       //We are in the TIB
@@ -956,7 +988,7 @@ void SiStripHitEffFromCalibTree::makeHotColdMaps() {
       HotColdMaps.push_back(temph2);
     }
   }
-  for (Long_t mylayer = 1; mylayer <= 22; mylayer++) {
+  for (Long_t mylayer = 1; mylayer <= siStripLayers_; mylayer++) {
     //Determine what kind of plot we want to write out
     //Loop through the entirety of each layer
     //Create an array of the histograms
@@ -967,11 +999,11 @@ void SiStripHitEffFromCalibTree::makeHotColdMaps() {
       //Also global xy is messed up
       if (mylayer > 0 && mylayer <= 4) {
         //We are in the TIB
-        float phi = calcPhi(iter->x, iter->y);
+        float phi = ::calcPhi(iter->x, iter->y);
         HotColdMaps[mylayer - 1]->Fill(360. - phi, iter->z, 1.);
       } else if (mylayer > 4 && mylayer <= 10) {
         //We are in the TOB
-        float phi = calcPhi(iter->x, iter->y);
+        float phi = ::calcPhi(iter->x, iter->y);
         HotColdMaps[mylayer - 1]->Fill(360. - phi, iter->z, 1.);
       } else if (mylayer > 10 && mylayer <= 13) {
         //We are in the TID
@@ -996,21 +1028,37 @@ void SiStripHitEffFromCalibTree::makeHotColdMaps() {
       }
     }
   }
-  cout << "Finished HotCold Map Generation\n";
+  LOGPRINT << "Finished HotCold Map Generation\n";
 }
 
 void SiStripHitEffFromCalibTree::makeTKMap(bool autoTagging = false) {
-  cout << "Entering TKMap generation!\n";
+  LOGPRINT << "Entering TKMap generation!\n";
+
+  TTree* tree = nullptr;
+  unsigned int t_DetId, t_found, t_total;
+  unsigned char t_layer;
+  bool t_isTaggedIneff;
+  float t_threshold;
+  if (storeModEff_) {
+    tree = fs->make<TTree>("ModEff", "ModEff");
+    tree->Branch("DetId", &t_DetId, "DetId/i");
+    tree->Branch("Layer", &t_layer, "Layer/b");
+    tree->Branch("FoundHits", &t_found, "FoundHits/i");
+    tree->Branch("AllHits", &t_total, "AllHits/i");
+    tree->Branch("IsTaggedIneff", &t_isTaggedIneff, "IsTaggedIneff/O");
+    tree->Branch("TagThreshold", &t_threshold, "TagThreshold/F");
+  }
+
   tkmap = new TrackerMap("  Detector Inefficiency  ");
   tkmapbad = new TrackerMap("  Inefficient Modules  ");
-  tkmapeff = new TrackerMap(_title.Data());
+  tkmapeff = new TrackerMap(title_.Data());
   tkmapnum = new TrackerMap(" Detector numerator   ");
   tkmapden = new TrackerMap(" Detector denominator ");
 
-  double myeff, mynum, myden;
-  double eff_limit = 0;
+  double myeff, mynum, myden, myeff_up;
+  double layer_min_eff = 0;
 
-  for (Long_t i = 1; i <= 22; i++) {
+  for (Long_t i = 1; i <= siStripLayers_; i++) {
     //Loop over every layer, extracting the information from
     //the map of the efficiencies
     layertotal[i] = 0;
@@ -1018,12 +1066,11 @@ void SiStripHitEffFromCalibTree::makeTKMap(bool autoTagging = false) {
     TH1F* hEffInLayer =
         fs->make<TH1F>(Form("eff_layer%i", int(i)), Form("Module efficiency in layer %i", int(i)), 201, 0, 1.005);
 
-    map<unsigned int, pair<unsigned int, unsigned int> >::const_iterator ih;
-    for (ih = modCounter[i].begin(); ih != modCounter[i].end(); ih++) {
+    for (const auto& ih : modCounter[i]) {
       //We should be in the layer in question, and looping over all of the modules in said layer
       //Generate the list for the TKmap, and the bad module list
-      mynum = (double)(((*ih).second).second);
-      myden = (double)(((*ih).second).first);
+      mynum = (double)((ih.second).second);
+      myden = (double)((ih.second).first);
       if (myden > 0)
         myeff = mynum / myden;
       else
@@ -1031,27 +1078,40 @@ void SiStripHitEffFromCalibTree::makeTKMap(bool autoTagging = false) {
       hEffInLayer->Fill(myeff);
 
       if (!autoTagging) {
-        if ((myden >= nModsMin) && (myeff < threshold)) {
+        if ((myden >= nModsMin_) && (myeff < threshold_)) {
           //We have a bad module, put it in the list!
-          BadModules[(*ih).first] = myeff;
-          tkmapbad->fillc((*ih).first, 255, 0, 0);
-          cout << "Layer " << i << " (" << GetLayerName(i) << ")  module " << (*ih).first << " efficiency: " << myeff
-               << " , " << mynum << "/" << myden << endl;
+          BadModules[ih.first] = myeff;
+          tkmapbad->fillc(ih.first, 255, 0, 0);
+          LOGPRINT << "Layer " << i << " (" << ::layerName(i, showRings_, nTEClayers) << ")  module " << ih.first
+                   << " efficiency: " << myeff << " , " << mynum << "/" << myden;
         } else {
           //Fill the bad list with empty results for every module
-          tkmapbad->fillc((*ih).first, 255, 255, 255);
+          tkmapbad->fillc(ih.first, 255, 255, 255);
         }
-        if (myden < nModsMin) {
-          cout << "Layer " << i << " (" << GetLayerName(i) << ")  module " << (*ih).first << " is under occupancy at "
-               << myden << endl;
+        if (myeff < threshold_)
+          LOGPRINT << "Layer " << i << " (" << ::layerName(i, showRings_, nTEClayers) << ")  module " << ih.first
+                   << " efficiency: " << myeff << " , " << mynum << "/" << myden;
+        if (myden < nModsMin_) {
+          LOGPRINT << "Layer " << i << " (" << ::layerName(i, showRings_, nTEClayers) << ")  module " << ih.first
+                   << " is under occupancy at " << myden;
         }
       }
 
+      if (storeModEff_) {
+        t_DetId = ih.first;
+        t_layer = i;
+        t_found = mynum;
+        t_total = myden;
+        t_isTaggedIneff = false;
+        t_threshold = 0;
+        tree->Fill();
+      }
+
       //Put any module into the TKMap
-      tkmap->fill((*ih).first, 1. - myeff);
-      tkmapeff->fill((*ih).first, myeff);
-      tkmapnum->fill((*ih).first, mynum);
-      tkmapden->fill((*ih).first, myden);
+      tkmap->fill(ih.first, 1. - myeff);
+      tkmapeff->fill(ih.first, myeff);
+      tkmapnum->fill(ih.first, mynum);
+      tkmapden->fill(ih.first, myden);
 
       //Add the number of hits in the layer
       layertotal[i] += long(myden);
@@ -1061,63 +1121,83 @@ void SiStripHitEffFromCalibTree::makeTKMap(bool autoTagging = false) {
     if (autoTagging) {
       //Compute threshold to use for each layer
       hEffInLayer->GetXaxis()->SetRange(3, hEffInLayer->GetNbinsX() + 1);  // Remove from the avg modules below 1%
-      eff_limit = hEffInLayer->GetMean() - threshold;
-      cout << "Layer " << i << " threshold for bad modules: " << eff_limit << endl;
+      layer_min_eff =
+          hEffInLayer->GetMean() - 2.5 * hEffInLayer->GetRMS();  // uses RMS in case the distribution is wide
+      if (threshold_ > 2.5 * hEffInLayer->GetRMS())
+        layer_min_eff = hEffInLayer->GetMean() - threshold_;  // otherwise uses the parameter 'threshold'
+      LOGPRINT << "Layer " << i << " threshold for bad modules: <" << layer_min_eff
+               << "  (layer mean: " << hEffInLayer->GetMean() << " rms: " << hEffInLayer->GetRMS() << ")";
+
       hEffInLayer->GetXaxis()->SetRange(1, hEffInLayer->GetNbinsX() + 1);
 
-      for (ih = modCounter[i].begin(); ih != modCounter[i].end(); ih++) {
+      for (const auto& ih : modCounter[i]) {
         // Second loop over modules to tag inefficient ones
-        mynum = (double)(((*ih).second).second);
-        myden = (double)(((*ih).second).first);
+        mynum = (double)((ih.second).second);
+        myden = (double)((ih.second).first);
         if (myden > 0)
           myeff = mynum / myden;
         else
           myeff = 0;
-        if ((myden >= nModsMin) && (myeff < eff_limit)) {
+        // upper limit on the efficiency
+        myeff_up = TEfficiency::Bayesian(myden, mynum, .99, 1, 1, true);
+        if ((myden >= nModsMin_) && (myeff_up < layer_min_eff)) {
           //We have a bad module, put it in the list!
-          BadModules[(*ih).first] = myeff;
-          tkmapbad->fillc((*ih).first, 255, 0, 0);
-          cout << "Layer " << i << " (" << GetLayerName(i) << ")  module " << (*ih).first << " efficiency: " << myeff
-               << " , " << mynum << "/" << myden << endl;
+          BadModules[ih.first] = myeff;
+          tkmapbad->fillc(ih.first, 255, 0, 0);
+          t_isTaggedIneff = true;
         } else {
           //Fill the bad list with empty results for every module
-          tkmapbad->fillc((*ih).first, 255, 255, 255);
+          tkmapbad->fillc(ih.first, 255, 255, 255);
+          t_isTaggedIneff = false;
         }
-        if (myden < nModsMin) {
-          cout << "Layer " << i << " (" << GetLayerName(i) << ")  module " << (*ih).first << " layer " << i
-               << " is under occupancy at " << myden << endl;
+        if (myeff_up < layer_min_eff + 0.08)  // printing message also for modules slighly above (8%) the limit
+          LOGPRINT << "Layer " << i << " (" << ::layerName(i, showRings_, nTEClayers) << ")  module " << ih.first
+                   << " efficiency: " << myeff << " , " << mynum << "/" << myden << " , upper limit: " << myeff_up;
+        if (myden < nModsMin_) {
+          LOGPRINT << "Layer " << i << " (" << ::layerName(i, showRings_, nTEClayers) << ")  module " << ih.first
+                   << " layer " << i << " is under occupancy at " << myden;
+        }
+
+        if (storeModEff_) {
+          t_DetId = ih.first;
+          t_layer = i;
+          t_found = mynum;
+          t_total = myden;
+          t_threshold = layer_min_eff;
+          tree->Fill();
         }
       }
     }
   }
   tkmap->save(true, 0, 0, "SiStripHitEffTKMap.png");
   tkmapbad->save(true, 0, 0, "SiStripHitEffTKMapBad.png");
-  tkmapeff->save(true, _tkMapMin, 1., "SiStripHitEffTKMapEff.png");
+  tkmapeff->save(true, tkMapMin_, 1., "SiStripHitEffTKMapEff.png");
   tkmapnum->save(true, 0, 0, "SiStripHitEffTKMapNum.png");
   tkmapden->save(true, 0, 0, "SiStripHitEffTKMapDen.png");
-  cout << "Finished TKMap Generation\n";
+  LOGPRINT << "Finished TKMap Generation\n";
+  if (storeModEff_)
+    LOGPRINT << "Modules efficiencies stored in tree\n";
 }
 
 void SiStripHitEffFromCalibTree::makeSQLite() {
   //Generate the SQLite file for use in the Database of the bad modules!
-  cout << "Entering SQLite file generation!\n";
+  LOGPRINT << "Entering SQLite file generation!\n";
   std::vector<unsigned int> BadStripList;
   unsigned short NStrips;
   unsigned int id1;
-  std::unique_ptr<SiStripQuality> pQuality = std::make_unique<SiStripQuality>(_detInfo);
+  std::unique_ptr<SiStripQuality> pQuality = std::make_unique<SiStripQuality>(detInfo_);
   //This is the list of the bad strips, use to mask out entire APVs
   //Now simply go through the bad hit list and mask out things that
   //are bad!
-  map<unsigned int, double>::const_iterator it;
-  for (it = BadModules.begin(); it != BadModules.end(); it++) {
+  for (const auto& it : BadModules) {
     //We need to figure out how many strips are in this particular module
     //To Mask correctly!
-    NStrips = _detInfo.getNumberOfApvsAndStripLength((*it).first).first * 128;
-    cout << "Number of strips module " << (*it).first << " is " << NStrips << endl;
+    NStrips = detInfo_.getNumberOfApvsAndStripLength(it.first).first * 128;
+    LOGPRINT << "Number of strips module " << it.first << " is " << NStrips;
     BadStripList.push_back(pQuality->encode(0, NStrips, 0));
     //Now compact into a single bad module
-    id1 = (unsigned int)(*it).first;
-    cout << "ID1 shoudl match list of modules above " << id1 << endl;
+    id1 = (unsigned int)it.first;
+    LOGPRINT << "ID1 shoudl match list of modules above " << id1;
     quality_->compact(id1, BadStripList);
     SiStripQuality::Range range(BadStripList.begin(), BadStripList.end());
     quality_->put(id1, range);
@@ -1140,10 +1220,10 @@ void SiStripHitEffFromCalibTree::totalStatistics() {
     subdettotal[i] = 0;
   }
 
-  for (Long_t i = 1; i <= 22; i++) {
+  for (Long_t i = 1; i <= siStripLayers_; i++) {
     layereff = double(layerfound[i]) / double(layertotal[i]);
-    cout << "Layer " << i << " (" << GetLayerName(i) << ") has total efficiency " << layereff << " " << layerfound[i]
-         << "/" << layertotal[i] << endl;
+    LOGPRINT << "Layer " << i << " (" << ::layerName(i, showRings_, nTEClayers) << ") has total efficiency " << layereff
+             << " " << layerfound[i] << "/" << layertotal[i];
     totalfound += layerfound[i];
     totaltotal += layertotal[i];
     if (i < 5) {
@@ -1164,26 +1244,26 @@ void SiStripHitEffFromCalibTree::totalStatistics() {
     }
   }
 
-  cout << "The total efficiency is " << double(totalfound) / double(totaltotal) << endl;
-  cout << "      TIB: " << double(subdetfound[1]) / subdettotal[1] << " " << subdetfound[1] << "/" << subdettotal[1]
-       << endl;
-  cout << "      TOB: " << double(subdetfound[2]) / subdettotal[2] << " " << subdetfound[2] << "/" << subdettotal[2]
-       << endl;
-  cout << "      TID: " << double(subdetfound[3]) / subdettotal[3] << " " << subdetfound[3] << "/" << subdettotal[3]
-       << endl;
-  cout << "      TEC: " << double(subdetfound[4]) / subdettotal[4] << " " << subdetfound[4] << "/" << subdettotal[4]
-       << endl;
+  LOGPRINT << "The total efficiency is " << double(totalfound) / double(totaltotal);
+  LOGPRINT << "      TIB: " << double(subdetfound[1]) / subdettotal[1] << " " << subdetfound[1] << "/"
+           << subdettotal[1];
+  LOGPRINT << "      TOB: " << double(subdetfound[2]) / subdettotal[2] << " " << subdetfound[2] << "/"
+           << subdettotal[2];
+  LOGPRINT << "      TID: " << double(subdetfound[3]) / subdettotal[3] << " " << subdetfound[3] << "/"
+           << subdettotal[3];
+  LOGPRINT << "      TEC: " << double(subdetfound[4]) / subdettotal[4] << " " << subdetfound[4] << "/"
+           << subdettotal[4];
 }
 
 void SiStripHitEffFromCalibTree::makeSummary() {
   //setTDRStyle();
 
   int nLayers = 34;
-  if (_showRings)
+  if (showRings_)
     nLayers = 30;
-  if (!_showEndcapSides) {
-    if (!_showRings)
-      nLayers = 22;
+  if (!showEndcapSides_) {
+    if (!showRings_)
+      nLayers = siStripLayers_;
     else
       nLayers = 20;
   }
@@ -1209,18 +1289,17 @@ void SiStripHitEffFromCalibTree::makeSummary() {
   c7->SetGrid();
 
   int nLayers_max = nLayers + 1;  // barrel+endcap
-  if (!_showEndcapSides)
+  if (!showEndcapSides_)
     nLayers_max = 11;  // barrel
   for (Long_t i = 1; i < nLayers_max; ++i) {
-    cout << "Fill only good modules layer " << i << ":  S = " << goodlayerfound[i] << "    B = " << goodlayertotal[i]
-         << endl;
+    LOGPRINT << "Fill only good modules layer " << i << ":  S = " << goodlayerfound[i]
+             << "    B = " << goodlayertotal[i];
     if (goodlayertotal[i] > 5) {
       found->SetBinContent(i, goodlayerfound[i]);
       all->SetBinContent(i, goodlayertotal[i]);
     }
 
-    cout << "Filling all modules layer " << i << ":  S = " << alllayerfound[i] << "    B = " << alllayertotal[i]
-         << endl;
+    LOGPRINT << "Filling all modules layer " << i << ":  S = " << alllayerfound[i] << "    B = " << alllayertotal[i];
     if (alllayertotal[i] > 5) {
       found2->SetBinContent(i, alllayerfound[i]);
       all2->SetBinContent(i, alllayertotal[i]);
@@ -1228,31 +1307,31 @@ void SiStripHitEffFromCalibTree::makeSummary() {
   }
 
   // endcap - merging sides
-  if (!_showEndcapSides) {
+  if (!showEndcapSides_) {
     for (Long_t i = 11; i < 14; ++i) {  // TID disks
-      cout << "Fill only good modules layer " << i << ":  S = " << goodlayerfound[i] + goodlayerfound[i + 3]
-           << "    B = " << goodlayertotal[i] + goodlayertotal[i + 3] << endl;
+      LOGPRINT << "Fill only good modules layer " << i << ":  S = " << goodlayerfound[i] + goodlayerfound[i + 3]
+               << "    B = " << goodlayertotal[i] + goodlayertotal[i + 3];
       if (goodlayertotal[i] + goodlayertotal[i + 3] > 5) {
         found->SetBinContent(i, goodlayerfound[i] + goodlayerfound[i + 3]);
         all->SetBinContent(i, goodlayertotal[i] + goodlayertotal[i + 3]);
       }
-      cout << "Filling all modules layer " << i << ":  S = " << alllayerfound[i] + alllayerfound[i + 3]
-           << "    B = " << alllayertotal[i] + alllayertotal[i + 3] << endl;
+      LOGPRINT << "Filling all modules layer " << i << ":  S = " << alllayerfound[i] + alllayerfound[i + 3]
+               << "    B = " << alllayertotal[i] + alllayertotal[i + 3];
       if (alllayertotal[i] + alllayertotal[i + 3] > 5) {
         found2->SetBinContent(i, alllayerfound[i] + alllayerfound[i + 3]);
         all2->SetBinContent(i, alllayertotal[i] + alllayertotal[i + 3]);
       }
     }
     for (Long_t i = 17; i < 17 + nTEClayers; ++i) {  // TEC disks
-      cout << "Fill only good modules layer " << i - 3
-           << ":  S = " << goodlayerfound[i] + goodlayerfound[i + nTEClayers]
-           << "    B = " << goodlayertotal[i] + goodlayertotal[i + nTEClayers] << endl;
+      LOGPRINT << "Fill only good modules layer " << i - 3
+               << ":  S = " << goodlayerfound[i] + goodlayerfound[i + nTEClayers]
+               << "    B = " << goodlayertotal[i] + goodlayertotal[i + nTEClayers];
       if (goodlayertotal[i] + goodlayertotal[i + nTEClayers] > 5) {
         found->SetBinContent(i - 3, goodlayerfound[i] + goodlayerfound[i + nTEClayers]);
         all->SetBinContent(i - 3, goodlayertotal[i] + goodlayertotal[i + nTEClayers]);
       }
-      cout << "Filling all modules layer " << i - 3 << ":  S = " << alllayerfound[i] + alllayerfound[i + nTEClayers]
-           << "    B = " << alllayertotal[i] + alllayertotal[i + nTEClayers] << endl;
+      LOGPRINT << "Filling all modules layer " << i - 3 << ":  S = " << alllayerfound[i] + alllayerfound[i + nTEClayers]
+               << "    B = " << alllayertotal[i] + alllayertotal[i + nTEClayers];
       if (alllayertotal[i] + alllayertotal[i + nTEClayers] > 5) {
         found2->SetBinContent(i - 3, alllayerfound[i] + alllayerfound[i + nTEClayers]);
         all2->SetBinContent(i - 3, alllayertotal[i] + alllayertotal[i + nTEClayers]);
@@ -1285,12 +1364,12 @@ void SiStripHitEffFromCalibTree::makeSummary() {
   gr->SetLineColor(2);
   gr->SetLineWidth(4);
   gr->SetMarkerStyle(20);
-  gr->SetMinimum(_effPlotMin);
+  gr->SetMinimum(effPlotMin_);
   gr->SetMaximum(1.001);
   gr->GetYaxis()->SetTitle("Efficiency");
   gStyle->SetTitleFillColor(0);
   gStyle->SetTitleBorderSize(0);
-  gr->SetTitle(_title);
+  gr->SetTitle(title_);
 
   gr2->GetXaxis()->SetLimits(0, nLayers);
   gr2->SetMarkerColor(1);
@@ -1298,27 +1377,27 @@ void SiStripHitEffFromCalibTree::makeSummary() {
   gr2->SetLineColor(1);
   gr2->SetLineWidth(4);
   gr2->SetMarkerStyle(21);
-  gr2->SetMinimum(_effPlotMin);
+  gr2->SetMinimum(effPlotMin_);
   gr2->SetMaximum(1.001);
   gr2->GetYaxis()->SetTitle("Efficiency");
-  gr2->SetTitle(_title);
+  gr2->SetTitle(title_);
 
   for (Long_t k = 1; k < nLayers + 1; k++) {
     TString label;
-    if (_showEndcapSides)
-      label = GetLayerSideName(k);
+    if (showEndcapSides_)
+      label = getLayerSideName(k);
     else
-      label = GetLayerName(k);
-    if (!_showTOB6TEC9) {
+      label = ::layerName(k, showRings_, nTEClayers);
+    if (!showTOB6TEC9_) {
       if (k == 10)
         label = "";
-      if (!_showRings && k == nLayers)
+      if (!showRings_ && k == nLayers)
         label = "";
-      if (!_showRings && _showEndcapSides && k == 25)
+      if (!showRings_ && showEndcapSides_ && k == 25)
         label = "";
     }
-    if (!_showRings) {
-      if (_showEndcapSides) {
+    if (!showRings_) {
+      if (showEndcapSides_) {
         gr->GetXaxis()->SetBinLabel(((k + 1) * 100 + 2) / (nLayers)-4, label);
         gr2->GetXaxis()->SetBinLabel(((k + 1) * 100 + 2) / (nLayers)-4, label);
       } else {
@@ -1326,7 +1405,7 @@ void SiStripHitEffFromCalibTree::makeSummary() {
         gr2->GetXaxis()->SetBinLabel((k + 1) * 100 / (nLayers)-6, label);
       }
     } else {
-      if (_showEndcapSides) {
+      if (showEndcapSides_) {
         gr->GetXaxis()->SetBinLabel((k + 1) * 100 / (nLayers)-4, label);
         gr2->GetXaxis()->SetBinLabel((k + 1) * 100 / (nLayers)-4, label);
       } else {
@@ -1346,54 +1425,56 @@ void SiStripHitEffFromCalibTree::makeSummary() {
   overlay->SetFrameFillStyle(4000);
   overlay->Draw("same");
   overlay->cd();
-  if (!_showOnlyGoodModules)
+  if (!showOnlyGoodModules_)
     gr2->Draw("AP");
 
   TLegend* leg = new TLegend(0.70, 0.27, 0.88, 0.40);
   leg->AddEntry(gr, "Good Modules", "p");
-  if (!_showOnlyGoodModules)
+  if (!showOnlyGoodModules_)
     leg->AddEntry(gr2, "All Modules", "p");
   leg->SetTextSize(0.020);
   leg->SetFillColor(0);
   leg->Draw("same");
 
   c7->SaveAs("Summary.png");
+  c7->SaveAs("Summary.C");
 }
 
 void SiStripHitEffFromCalibTree::makeSummaryVsBx() {
-  cout << "Computing efficiency vs bx" << endl;
+  LOGPRINT << "Computing efficiency vs bx";
 
-  unsigned int nLayers = 22;
-  if (_showRings)
+  unsigned int nLayers = siStripLayers_;
+  if (showRings_)
     nLayers = 20;
 
   for (unsigned int ilayer = 1; ilayer < nLayers; ilayer++) {
-    TH1F* hfound = fs->make<TH1F>(Form("foundVsBx_layer%i", ilayer), Form("layer %i", ilayer), 3565, 0, 3565);
-    TH1F* htotal = fs->make<TH1F>(Form("totalVsBx_layer%i", ilayer), Form("layer %i", ilayer), 3565, 0, 3565);
-
-    for (unsigned int ibx = 0; ibx < 3566; ibx++) {
-      hfound->SetBinContent(ibx, 1e-6);
-      htotal->SetBinContent(ibx, 1);
+    for (unsigned int ibx = 0; ibx <= nBxInAnOrbit_; ibx++) {
+      layerfound_vsBX[ilayer]->SetBinContent(ibx, 1e-6);
+      layertotal_vsBX[ilayer]->SetBinContent(ibx, 1);
     }
-    map<unsigned int, vector<int> >::iterator iterMapvsBx;
-    for (iterMapvsBx = layerfound_perBx.begin(); iterMapvsBx != layerfound_perBx.end(); ++iterMapvsBx)
-      hfound->SetBinContent(iterMapvsBx->first, iterMapvsBx->second[ilayer]);
-    for (iterMapvsBx = layertotal_perBx.begin(); iterMapvsBx != layertotal_perBx.end(); ++iterMapvsBx)
-      if (iterMapvsBx->second[ilayer] > 0)
-        htotal->SetBinContent(iterMapvsBx->first, iterMapvsBx->second[ilayer]);
 
-    hfound->Sumw2();
-    htotal->Sumw2();
+    for (const auto& iterMapvsBx : layerfound_perBx) {
+      layerfound_vsBX[ilayer]->SetBinContent(iterMapvsBx.first, iterMapvsBx.second[ilayer]);
+    }
+    for (const auto& iterMapvsBx : layertotal_perBx) {
+      if (iterMapvsBx.second[ilayer] > 0) {
+        layertotal_vsBX[ilayer]->SetBinContent(iterMapvsBx.first, iterMapvsBx.second[ilayer]);
+      }
+    }
 
-    TGraphAsymmErrors* geff = fs->make<TGraphAsymmErrors>(3564);
+    layerfound_vsBX[ilayer]->Sumw2();
+    layertotal_vsBX[ilayer]->Sumw2();
+
+    TGraphAsymmErrors* geff = fs->make<TGraphAsymmErrors>(nBxInAnOrbit_ - 1);
     geff->SetName(Form("effVsBx_layer%i", ilayer));
-    geff->SetTitle("Hit Efficiency vs bx - " + GetLayerName(ilayer));
-    geff->BayesDivide(hfound, htotal);
+
+    geff->SetTitle(fmt::format("Hit Efficiency vs bx - {}", ::layerName(ilayer, showRings_, nTEClayers)).c_str());
+    geff->BayesDivide(layerfound_vsBX[ilayer], layertotal_vsBX[ilayer]);
 
     //Average over trains
     TGraphAsymmErrors* geff_avg = fs->make<TGraphAsymmErrors>();
     geff_avg->SetName(Form("effVsBxAvg_layer%i", ilayer));
-    geff_avg->SetTitle("Hit Efficiency vs bx - " + GetLayerName(ilayer));
+    geff_avg->SetTitle(fmt::format("Hit Efficiency vs bx - {}", ::layerName(ilayer, showRings_, nTEClayers)).c_str());
     geff_avg->SetMarkerStyle(20);
     int ibx = 0;
     int previous_bx = -80;
@@ -1405,13 +1486,13 @@ void SiStripHitEffFromCalibTree::makeSummaryVsBx() {
     int ipt = 0;
     float low, up, eff;
     int firstbx = 0;
-    for (iterMapvsBx = layertotal_perBx.begin(); iterMapvsBx != layertotal_perBx.end(); ++iterMapvsBx) {
-      ibx = iterMapvsBx->first;
+    for (const auto& iterMapvsBx : layertotal_perBx) {
+      ibx = iterMapvsBx.first;
       delta_bx = ibx - previous_bx;
       // consider a new train
-      if (delta_bx > (int)_spaceBetweenTrains && nbx > 0 && total > 0) {
+      if (delta_bx > (int)spaceBetweenTrains_ && nbx > 0 && total > 0) {
         eff = found / (float)total;
-        //cout<<"new train "<<ipt<<" "<<sum_bx/nbx<<" "<<eff<<endl;
+        //LOGPRINT<<"new train "<<ipt<<" "<<sum_bx/nbx<<" "<<eff<<endl;
         geff_avg->SetPoint(ipt, sum_bx / nbx, eff);
         low = TEfficiency::Bayesian(total, found, .683, 1, 1, false);
         up = TEfficiency::Bayesian(total, found, .683, 1, 1, true);
@@ -1424,15 +1505,15 @@ void SiStripHitEffFromCalibTree::makeSummaryVsBx() {
         firstbx = ibx;
       }
       sum_bx += ibx;
-      found += hfound->GetBinContent(ibx);
-      total += htotal->GetBinContent(ibx);
+      found += layerfound_vsBX[ilayer]->GetBinContent(ibx);
+      total += layertotal_vsBX[ilayer]->GetBinContent(ibx);
       nbx++;
 
       previous_bx = ibx;
     }
     //last train
     eff = found / (float)total;
-    //cout<<"new train "<<ipt<<" "<<sum_bx/nbx<<" "<<eff<<endl;
+    //LOGPRINT<<"new train "<<ipt<<" "<<sum_bx/nbx<<" "<<eff<<endl;
     geff_avg->SetPoint(ipt, sum_bx / nbx, eff);
     low = TEfficiency::Bayesian(total, found, .683, 1, 1, false);
     up = TEfficiency::Bayesian(total, found, .683, 1, 1, true);
@@ -1440,27 +1521,9 @@ void SiStripHitEffFromCalibTree::makeSummaryVsBx() {
   }
 }
 
-TString SiStripHitEffFromCalibTree::GetLayerName(Long_t k) {
-  TString layername = "";
-  TString ringlabel = "D";
-  if (_showRings)
-    ringlabel = "R";
-  if (k > 0 && k < 5) {
-    layername = TString("TIB L") + k;
-  } else if (k > 4 && k < 11) {
-    layername = TString("TOB L") + (k - 4);
-  } else if (k > 10 && k < 14) {
-    layername = TString("TID ") + ringlabel + (k - 10);
-  } else if (k > 13 && k < 14 + nTEClayers) {
-    layername = TString("TEC ") + ringlabel + (k - 13);
-  }
-
-  return layername;
-}
-
-void SiStripHitEffFromCalibTree::ComputeEff(vector<TH1F*>& vhfound, vector<TH1F*>& vhtotal, string name) {
-  unsigned int nLayers = 22;
-  if (_showRings)
+void SiStripHitEffFromCalibTree::computeEff(vector<TH1F*>& vhfound, vector<TH1F*>& vhtotal, string name) {
+  unsigned int nLayers = siStripLayers_;
+  if (showRings_)
     nLayers = 20;
 
   TH1F* hfound;
@@ -1485,26 +1548,28 @@ void SiStripHitEffFromCalibTree::ComputeEff(vector<TH1F*>& vhfound, vector<TH1F*
     geff->SetName(Form("%s_layer%i", name.c_str(), ilayer));
     geff->BayesDivide(hfound, htotal);
     if (name == "effVsLumi")
-      geff->SetTitle("Hit Efficiency vs inst. lumi. - " + GetLayerName(ilayer));
+      geff->SetTitle(
+          fmt::format("Hit Efficiency vs inst. lumi. - {}", ::layerName(ilayer, showRings_, nTEClayers)).c_str());
     if (name == "effVsPU")
-      geff->SetTitle("Hit Efficiency vs pileup - " + GetLayerName(ilayer));
+      geff->SetTitle(fmt::format("Hit Efficiency vs pileup - {}", ::layerName(ilayer, showRings_, nTEClayers)).c_str());
     if (name == "effVsCM")
-      geff->SetTitle("Hit Efficiency vs common Mode - " + GetLayerName(ilayer));
+      geff->SetTitle(
+          fmt::format("Hit Efficiency vs common Mode - {}", ::layerName(ilayer, showRings_, nTEClayers)).c_str());
     geff->SetMarkerStyle(20);
   }
 }
 
 void SiStripHitEffFromCalibTree::makeSummaryVsLumi() {
-  cout << "Computing efficiency vs lumi" << endl;
+  LOGPRINT << "Computing efficiency vs lumi";
 
   if (instLumiHisto->GetEntries())  // from infos per event
-    cout << "Avg conditions (avg+/-rms):   lumi :" << instLumiHisto->GetMean() << "+/-" << instLumiHisto->GetRMS()
-         << "   pu: " << PUHisto->GetMean() << "+/-" << PUHisto->GetRMS() << endl;
+    LOGPRINT << "Avg conditions (avg+/-rms):   lumi :" << instLumiHisto->GetMean() << "+/-" << instLumiHisto->GetRMS()
+             << "   pu: " << PUHisto->GetMean() << "+/-" << PUHisto->GetRMS();
 
   else {  // from infos per hit
 
-    unsigned int nLayers = 22;
-    if (_showRings)
+    unsigned int nLayers = siStripLayers_;
+    if (showRings_)
       nLayers = 20;
     unsigned int nLayersForAvg = 0;
     float layerLumi = 0;
@@ -1512,11 +1577,11 @@ void SiStripHitEffFromCalibTree::makeSummaryVsLumi() {
     float avgLumi = 0;
     float avgPU = 0;
 
-    cout << "Lumi summary:  (avg over trajectory measurements)" << endl;
+    LOGPRINT << "Lumi summary:  (avg over trajectory measurements)";
     for (unsigned int ilayer = 1; ilayer < nLayers; ilayer++) {
       layerLumi = layertotal_vsLumi[ilayer]->GetMean();
       layerPU = layertotal_vsPU[ilayer]->GetMean();
-      //cout<<" layer "<<ilayer<<"  lumi: "<<layerLumi<<"  pu: "<<layerPU<<endl;
+      //LOGPRINT<<" layer "<<ilayer<<"  lumi: "<<layerLumi<<"  pu: "<<layerPU<<endl;
       if (layerLumi != 0 && layerPU != 0) {
         avgLumi += layerLumi;
         avgPU += layerPU;
@@ -1525,22 +1590,22 @@ void SiStripHitEffFromCalibTree::makeSummaryVsLumi() {
     }
     avgLumi /= nLayersForAvg;
     avgPU /= nLayersForAvg;
-    cout << "Avg conditions:   lumi :" << avgLumi << "  pu: " << avgPU << endl;
+    LOGPRINT << "Avg conditions:   lumi :" << avgLumi << "  pu: " << avgPU;
   }
 
-  ComputeEff(layerfound_vsLumi, layertotal_vsLumi, "effVsLumi");
-  ComputeEff(layerfound_vsPU, layertotal_vsPU, "effVsPU");
+  computeEff(layerfound_vsLumi, layertotal_vsLumi, "effVsLumi");
+  computeEff(layerfound_vsPU, layertotal_vsPU, "effVsPU");
 }
 
 void SiStripHitEffFromCalibTree::makeSummaryVsCM() {
-  cout << "Computing efficiency vs CM" << endl;
-  ComputeEff(layerfound_vsCM, layertotal_vsCM, "effVsCM");
+  LOGPRINT << "Computing efficiency vs CM";
+  computeEff(layerfound_vsCM, layertotal_vsCM, "effVsCM");
 }
 
-TString SiStripHitEffFromCalibTree::GetLayerSideName(Long_t k) {
+TString SiStripHitEffFromCalibTree::getLayerSideName(Long_t k) {
   TString layername = "";
   TString ringlabel = "D";
-  if (_showRings)
+  if (showRings_)
     ringlabel = "R";
   if (k > 0 && k < 5) {
     layername = TString("TIB L") + k;
@@ -1578,25 +1643,9 @@ std::unique_ptr<SiStripBadStrip> SiStripHitEffFromCalibTree::getNewObject() {
   return obj;
 }
 
-float SiStripHitEffFromCalibTree::calcPhi(float x, float y) {
-  float phi = 0;
-  float Pi = 3.14159;
-  if ((x >= 0) && (y >= 0))
-    phi = atan(y / x);
-  else if ((x >= 0) && (y <= 0))
-    phi = atan(y / x) + 2 * Pi;
-  else if ((x <= 0) && (y >= 0))
-    phi = atan(y / x) + Pi;
-  else
-    phi = atan(y / x) + Pi;
-  phi = phi * 180.0 / Pi;
-
-  return phi;
-}
-
-void SiStripHitEffFromCalibTree::SetBadComponents(
+void SiStripHitEffFromCalibTree::setBadComponents(
     int i, int component, SiStripQuality::BadComponent& BC, std::stringstream ssV[4][19], int NBadComponent[4][19][4]) {
-  int napv = _detInfo.getNumberOfApvsAndStripLength(BC.detid).first;
+  int napv = detInfo_.getNumberOfApvsAndStripLength(BC.detid).first;
 
   ssV[i][component] << "\n\t\t " << BC.detid << " \t " << BC.BadModule << " \t " << ((BC.BadFibers) & 0x1) << " ";
   if (napv == 4)

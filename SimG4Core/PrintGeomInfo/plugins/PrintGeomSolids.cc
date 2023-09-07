@@ -35,30 +35,31 @@ public:
 
 private:
   edm::ESGetToken<DDCompactView, IdealGeometryRecord> cpvTokenDDD_;
-  edm::ESGetToken<cms::DDCompactView, IdealGeometryRecord> cpvTokenDD4Hep_;
-  bool fromDD4Hep_;
+  edm::ESGetToken<cms::DDCompactView, IdealGeometryRecord> cpvTokenDD4hep_;
+  bool fromDD4hep_;
 };
 
 PrintGeomSolids::PrintGeomSolids(const edm::ParameterSet& ps) {
-  fromDD4Hep_ = ps.getParameter<bool>("fromDD4Hep");
-  if (fromDD4Hep_)
-    cpvTokenDD4Hep_ = esConsumes<cms::DDCompactView, IdealGeometryRecord>(edm::ESInputTag());
+  fromDD4hep_ = ps.getParameter<bool>("fromDD4hep");
+  if (fromDD4hep_)
+    cpvTokenDD4hep_ = esConsumes<cms::DDCompactView, IdealGeometryRecord>(edm::ESInputTag());
   else
     cpvTokenDDD_ = esConsumes<DDCompactView, IdealGeometryRecord>(edm::ESInputTag());
 
-  edm::LogVerbatim("PrintGeom") << "PrintGeomSolids created with dd4hep: " << fromDD4Hep_;
+  edm::LogVerbatim("PrintGeom") << "PrintGeomSolids created with dd4hep: " << fromDD4hep_;
 }
 
 void PrintGeomSolids::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<bool>("fromDD4Hep", false);
+  desc.add<bool>("fromDD4hep", false);
   descriptions.add("printGeomSolids", desc);
 }
 
 void PrintGeomSolids::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
   int solids(0);
-  if (fromDD4Hep_) {
-    edm::ESTransientHandle<cms::DDCompactView> cpv = iSetup.getTransientHandle(cpvTokenDD4Hep_);
+  std::map<std::string, int> shapes;
+  if (fromDD4hep_) {
+    const cms::DDCompactView* cpv = &iSetup.getData(cpvTokenDD4hep_);
     const cms::DDDetector* det = cpv->detector();
     TGeoManager const& geom = det->description()->manager();
     TGeoIterator next(geom.GetTopVolume());
@@ -72,21 +73,34 @@ void PrintGeomSolids::analyze(const edm::Event& iEvent, const edm::EventSetup& i
         edm::LogVerbatim("PrintGeom") << name << "   "
                                       << static_cast<std::string>(node->GetVolume()->GetShape()->GetTitle());
         names.emplace_back(name);
+        std::string shape = node->GetVolume()->GetShape()->GetTitle();
+        if (shapes.find(shape) == shapes.end())
+          shapes.emplace(std::make_pair(shape, 1));
+        else
+          ++shapes[shape];
         ++solids;
       }
     }
 
   } else {
-    edm::ESTransientHandle<DDCompactView> cpv = iSetup.getTransientHandle(cpvTokenDDD_);
+    const DDCompactView* cpv = &iSetup.getData(cpvTokenDDD_);
     const auto& gra = cpv->graph();
     for (DDCompactView::Graph::const_adj_iterator git = gra.begin(); git != gra.end(); ++git) {
       const DDLogicalPart& ddLP = gra.nodeData(git);
       const DDSolid& solid = ddLP.solid();
       edm::LogVerbatim("PrintGeom") << solid.name() << "   " << DDSolidShapesName::name(solid.shape());
+      std::string shape = DDSolidShapesName::name(solid.shape());
+      if (shapes.find(shape) == shapes.end())
+        shapes.emplace(std::make_pair(shape, 1));
+      else
+        ++shapes[shape];
       ++solids;
     }
   }
-  edm::LogVerbatim("PrintGeom") << "\n\nPrintGeomSolids finds " << solids << " solids";
+  edm::LogVerbatim("PrintGeom") << "\n\nPrintGeomSolids finds " << solids << " solids\n\n";
+  for (std::map<std::string, int>::iterator itr = shapes.begin(); itr != shapes.end(); ++itr) {
+    edm::LogVerbatim("PrintGeom") << "Shape:" << itr->first << " # " << itr->second;
+  }
 }
 
 //define this as a plug-in

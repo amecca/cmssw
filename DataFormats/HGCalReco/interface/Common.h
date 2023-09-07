@@ -14,7 +14,6 @@ namespace ticl {
     static constexpr int nLayers = 104;
     static constexpr int iterations = 4;
     static constexpr int nBins = nEtaBins * nPhiBins;
-    static constexpr int type = 0;
   };
 
   struct TileConstantsHFNose {
@@ -25,13 +24,12 @@ namespace ticl {
     static constexpr int nLayers = 16;  // 8x2
     static constexpr int iterations = 4;
     static constexpr int nBins = nEtaBins * nPhiBins;
-    static constexpr int type = 1;
   };
 
 }  // namespace ticl
 
 namespace ticl {
-  typedef std::vector<std::pair<unsigned int, float> > HgcalClusterFilterMask;
+  typedef std::vector<std::pair<unsigned int, float> > TICLClusterFilterMask;
 }  // namespace ticl
 
 #endif  // DataFormats_HGCalReco_Common_h

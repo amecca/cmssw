@@ -26,6 +26,7 @@
 // user include files
 #include "FWCore/ServiceRegistry/interface/ActivityRegistry.h"
 #include "FWCore/Utilities/interface/propagate_const.h"
+#include "FWCore/Framework/interface/ModuleTypeResolverMaker.h"
 
 // forward declarations
 namespace edm {
@@ -39,6 +40,8 @@ namespace edm {
 
   class ModuleRegistry {
   public:
+    ModuleRegistry() = default;
+    explicit ModuleRegistry(ModuleTypeResolverMaker const* resolverMaker) : typeResolverMaker_(resolverMaker) {}
     std::shared_ptr<maker::ModuleHolder> getModule(MakeModuleParams const& p,
                                                    std::string const& moduleLabel,
                                                    signalslot::Signal<void(ModuleDescription const&)>& iPre,
@@ -62,6 +65,7 @@ namespace edm {
 
   private:
     std::map<std::string, edm::propagate_const<std::shared_ptr<maker::ModuleHolder>>> labelToModule_;
+    ModuleTypeResolverMaker const* typeResolverMaker_;
   };
 }  // namespace edm
 

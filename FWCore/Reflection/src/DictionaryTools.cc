@@ -57,6 +57,7 @@ to have dictionaries.
 #include "FWCore/Utilities/interface/WrappedClassName.h"
 
 #include "TClass.h"
+#include "TClassEdit.h"
 #include "THashTable.h"
 
 #include <algorithm>
@@ -318,13 +319,19 @@ namespace edm {
 
   bool public_base_classes(std::vector<std::string>& missingDictionaries,
                            TypeID const& typeID,
-                           std::vector<TypeWithDict>& baseTypes) {
+                           std::vector<TypeID>& baseTypes) {
     if (!checkDictionary(missingDictionaries, typeID)) {
       return false;
     }
     TypeWithDict typeWithDict(typeID.typeInfo());
 
     if (!typeWithDict.isClass()) {
+      return true;
+    }
+
+    // No need to check into base classes of standard library
+    // classes.
+    if (TClassEdit::IsStdClass(typeWithDict.name().c_str())) {
       return true;
     }
 
@@ -340,13 +347,13 @@ namespace edm {
         returnValue = false;
         continue;
       }
-      TypeWithDict baseType(baseRflxType.typeInfo());
+      TypeID baseType{baseRflxType.typeInfo()};
       // Check to make sure this base appears only once in the
       // inheritance hierarchy.
       if (!search_all(baseTypes, baseType)) {
         // Save the type and recursive look for its base types
         baseTypes.push_back(baseType);
-        if (!public_base_classes(missingDictionaries, TypeID(baseType.typeInfo()), baseTypes)) {
+        if (!public_base_classes(missingDictionaries, baseType, baseTypes)) {
           returnValue = false;
           continue;
         }

@@ -16,7 +16,6 @@
 
 #include "FWCore/Framework/interface/MakerMacros.h"
 
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 //#include "FWCore/ParameterSet/interface/InputTag.h"
 
 // system include files
@@ -24,7 +23,7 @@
 
 // user include files
 //   base class
-#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -48,7 +47,7 @@ using namespace std;
 namespace l1t {
 
   // class declaration
-  class GtInputDump : public edm::EDAnalyzer {
+  class GtInputDump : public edm::one::EDAnalyzer<> {
   public:
     explicit GtInputDump(const edm::ParameterSet&);
     ~GtInputDump() override{};

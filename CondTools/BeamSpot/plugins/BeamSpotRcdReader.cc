@@ -48,7 +48,7 @@
 class BeamSpotRcdReader : public edm::one::EDAnalyzer<edm::one::SharedResources> {
 public:
   explicit BeamSpotRcdReader(const edm::ParameterSet&);
-  ~BeamSpotRcdReader() override;
+  ~BeamSpotRcdReader() override = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
@@ -95,8 +95,6 @@ BeamSpotRcdReader::BeamSpotRcdReader(const edm::ParameterSet& iConfig)
   }
 }
 
-BeamSpotRcdReader::~BeamSpotRcdReader() = default;
-
 //
 // member functions
 //
@@ -133,13 +131,13 @@ void BeamSpotRcdReader::analyze(const edm::Event& iEvent, const edm::EventSetup&
 
     theBSfromDB_.run = iEvent.id().run();
     theBSfromDB_.ls = iEvent.id().luminosityBlock();
-    theBSfromDB_.BSx0_ = mybeamspot->GetX();
-    theBSfromDB_.BSy0_ = mybeamspot->GetY();
-    theBSfromDB_.BSz0_ = mybeamspot->GetZ();
-    theBSfromDB_.Beamsigmaz_ = mybeamspot->GetSigmaZ();
-    theBSfromDB_.Beamdxdz_ = mybeamspot->Getdxdz();
-    theBSfromDB_.BeamWidthX_ = mybeamspot->GetBeamWidthX();
-    theBSfromDB_.BeamWidthY_ = mybeamspot->GetBeamWidthY();
+    theBSfromDB_.BSx0_ = mybeamspot->x();
+    theBSfromDB_.BSy0_ = mybeamspot->y();
+    theBSfromDB_.BSz0_ = mybeamspot->z();
+    theBSfromDB_.Beamsigmaz_ = mybeamspot->sigmaZ();
+    theBSfromDB_.Beamdxdz_ = mybeamspot->dxdz();
+    theBSfromDB_.BeamWidthX_ = mybeamspot->beamWidthX();
+    theBSfromDB_.BeamWidthY_ = mybeamspot->beamWidthY();
 
     bstree_->Fill();
 
@@ -150,7 +148,7 @@ void BeamSpotRcdReader::analyze(const edm::Event& iEvent, const edm::EventSetup&
   if (output_.get())
     *output_ << output.str();
   else
-    edm::LogInfo("") << output.str();
+    edm::LogInfo("BeamSpotRcdReader") << output.str();
 }
 
 // ------------ method called once each job just before starting event loop  ------------
@@ -171,11 +169,9 @@ void BeamSpotRcdReader::beginJob() {
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
 void BeamSpotRcdReader::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
-  //The following says we do not know what parameters are allowed so do no validation
-  // Please change this to state exactly what you do use, even if it is no parameters
   edm::ParameterSetDescription desc;
-  desc.setUnknown();
-  descriptions.addDefault(desc);
+  desc.addUntracked<std::string>("rawFileName", {});
+  descriptions.addWithDefaultLabel(desc);
 }
 
 //define this as a plug-in

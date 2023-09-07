@@ -1,12 +1,12 @@
 import FWCore.ParameterSet.Config as cms
 
-from Configuration.Eras.Era_Run3_cff import Run3
-process = cms.Process('G4PrintGeometry',Run3)
+from Configuration.Eras.Era_Run3_DDD_cff import Run3_DDD
+process = cms.Process('G4PrintGeometry',Run3_DDD)
 process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
 process.load('Configuration.StandardSequences.GeometrySimDB_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2021_realistic', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase1_2022_realistic', '')
 
 process.load('FWCore.MessageService.MessageLogger_cfi')
 
@@ -31,7 +31,8 @@ process.g4SimHits.Watchers = cms.VPSet(cms.PSet(
     DumpReplica      = cms.untracked.bool(False),
     DumpTouch        = cms.untracked.bool(False),
     DumpSense        = cms.untracked.bool(False),
-    DD4Hep           = cms.untracked.bool(False),
+    DumpRegion       = cms.untracked.bool(False),
+    DD4hep           = cms.untracked.bool(False),
     Name             = cms.untracked.string(''),
     Names            = cms.untracked.vstring(''),
     MaterialFileName = cms.untracked.string('matfileDDDDB.txt'),
@@ -39,6 +40,7 @@ process.g4SimHits.Watchers = cms.VPSet(cms.PSet(
     LVFileName       = cms.untracked.string('lvfileDDDDB.txt'),
     PVFileName       = cms.untracked.string('pvfileDDDDB.txt'),
     TouchFileName    = cms.untracked.string('touchfileDDDDB.txt'),
+    RegionFileName   = cms.untracked.string('regionfileDDDDB.txt'),
     FileDetail       = cms.untracked.bool(True),
     type             = cms.string('PrintGeomInfoAction')
 ))

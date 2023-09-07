@@ -4,10 +4,7 @@
 #include "DataFormats/RecoCandidate/interface/RecoChargedRefCandidate.h"
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDProducer.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-
-#include "FWCore/Framework/interface/Event.h"
 
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidateFwd.h"
@@ -44,7 +41,7 @@ public:
         useTiming_(iConfig.getParameter<bool>("useTiming")),
         useVertexFit_(iConfig.getParameter<bool>("useVertexFit")),
         preferHighRanked_(iConfig.getParameter<bool>("preferHighRanked")),
-        fNumOfPUVtxsForCharged_(iConfig.getParameter<int>("NumOfPUVtxsForCharged")),
+        fNumOfPUVtxsForCharged_(iConfig.getParameter<unsigned int>("NumOfPUVtxsForCharged")),
         fDzCutForChargedFromPUVtxs_(iConfig.getParameter<double>("DzCutForChargedFromPUVtxs")),
         fPtMaxCharged_(iConfig.getParameter<double>("PtMaxCharged")),
         fEtaMinUseDz_(iConfig.getParameter<double>("EtaMinUseDz")),
@@ -154,7 +151,7 @@ private:
   bool useTiming_;
   bool useVertexFit_;
   bool preferHighRanked_;
-  int fNumOfPUVtxsForCharged_;
+  unsigned int fNumOfPUVtxsForCharged_;
   double fDzCutForChargedFromPUVtxs_;
   double fPtMaxCharged_;
   double fEtaMinUseDz_;

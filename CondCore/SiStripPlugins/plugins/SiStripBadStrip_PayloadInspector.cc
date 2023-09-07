@@ -165,7 +165,8 @@ namespace {
           badStripsPerDetId[d] += payload->decode(*badStrip).range;
           //ss << "DetId="<< d << " Strip=" << payload->decode(*badStrip).firstStrip <<":"<< payload->decode(*badStrip).range << " flag="<< payload->decode(*badStrip).flag << std::endl;
         }
-        float fraction = badStripsPerDetId[d] / (128. * detInfo.getNumberOfApvsAndStripLength(d).first);
+        float fraction =
+            badStripsPerDetId[d] / (sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(d).first);
         tmap->fill(d, fraction);
       }  // loop over detIds
 
@@ -189,10 +190,12 @@ namespace {
   /************************************************
     TrackerMap of SiStripBadStrip (bad strips fraction)
   *************************************************/
-  class SiStripBadStripFractionTkMap : public PlotImage<SiStripBadStrip, SINGLE_IOV> {
+  class SiStripBadStripFractionTH2PolyTkMap : public PlotImage<SiStripBadStrip, SINGLE_IOV> {
   public:
-    SiStripBadStripFractionTkMap()
-        : PlotImage<SiStripBadStrip, SINGLE_IOV>("Tracker Map of SiStrip Bad Components fraction") {}
+    SiStripBadStripFractionTH2PolyTkMap()
+        : PlotImage<SiStripBadStrip, SINGLE_IOV>("Tracker Map of SiStrip Bad Components fraction") {
+      debug_ = false;
+    }
 
     bool fill() override {
       //SiStripPI::setPaletteStyle(SiStripPI::DEFAULT);
@@ -209,7 +212,7 @@ namespace {
       auto theIOVsince = std::to_string(std::get<0>(iov));
 
       std::string titleMap =
-          "Fraction of bad Strips per module, Run: " + theIOVsince + " (tag:#color[2]{" + tagname + "})";
+          "Fraction of bad Strips per module, IOV: " + theIOVsince + " (tag:#color[2]{" + tagname + "})";
 
       SiStripTkMaps myMap("COLZA0 L");
       myMap.bookMap(titleMap, "Fraction of bad Strips per module");
@@ -224,17 +227,25 @@ namespace {
 
       for (const auto& d : detid) {
         SiStripBadStrip::Range range = payload->getRange(d);
+
+        float nStripsInModule = (sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(d).first);
+
         for (std::vector<unsigned int>::const_iterator badStrip = range.first; badStrip != range.second; ++badStrip) {
           badStripsPerDetId[d] += payload->decode(*badStrip).range;
         }
-        float fraction = badStripsPerDetId[d] / (128. * detInfo.getNumberOfApvsAndStripLength(d).first);
+        float fraction = badStripsPerDetId[d] / nStripsInModule;
+
+        ss_ << d << " :" << badStripsPerDetId[d] << "/" << nStripsInModule << " = " << fraction << "\n";
+
         if (fraction > 0.) {
           myMap.fill(d, fraction);
         }
       }  // loop over detIds
 
-      //=========================
+      if (debug_)
+        edm::LogPrint("SiStripBadStripFractionTkMap") << ss_.str() << std::endl;
 
+      //=========================
       std::string fileName(m_imageFileName);
       TCanvas canvas("Bad Components fraction", "bad components fraction");
       myMap.drawMap(canvas, "");
@@ -243,6 +254,10 @@ namespace {
 
       return true;
     }
+
+  protected:
+    bool debug_;
+    std::stringstream ss_;
   };
 
   /************************************************
@@ -276,7 +291,7 @@ namespace {
       float numerator(0.), denominator(0.);
       std::vector<uint32_t> all_detids = detInfo.getAllDetIds();
       for (const auto& det : all_detids) {
-        denominator += 128. * detInfo.getNumberOfApvsAndStripLength(det).first;
+        denominator += sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(det).first;
         if (badStripsPerDetId.count(det) != 0)
           numerator += badStripsPerDetId[det];
       }
@@ -321,7 +336,7 @@ namespace {
         int subid = DetId(det).subdetId();
         if (subid != StripSubdetector::TIB)
           continue;
-        denominator += 128. * detInfo.getNumberOfApvsAndStripLength(det).first;
+        denominator += sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(det).first;
         if (badStripsPerDetId.count(det) != 0)
           numerator += badStripsPerDetId[det];
       }
@@ -366,7 +381,7 @@ namespace {
         int subid = DetId(det).subdetId();
         if (subid != StripSubdetector::TOB)
           continue;
-        denominator += 128. * detInfo.getNumberOfApvsAndStripLength(det).first;
+        denominator += sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(det).first;
         if (badStripsPerDetId.count(det) != 0)
           numerator += badStripsPerDetId[det];
       }
@@ -411,7 +426,7 @@ namespace {
         int subid = DetId(det).subdetId();
         if (subid != StripSubdetector::TID)
           continue;
-        denominator += 128. * detInfo.getNumberOfApvsAndStripLength(det).first;
+        denominator += sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(det).first;
         if (badStripsPerDetId.count(det) != 0)
           numerator += badStripsPerDetId[det];
       }
@@ -456,7 +471,7 @@ namespace {
         int subid = DetId(det).subdetId();
         if (subid != StripSubdetector::TEC)
           continue;
-        denominator += 128. * detInfo.getNumberOfApvsAndStripLength(det).first;
+        denominator += sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(det).first;
         if (badStripsPerDetId.count(det) != 0)
           numerator += badStripsPerDetId[det];
       }
@@ -880,7 +895,7 @@ namespace {
           LastFractionPerDetId[d] += last_payload->decode(*badStrip).range;
         }
         // normalize to the number of strips per module
-        LastFractionPerDetId[d] /= (128. * detInfo.getNumberOfApvsAndStripLength(d).first);
+        LastFractionPerDetId[d] /= (sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(d).first);
       }  // loop over detIds
 
       std::vector<uint32_t> detid2;
@@ -894,31 +909,39 @@ namespace {
           FirstFractionPerDetId[d] += first_payload->decode(*badStrip).range;
         }
         // normalize to the number of strips per module
-        FirstFractionPerDetId[d] /= (128. * detInfo.getNumberOfApvsAndStripLength(d).first);
+        FirstFractionPerDetId[d] /= (sistrip::STRIPS_PER_APV * detInfo.getNumberOfApvsAndStripLength(d).first);
       }  // loop over detIds
 
       std::vector<uint32_t> allDetIds = detInfo.getAllDetIds();
 
+#ifdef MMDEBUG
       int countLastButNotFirst(0);
       int countFirstButNotLast(0);
       int countBoth(0);
+#endif
 
       for (const auto& d : allDetIds) {
         if (LastFractionPerDetId.find(d) != LastFractionPerDetId.end() &&
             FirstFractionPerDetId.find(d) == FirstFractionPerDetId.end()) {
           tmap->fill(d, LastFractionPerDetId[d]);
+#ifdef MMDEBUG
           countLastButNotFirst++;
+#endif
         } else if (LastFractionPerDetId.find(d) == LastFractionPerDetId.end() &&
                    FirstFractionPerDetId.find(d) != FirstFractionPerDetId.end()) {
           tmap->fill(d, -FirstFractionPerDetId[d]);
+#ifdef MMDEBUG
           countFirstButNotLast++;
+#endif
         } else if (LastFractionPerDetId.find(d) != LastFractionPerDetId.end() &&
                    FirstFractionPerDetId.find(d) != FirstFractionPerDetId.end()) {
           float delta = (LastFractionPerDetId[d] - FirstFractionPerDetId[d]);
           if (delta != 0.) {
             tmap->fill(d, delta);
           }
+#ifdef MMDEBUG
           countBoth++;
+#endif
         }
       }
 
@@ -1357,7 +1380,7 @@ PAYLOAD_INSPECTOR_MODULE(SiStripBadStrip) {
   PAYLOAD_INSPECTOR_CLASS(SiStripBadStripTest);
   PAYLOAD_INSPECTOR_CLASS(SiStripBadModuleTrackerMap);
   PAYLOAD_INSPECTOR_CLASS(SiStripBadStripFractionTrackerMap);
-  PAYLOAD_INSPECTOR_CLASS(SiStripBadStripFractionTkMap);
+  PAYLOAD_INSPECTOR_CLASS(SiStripBadStripFractionTH2PolyTkMap);
   PAYLOAD_INSPECTOR_CLASS(SiStripBadStripFractionByRun);
   PAYLOAD_INSPECTOR_CLASS(SiStripBadStripTIBFractionByRun);
   PAYLOAD_INSPECTOR_CLASS(SiStripBadStripTOBFractionByRun);

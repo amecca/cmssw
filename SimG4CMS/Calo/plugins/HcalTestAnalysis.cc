@@ -1,4 +1,3 @@
-#include "SimG4Core/Notification/interface/BeginOfJob.h"
 #include "SimG4Core/Notification/interface/BeginOfRun.h"
 #include "SimG4Core/Notification/interface/BeginOfEvent.h"
 #include "SimG4Core/Notification/interface/EndOfEvent.h"
@@ -13,7 +12,6 @@
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 
 #include "Geometry/HcalCommonData/interface/HcalNumberingFromDDD.h"
 #include "Geometry/HcalCommonData/interface/HcalDDDSimConstants.h"
@@ -42,7 +40,6 @@
 #include <vector>
 
 class HcalTestAnalysis : public SimProducer,
-                         public Observer<const BeginOfJob*>,
                          public Observer<const BeginOfRun*>,
                          public Observer<const BeginOfEvent*>,
                          public Observer<const EndOfEvent*>,
@@ -51,11 +48,12 @@ public:
   HcalTestAnalysis(const edm::ParameterSet& p);
   ~HcalTestAnalysis() override;
 
+  void registerConsumes(edm::ConsumesCollector) override;
   void produce(edm::Event&, const edm::EventSetup&) override;
+  void beginRun(edm::EventSetup const&) override;
 
 private:
   // observer classes
-  void update(const BeginOfJob* run) override;
   void update(const BeginOfRun* run) override;
   void update(const BeginOfEvent* evt) override;
   void update(const EndOfEvent* evt) override;
@@ -70,9 +68,6 @@ private:
   double timeOfFlight(int det, int layer, double eta);
 
 private:
-  //Keep parameters to instantiate HcalTestHistoClass later
-  std::string fileName_;
-
   // Qie Analysis
   std::unique_ptr<HcalQie> myqie_;
   int addTower_;
@@ -80,20 +75,24 @@ private:
   // Private Tuples
   std::unique_ptr<HcalTestHistoClass> tuples_;
 
+  // to read from ParameterSet
+  const edm::ParameterSet m_Anal;
+  double eta0_, phi0_;
+  const int laygroup_, centralTower_;
+  const std::vector<std::string> names_;
+  //Keep parameters to instantiate HcalTestHistoClass later
+  const std::string fileName_;
+
   // Numbering scheme
+  edm::ESGetToken<HcalDDDSimConstants, HcalSimNumberingRecord> ddconsToken_;
   std::unique_ptr<HcalNumberingFromDDD> numberingFromDDD_;
   const HcalDDDSimConstants* hcons_;
-  HcalTestNumberingScheme* org_;
+  std::unique_ptr<HcalTestNumberingScheme> org_;
 
   // Hits for qie analysis
   std::vector<CaloHit> caloHitCache_;
   std::vector<int> group_, tower_;
   int nGroup_, nTower_;
-
-  // to read from ParameterSet
-  std::vector<std::string> names_;
-  double eta0_, phi0_;
-  int centralTower_;
 
   // some private members for ananlysis
   unsigned int count_;
@@ -102,14 +101,17 @@ private:
   double mudist_[20];  // Distance of muon from central part
 };
 
-HcalTestAnalysis::HcalTestAnalysis(const edm::ParameterSet& p) : addTower_(3), hcons_(nullptr), org_(nullptr) {
-  edm::ParameterSet m_Anal = p.getParameter<edm::ParameterSet>("HcalTestAnalysis");
-  eta0_ = m_Anal.getParameter<double>("Eta0");
-  phi0_ = m_Anal.getParameter<double>("Phi0");
-  int laygroup = m_Anal.getParameter<int>("LayerGrouping");
-  centralTower_ = m_Anal.getParameter<int>("CentralTower");
-  names_ = m_Anal.getParameter<std::vector<std::string> >("Names");
-  fileName_ = m_Anal.getParameter<std::string>("FileName");
+HcalTestAnalysis::HcalTestAnalysis(const edm::ParameterSet& p)
+    : addTower_(3),
+      m_Anal(p.getParameter<edm::ParameterSet>("HcalTestAnalysis")),
+      eta0_(m_Anal.getParameter<double>("Eta0")),
+      phi0_(m_Anal.getParameter<double>("Phi0")),
+      laygroup_(m_Anal.getParameter<int>("LayerGrouping")),
+      centralTower_(m_Anal.getParameter<int>("CentralTower")),
+      names_(m_Anal.getParameter<std::vector<std::string> >("Names")),
+      fileName_(m_Anal.getParameter<std::string>("FileName")),
+      hcons_(nullptr) {
+  org_.reset(nullptr);
 
   tuples_.reset(nullptr);
   numberingFromDDD_.reset(nullptr);
@@ -117,7 +119,7 @@ HcalTestAnalysis::HcalTestAnalysis(const edm::ParameterSet& p) : addTower_(3), h
                               << " and of G4step";
 
   count_ = 0;
-  group_ = layerGrouping(laygroup);
+  group_ = layerGrouping(laygroup_);
   nGroup_ = 0;
   for (unsigned int i = 0; i < group_.size(); i++)
     if (group_[i] > nGroup_)
@@ -136,7 +138,12 @@ HcalTestAnalysis::HcalTestAnalysis(const edm::ParameterSet& p) : addTower_(3), h
 
 HcalTestAnalysis::~HcalTestAnalysis() {
   edm::LogVerbatim("HcalSim") << "HcalTestAnalysis: -------->  Total number of selected entries : " << count_;
-  edm::LogVerbatim("HcalSim") << "HcalTestAnalysis: Pointers:: Numbering Scheme " << org_;
+  edm::LogVerbatim("HcalSim") << "HcalTestAnalysis: Pointers:: Numbering Scheme " << org_.get();
+}
+
+void HcalTestAnalysis::registerConsumes(edm::ConsumesCollector cc) {
+  ddconsToken_ = cc.esConsumes<HcalDDDSimConstants, HcalSimNumberingRecord, edm::Transition::BeginRun>();
+  edm::LogVerbatim("HcalSim") << "HcalTestAnalysis::Initialize ESGetToken for HcalDDDSimConstants";
 }
 
 void HcalTestAnalysis::produce(edm::Event& e, const edm::EventSetup&) {
@@ -214,16 +221,14 @@ std::vector<int> HcalTestAnalysis::towersToAdd(int centre, int nadd) {
 
 //==================================================================== per JOB
 
-void HcalTestAnalysis::update(const BeginOfJob* job) {
+void HcalTestAnalysis::beginRun(edm::EventSetup const& es) {
   // Numbering From DDD
-  edm::ESHandle<HcalDDDSimConstants> hdc;
-  (*job)()->get<HcalSimNumberingRecord>().get(hdc);
-  hcons_ = hdc.product();
+  hcons_ = &es.getData(ddconsToken_);
   edm::LogVerbatim("HcalSim") << "HcalTestAnalysis:: Initialise HcalNumberingFromDDD for " << names_[0];
   numberingFromDDD_ = std::make_unique<HcalNumberingFromDDD>(hcons_);
 
   // Numbering scheme
-  org_ = new HcalTestNumberingScheme(false);
+  org_ = std::make_unique<HcalTestNumberingScheme>(false);
 }
 
 //==================================================================== per RUN
@@ -274,8 +279,8 @@ void HcalTestAnalysis::update(const BeginOfRun* run) {
       HCalSD* theCaloSD = dynamic_cast<HCalSD*>(aSD);
       edm::LogVerbatim("HcalSim") << "HcalTestAnalysis::beginOfRun: Finds SD with name " << theCaloSD->GetName()
                                   << " in this Setup";
-      if (org_) {
-        theCaloSD->setNumberingScheme(org_);
+      if (org_.get()) {
+        theCaloSD->setNumberingScheme(org_.get());
         edm::LogVerbatim("HcalSim") << "HcalTestAnalysis::beginOfRun: set a new numbering scheme";
       }
     }

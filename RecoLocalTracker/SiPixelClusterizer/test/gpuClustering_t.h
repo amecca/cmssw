@@ -19,6 +19,9 @@
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClustering.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClusterChargeCut.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/SiPixelClusterThresholds.h"
+#include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
+
+#include "Geometry/CommonTopologies/interface/SimplePixelTopology.h"
 
 int main(void) {
 #ifdef __CUDACC__
@@ -26,11 +29,14 @@ int main(void) {
 #endif  // __CUDACC__
 
   using namespace gpuClustering;
+  using pixelTopology::Phase1;
 
   constexpr int numElements = 256 * maxNumModules;
-  constexpr SiPixelClusterThresholds clusterThresholds(kSiPixelClusterThresholdsDefaultPhase1);
+  const SiPixelClusterThresholds clusterThresholds(
+      clusterThresholdLayerOne, clusterThresholdOtherLayers, 0.f, 0.f, 0.f, 0.f);
 
   // these in reality are already on GPU
+  auto h_raw = std::make_unique<uint32_t[]>(numElements);
   auto h_id = std::make_unique<uint16_t[]>(numElements);
   auto h_x = std::make_unique<uint16_t[]>(numElements);
   auto h_y = std::make_unique<uint16_t[]>(numElements);
@@ -38,6 +44,7 @@ int main(void) {
   auto h_clus = std::make_unique<int[]>(numElements);
 
 #ifdef __CUDACC__
+  auto d_raw = cms::cuda::make_device_unique<uint32_t[]>(numElements, nullptr);
   auto d_id = cms::cuda::make_device_unique<uint16_t[]>(numElements, nullptr);
   auto d_x = cms::cuda::make_device_unique<uint16_t[]>(numElements, nullptr);
   auto d_y = cms::cuda::make_device_unique<uint16_t[]>(numElements, nullptr);
@@ -254,7 +261,8 @@ int main(void) {
     std::cout << "CUDA countModules kernel launch with " << blocksPerGrid << " blocks of " << threadsPerBlock
               << " threads\n";
 
-    cms::cuda::launch(countModules, {blocksPerGrid, threadsPerBlock}, d_id.get(), d_moduleStart.get(), d_clus.get(), n);
+    cms::cuda::launch(
+        countModules<Phase1>, {blocksPerGrid, threadsPerBlock}, d_id.get(), d_moduleStart.get(), d_clus.get(), n);
 
     blocksPerGrid = maxNumModules;  //nModules;
 
@@ -262,8 +270,9 @@ int main(void) {
               << " threads\n";
     cudaCheck(cudaMemset(d_clusInModule.get(), 0, maxNumModules * sizeof(uint32_t)));
 
-    cms::cuda::launch(findClus,
+    cms::cuda::launch(findClus<Phase1>,
                       {blocksPerGrid, threadsPerBlock},
+                      d_raw.get(),
                       d_id.get(),
                       d_x.get(),
                       d_y.get(),
@@ -288,7 +297,7 @@ int main(void) {
     if (ncl != std::accumulate(nclus, nclus + maxNumModules, 0))
       std::cout << "ERROR!!!!! wrong number of cluster found" << std::endl;
 
-    cms::cuda::launch(clusterChargeCut,
+    cms::cuda::launch(clusterChargeCut<Phase1>,
                       {blocksPerGrid, threadsPerBlock},
                       clusterThresholds,
                       d_id.get(),
@@ -302,10 +311,18 @@ int main(void) {
     cudaDeviceSynchronize();
 #else   // __CUDACC__
     h_moduleStart[0] = nModules;
-    countModules(h_id.get(), h_moduleStart.get(), h_clus.get(), n);
+    countModules<Phase1>(h_id.get(), h_moduleStart.get(), h_clus.get(), n);
     memset(h_clusInModule.get(), 0, maxNumModules * sizeof(uint32_t));
-    findClus(
-        h_id.get(), h_x.get(), h_y.get(), h_moduleStart.get(), h_clusInModule.get(), h_moduleId.get(), h_clus.get(), n);
+
+    findClus<Phase1>(h_raw.get(),
+                     h_id.get(),
+                     h_x.get(),
+                     h_y.get(),
+                     h_moduleStart.get(),
+                     h_clusInModule.get(),
+                     h_moduleId.get(),
+                     h_clus.get(),
+                     n);
 
     nModules = h_moduleStart[0];
     auto nclus = h_clusInModule.get();
@@ -320,14 +337,14 @@ int main(void) {
     if (ncl != std::accumulate(nclus, nclus + maxNumModules, 0))
       std::cout << "ERROR!!!!! wrong number of cluster found" << std::endl;
 
-    clusterChargeCut(clusterThresholds,
-                     h_id.get(),
-                     h_adc.get(),
-                     h_moduleStart.get(),
-                     h_clusInModule.get(),
-                     h_moduleId.get(),
-                     h_clus.get(),
-                     n);
+    clusterChargeCut<Phase1>(clusterThresholds,
+                             h_id.get(),
+                             h_adc.get(),
+                             h_moduleStart.get(),
+                             h_clusInModule.get(),
+                             h_moduleId.get(),
+                             h_clus.get(),
+                             n);
 #endif  // __CUDACC__
 
     std::cout << "found " << nModules << " Modules active" << std::endl;

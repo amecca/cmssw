@@ -36,6 +36,7 @@
 #include "FWCore/Utilities/interface/TypeID.h"
 #include "FWCore/Utilities/interface/thread_safety_macros.h"
 
+#include <array>
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
@@ -48,6 +49,7 @@
 #include <sstream>
 
 #include "make_shared_noexcept_false.h"
+#include "processEDAliases.h"
 
 namespace edm {
 
@@ -63,12 +65,13 @@ namespace edm {
     // Here we make the trigger results inserter directly.  This should
     // probably be a utility in the WorkerRegistry or elsewhere.
 
-    std::shared_ptr<TriggerResultInserter> makeInserter(ParameterSet& proc_pset,
-                                                        PreallocationConfiguration const& iPrealloc,
-                                                        ProductRegistry& preg,
-                                                        ExceptionToActionTable const& actions,
-                                                        std::shared_ptr<ActivityRegistry> areg,
-                                                        std::shared_ptr<ProcessConfiguration> processConfiguration) {
+    std::shared_ptr<TriggerResultInserter> makeInserter(
+        ParameterSet& proc_pset,
+        PreallocationConfiguration const& iPrealloc,
+        ProductRegistry& preg,
+        ExceptionToActionTable const& actions,
+        std::shared_ptr<ActivityRegistry> areg,
+        std::shared_ptr<ProcessConfiguration const> processConfiguration) {
       ParameterSet* trig_pset = proc_pset.getPSetForUpdate("@trigger_paths");
       trig_pset->registerIt();
 
@@ -110,7 +113,7 @@ namespace edm {
                                  PreallocationConfiguration const& iPrealloc,
                                  ProductRegistry& preg,
                                  std::shared_ptr<ActivityRegistry> areg,
-                                 std::shared_ptr<ProcessConfiguration> processConfiguration,
+                                 std::shared_ptr<ProcessConfiguration const> processConfiguration,
                                  std::string const& moduleTypeName) {
       ParameterSet pset;
       pset.addParameter<std::string>("@module_type", moduleTypeName);
@@ -143,201 +146,6 @@ namespace edm {
           }
           throw;
         }
-      }
-    }
-
-    void checkAndInsertAlias(std::string const& friendlyClassName,
-                             std::string const& moduleLabel,
-                             std::string const& productInstanceName,
-                             std::string const& processName,
-                             std::string const& alias,
-                             std::string const& instanceAlias,
-                             ProductRegistry const& preg,
-                             std::multimap<BranchKey, BranchKey>& aliasMap,
-                             std::map<BranchKey, BranchKey>& aliasKeys) {
-      std::string const star("*");
-
-      BranchKey key(friendlyClassName, moduleLabel, productInstanceName, processName);
-      if (preg.productList().find(key) == preg.productList().end()) {
-        // No product was found matching the alias.
-        // We throw an exception only if a module with the specified module label was created in this process.
-        for (auto const& product : preg.productList()) {
-          if (moduleLabel == product.first.moduleLabel() && processName == product.first.processName()) {
-            throw Exception(errors::Configuration, "EDAlias does not match data\n")
-                << "There are no products of type '" << friendlyClassName << "'\n"
-                << "with module label '" << moduleLabel << "' and instance name '" << productInstanceName << "'.\n";
-          }
-        }
-      }
-
-      if (auto iter = aliasMap.find(key); iter != aliasMap.end()) {
-        // If the same EDAlias defines multiple products pointing to the same product, throw
-        if (iter->second.moduleLabel() == alias) {
-          throw Exception(errors::Configuration, "EDAlias conflict\n")
-              << "The module label alias '" << alias << "' is used for multiple products of type '" << friendlyClassName
-              << "' with module label '" << moduleLabel << "' and instance name '" << productInstanceName
-              << "'. One alias has the instance name '" << iter->first.productInstanceName()
-              << "' and the other has the instance name '" << instanceAlias << "'.";
-        }
-      }
-
-      std::string const& theInstanceAlias(instanceAlias == star ? productInstanceName : instanceAlias);
-      BranchKey aliasKey(friendlyClassName, alias, theInstanceAlias, processName);
-      if (preg.productList().find(aliasKey) != preg.productList().end()) {
-        throw Exception(errors::Configuration, "EDAlias conflicts with data\n")
-            << "A product of type '" << friendlyClassName << "'\n"
-            << "with module label '" << alias << "' and instance name '" << theInstanceAlias << "'\n"
-            << "already exists.\n";
-      }
-      auto iter = aliasKeys.find(aliasKey);
-      if (iter != aliasKeys.end()) {
-        // The alias matches a previous one.  If the same alias is used for different product, throw.
-        if (iter->second != key) {
-          throw Exception(errors::Configuration, "EDAlias conflict\n")
-              << "The module label alias '" << alias << "' and product instance alias '" << theInstanceAlias << "'\n"
-              << "are used for multiple products of type '" << friendlyClassName << "'\n"
-              << "One has module label '" << moduleLabel << "' and product instance name '" << productInstanceName
-              << "',\n"
-              << "the other has module label '" << iter->second.moduleLabel() << "' and product instance name '"
-              << iter->second.productInstanceName() << "'.\n";
-        }
-      } else {
-        auto prodIter = preg.productList().find(key);
-        if (prodIter != preg.productList().end()) {
-          if (!prodIter->second.produced()) {
-            throw Exception(errors::Configuration, "EDAlias\n")
-                << "The module label alias '" << alias << "' and product instance alias '" << theInstanceAlias << "'\n"
-                << "are used for a product of type '" << friendlyClassName << "'\n"
-                << "with module label '" << moduleLabel << "' and product instance name '" << productInstanceName
-                << "',\n"
-                << "An EDAlias can only be used for products produced in the current process. This one is not.\n";
-          }
-          aliasMap.insert(std::make_pair(key, aliasKey));
-          aliasKeys.insert(std::make_pair(aliasKey, key));
-        }
-      }
-    }
-
-    void processEDAliases(ParameterSet const& proc_pset, std::string const& processName, ProductRegistry& preg) {
-      std::vector<std::string> aliases = proc_pset.getParameter<std::vector<std::string>>("@all_aliases");
-      if (aliases.empty()) {
-        return;
-      }
-      std::string const star("*");
-      std::string const empty("");
-      ParameterSetDescription desc;
-      desc.add<std::string>("type");
-      desc.add<std::string>("fromProductInstance", star);
-      desc.add<std::string>("toProductInstance", star);
-
-      std::multimap<BranchKey, BranchKey> aliasMap;
-
-      std::map<BranchKey, BranchKey> aliasKeys;  // Used to search for duplicates or clashes.
-
-      // Auxiliary search structure to support wildcard for friendlyClassName
-      std::multimap<std::string, BranchKey> moduleLabelToBranches;
-      for (auto const& prod : preg.productList()) {
-        if (processName == prod.second.processName()) {
-          moduleLabelToBranches.emplace(prod.first.moduleLabel(), prod.first);
-        }
-      }
-
-      // Now, loop over the alias information and store it in aliasMap.
-      for (std::string const& alias : aliases) {
-        ParameterSet const& aliasPSet = proc_pset.getParameterSet(alias);
-        std::vector<std::string> vPSetNames = aliasPSet.getParameterNamesForType<VParameterSet>();
-        for (std::string const& moduleLabel : vPSetNames) {
-          VParameterSet vPSet = aliasPSet.getParameter<VParameterSet>(moduleLabel);
-          for (ParameterSet& pset : vPSet) {
-            desc.validate(pset);
-            std::string friendlyClassName = pset.getParameter<std::string>("type");
-            std::string productInstanceName = pset.getParameter<std::string>("fromProductInstance");
-            std::string instanceAlias = pset.getParameter<std::string>("toProductInstance");
-
-            if (friendlyClassName == star) {
-              bool processHasLabel = false;
-              bool match = false;
-              for (auto it = moduleLabelToBranches.lower_bound(moduleLabel);
-                   it != moduleLabelToBranches.end() && it->first == moduleLabel;
-                   ++it) {
-                processHasLabel = true;
-                if (productInstanceName != star and productInstanceName != it->second.productInstanceName()) {
-                  continue;
-                }
-                match = true;
-
-                checkAndInsertAlias(it->second.friendlyClassName(),
-                                    moduleLabel,
-                                    it->second.productInstanceName(),
-                                    processName,
-                                    alias,
-                                    instanceAlias,
-                                    preg,
-                                    aliasMap,
-                                    aliasKeys);
-              }
-              if (not match and processHasLabel) {
-                // No product was found matching the alias.
-                // We throw an exception only if a module with the specified module label was created in this process.
-                // Note that if that condition is ever relatex, it  might be best to throw an exception with different
-                // message (omitting productInstanceName) in case 'productInstanceName == start'
-                throw Exception(errors::Configuration, "EDAlias parameter set mismatch\n")
-                    << "There are no products with module label '" << moduleLabel << "' and product instance name '"
-                    << productInstanceName << "'.\n";
-              }
-            } else if (productInstanceName == star) {
-              bool match = false;
-              BranchKey lowerBound(friendlyClassName, moduleLabel, empty, empty);
-              for (ProductRegistry::ProductList::const_iterator it = preg.productList().lower_bound(lowerBound);
-                   it != preg.productList().end() && it->first.friendlyClassName() == friendlyClassName &&
-                   it->first.moduleLabel() == moduleLabel;
-                   ++it) {
-                if (it->first.processName() != processName) {
-                  continue;
-                }
-                match = true;
-
-                checkAndInsertAlias(friendlyClassName,
-                                    moduleLabel,
-                                    it->first.productInstanceName(),
-                                    processName,
-                                    alias,
-                                    instanceAlias,
-                                    preg,
-                                    aliasMap,
-                                    aliasKeys);
-              }
-              if (!match) {
-                // No product was found matching the alias.
-                // We throw an exception only if a module with the specified module label was created in this process.
-                for (auto const& product : preg.productList()) {
-                  if (moduleLabel == product.first.moduleLabel() && processName == product.first.processName()) {
-                    throw Exception(errors::Configuration, "EDAlias parameter set mismatch\n")
-                        << "There are no products of type '" << friendlyClassName << "'\n"
-                        << "with module label '" << moduleLabel << "'.\n";
-                  }
-                }
-              }
-            } else {
-              checkAndInsertAlias(friendlyClassName,
-                                  moduleLabel,
-                                  productInstanceName,
-                                  processName,
-                                  alias,
-                                  instanceAlias,
-                                  preg,
-                                  aliasMap,
-                                  aliasKeys);
-            }
-          }
-        }
-      }
-
-      // Now add the new alias entries to the product registry.
-      for (auto const& aliasEntry : aliasMap) {
-        ProductRegistry::ProductList::const_iterator it = preg.productList().find(aliasEntry.first);
-        assert(it != preg.productList().end());
-        preg.addLabelAlias(it->second, aliasEntry.second.moduleLabel(), aliasEntry.second.productInstanceName());
       }
     }
 
@@ -379,7 +187,9 @@ namespace edm {
                 branchKey.moduleLabel() == prod.second.switchAliasModuleLabel() and
                 branchKey.productInstanceName() == prod.second.productInstanceName()) {
               prod.second.setSwitchAliasForBranch(desc);
-              it->second.chosenBranches.push_back(prod.first);  // with moduleLabel of the Switch
+              if (!prod.second.transient()) {
+                it->second.chosenBranches.push_back(prod.first);  // with moduleLabel of the Switch
+              }
               found = true;
             }
           }
@@ -425,7 +235,7 @@ namespace edm {
         }
       };
 
-      // Check that non-chosen cases declare exactly the same branches
+      // Check that non-chosen cases declare exactly the same non-transient branches
       // Also set the alias-for branches to transient
       std::vector<bool> foundBranches;
       for (auto const& switchItem : switchMap) {
@@ -438,6 +248,32 @@ namespace edm {
           for (auto& nonConstItem : preg.productListUpdator()) {
             auto const& item = nonConstItem;
             if (item.first.moduleLabel() == caseLabel and item.first.processName() == processName) {
+              // Check that products which are not transient in the dictionary are consistent between
+              // all the cases of a SwitchProducer.
+              if (!item.second.transient()) {
+                auto range = std::equal_range(chosenBranches.begin(),
+                                              chosenBranches.end(),
+                                              BranchKey(item.first.friendlyClassName(),
+                                                        switchLabel,
+                                                        item.first.productInstanceName(),
+                                                        item.first.processName()));
+                if (range.first == range.second) {
+                  Exception ex(errors::Configuration);
+                  ex << "SwitchProducer " << switchLabel << " has a case " << caseLabel << " with a product "
+                     << item.first << " that is not produced by the chosen case "
+                     << proc_pset.getParameter<edm::ParameterSet>(switchLabel)
+                            .getUntrackedParameter<std::string>("@chosen_case")
+                     << " and that product is not transient. "
+                     << "If the intention is to produce only a subset of the non-transient products listed below, each "
+                        "case with more non-transient products needs to be replaced with an EDAlias to only the "
+                        "necessary products, and the EDProducer itself needs to be moved to a Task.\n\n";
+                  addProductsToException(caseLabels, ex);
+                  throw ex;
+                }
+                assert(std::distance(range.first, range.second) == 1);
+                foundBranches[std::distance(chosenBranches.begin(), range.first)] = true;
+              }
+
               // Set the alias-for branch as transient so it gets fully ignored in output.
               // I tried first to implicitly drop all branches with
               // '@' in ProductSelector, but that gave problems on
@@ -447,27 +283,6 @@ namespace edm {
               // detection logic in RootFile says that the
               // SwitchProducer branches are not alias branches)
               nonConstItem.second.setTransient(true);
-
-              auto range = std::equal_range(chosenBranches.begin(),
-                                            chosenBranches.end(),
-                                            BranchKey(item.first.friendlyClassName(),
-                                                      switchLabel,
-                                                      item.first.productInstanceName(),
-                                                      item.first.processName()));
-              if (range.first == range.second) {
-                Exception ex(errors::Configuration);
-                ex << "SwitchProducer " << switchLabel << " has a case " << caseLabel << " with a product "
-                   << item.first << " that is not produced by the chosen case "
-                   << proc_pset.getParameter<edm::ParameterSet>(switchLabel)
-                          .getUntrackedParameter<std::string>("@chosen_case")
-                   << ". If the intention is to produce only a subset of the products listed below, each case with "
-                      "more products needs to be replaced with an EDAlias to only the necessary products, and the "
-                      "EDProducer itself needs to be moved to a Task.\n\n";
-                addProductsToException(caseLabels, ex);
-                throw ex;
-              }
-              assert(std::distance(range.first, range.second) == 1);
-              foundBranches[std::distance(chosenBranches.begin(), range.first)] = true;
 
               // Check that there are no BranchAliases for any of the cases
               auto const& bd = item.second;
@@ -491,10 +306,10 @@ namespace edm {
               Exception ex(errors::Configuration);
               ex << "SwitchProducer " << switchLabel << " has a case " << caseLabel
                  << " that does not produce a product " << chosenBranches[i] << " that is produced by the chosen case "
-                 << chosenLabel
-                 << ". If the intention is to produce only a subset of the products listed below, each case with more "
-                    "products needs to be replaced with an EDAlias to only the necessary products, and the "
-                    "EDProducer itself needs to be moved to a Task.\n\n";
+                 << chosenLabel << " and that product is not transient. "
+                 << "If the intention is to produce only a subset of the non-transient products listed below, each "
+                    "case with more non-transient products needs to be replaced with an EDAlias to only the "
+                    "necessary products, and the EDProducer itself needs to be moved to a Task.\n\n";
               addProductsToException(caseLabels, ex);
               throw ex;
             }
@@ -671,27 +486,22 @@ namespace edm {
   Schedule::Schedule(ParameterSet& proc_pset,
                      service::TriggerNamesService const& tns,
                      ProductRegistry& preg,
-                     BranchIDListHelper& branchIDListHelper,
-                     ProcessBlockHelperBase& processBlockHelper,
-                     ThinnedAssociationsHelper& thinnedAssociationsHelper,
-                     SubProcessParentageHelper const* subProcessParentageHelper,
                      ExceptionToActionTable const& actions,
                      std::shared_ptr<ActivityRegistry> areg,
-                     std::shared_ptr<ProcessConfiguration> processConfiguration,
-                     bool hasSubprocesses,
+                     std::shared_ptr<ProcessConfiguration const> processConfiguration,
                      PreallocationConfiguration const& prealloc,
-                     ProcessContext const* processContext)
+                     ProcessContext const* processContext,
+                     ModuleTypeResolverMaker const* resolverMaker)
       :  //Only create a resultsInserter if there is a trigger path
         resultsInserter_{tns.getTrigPaths().empty()
                              ? std::shared_ptr<TriggerResultInserter>{}
                              : makeInserter(proc_pset, prealloc, preg, actions, areg, processConfiguration)},
-        moduleRegistry_(new ModuleRegistry()),
+        moduleRegistry_(std::make_shared<ModuleRegistry>(resolverMaker)),
         all_output_communicators_(),
         preallocConfig_(prealloc),
         pathNames_(&tns.getTrigPaths()),
         endPathNames_(&tns.getEndPaths()),
-        wantSummary_(tns.wantSummary()),
-        endpathsAreActive_(true) {
+        wantSummary_(tns.wantSummary()) {
     makePathStatusInserters(pathStatusInserters_,
                             *pathNames_,
                             prealloc,
@@ -719,11 +529,9 @@ namespace edm {
                                                                                tns,
                                                                                prealloc,
                                                                                preg,
-                                                                               branchIDListHelper,
                                                                                actions,
                                                                                areg,
                                                                                processConfiguration,
-                                                                               !hasSubprocesses,
                                                                                StreamID{i},
                                                                                processContext));
     }
@@ -762,9 +570,24 @@ namespace edm {
                                                        areg,
                                                        processConfiguration,
                                                        processContext);
+  }
 
+  void Schedule::finishSetup(ParameterSet& proc_pset,
+                             service::TriggerNamesService const& tns,
+                             ProductRegistry& preg,
+                             BranchIDListHelper& branchIDListHelper,
+                             ProcessBlockHelperBase& processBlockHelper,
+                             ThinnedAssociationsHelper& thinnedAssociationsHelper,
+                             SubProcessParentageHelper const* subProcessParentageHelper,
+                             std::shared_ptr<ActivityRegistry> areg,
+                             std::shared_ptr<ProcessConfiguration> processConfiguration,
+                             bool hasSubprocesses,
+                             PreallocationConfiguration const& prealloc,
+                             ProcessContext const* processContext) {
     //TriggerResults is not in the top level ParameterSet so the call to
     // reduceParameterSet would fail to find it. Just remove it up front.
+    const std::string kTriggerResults("TriggerResults");
+
     std::set<std::string> usedModuleLabels;
     for (auto const& worker : allWorkers()) {
       if (worker->description()->moduleLabel() != kTriggerResults) {
@@ -774,13 +597,23 @@ namespace edm {
     std::vector<std::string> modulesInConfig(proc_pset.getParameter<std::vector<std::string>>("@all_modules"));
     std::map<std::string, std::vector<std::pair<std::string, int>>> outputModulePathPositions;
     reduceParameterSet(proc_pset, tns.getEndPaths(), modulesInConfig, usedModuleLabels, outputModulePathPositions);
-    processEDAliases(proc_pset, processConfiguration->processName(), preg);
+    {
+      std::vector<std::string> aliases = proc_pset.getParameter<std::vector<std::string>>("@all_aliases");
+      detail::processEDAliases(aliases, {}, proc_pset, processConfiguration->processName(), preg);
+    }
 
     // At this point all BranchDescriptions are created. Mark now the
     // ones of unscheduled workers to be on-demand.
-    if (nUnscheduledModules > 0) {
-      std::set<std::string> unscheduledModules(modulesToUse.begin(), modulesToUse.begin() + nUnscheduledModules);
-      preg.setUnscheduledProducts(unscheduledModules);
+    {
+      auto const& unsched = streamSchedules_[0]->unscheduledWorkers();
+      if (not unsched.empty()) {
+        std::set<std::string> unscheduledModules;
+        std::transform(unsched.begin(),
+                       unsched.end(),
+                       std::insert_iterator<std::set<std::string>>(unscheduledModules, unscheduledModules.begin()),
+                       [](auto worker) { return worker->description()->moduleLabel(); });
+        preg.setUnscheduledProducts(unscheduledModules);
+      }
     }
 
     processSwitchProducers(proc_pset, processConfiguration->processName(), preg);
@@ -952,6 +785,23 @@ namespace edm {
 
     if (wantSummary_ == false)
       return;
+
+    //Function to loop over items in a container and periodically
+    // flush to the message logger.
+    auto logForEach = [](auto const& iContainer, auto iMessage) {
+      auto logger = LogFwkVerbatim("FwkSummary");
+      int count = 0;
+      for (auto const& element : iContainer) {
+        iMessage(logger, element);
+        if (++count == 10) {
+          logger = LogFwkVerbatim("FwkSummary");
+          count = 0;
+        } else {
+          logger << "\n";
+        }
+      }
+    };
+
     {
       TriggerReport tr;
       getTriggerReport(tr);
@@ -987,13 +837,12 @@ namespace edm {
                                    << " "
                                    << "Name"
                                    << "";
-      for (auto const& p : tr.trigPathSummaries) {
-        LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(5) << 1 << std::right << std::setw(5)
-                                     << p.bitPosition << " " << std::right << std::setw(10) << p.timesRun << " "
-                                     << std::right << std::setw(10) << p.timesPassed << " " << std::right
-                                     << std::setw(10) << p.timesFailed << " " << std::right << std::setw(10)
-                                     << p.timesExcept << " " << p.name << "";
-      }
+      logForEach(tr.trigPathSummaries, [](auto& logger, auto const& p) {
+        logger << "TrigReport " << std::right << std::setw(5) << 1 << std::right << std::setw(5) << p.bitPosition << " "
+               << std::right << std::setw(10) << p.timesRun << " " << std::right << std::setw(10) << p.timesPassed
+               << " " << std::right << std::setw(10) << p.timesFailed << " " << std::right << std::setw(10)
+               << p.timesExcept << " " << p.name;
+      });
 
       /*
       std::vector<int>::const_iterator epi = empty_trig_paths_.begin();
@@ -1012,91 +861,82 @@ namespace edm {
       }
        */
 
-      LogFwkVerbatim("FwkSummary") << "";
-      LogFwkVerbatim("FwkSummary") << "TrigReport "
-                                   << "-------End-Path   Summary ------------";
-      LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(10) << "Trig Bit#"
+      LogFwkVerbatim("FwkSummary") << "\n"
+                                   << "TrigReport "
+                                   << "-------End-Path   Summary ------------\n"
+                                   << "TrigReport " << std::right << std::setw(10) << "Trig Bit#"
                                    << " " << std::right << std::setw(10) << "Executed"
                                    << " " << std::right << std::setw(10) << "Passed"
                                    << " " << std::right << std::setw(10) << "Failed"
                                    << " " << std::right << std::setw(10) << "Error"
                                    << " "
-                                   << "Name"
-                                   << "";
-      for (auto const& p : tr.endPathSummaries) {
-        LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(5) << 0 << std::right << std::setw(5)
-                                     << p.bitPosition << " " << std::right << std::setw(10) << p.timesRun << " "
-                                     << std::right << std::setw(10) << p.timesPassed << " " << std::right
-                                     << std::setw(10) << p.timesFailed << " " << std::right << std::setw(10)
-                                     << p.timesExcept << " " << p.name << "";
-      }
+                                   << "Name";
+      logForEach(tr.endPathSummaries, [](auto& logger, auto const& p) {
+        logger << "TrigReport " << std::right << std::setw(5) << 0 << std::right << std::setw(5) << p.bitPosition << " "
+               << std::right << std::setw(10) << p.timesRun << " " << std::right << std::setw(10) << p.timesPassed
+               << " " << std::right << std::setw(10) << p.timesFailed << " " << std::right << std::setw(10)
+               << p.timesExcept << " " << p.name;
+      });
 
       for (auto const& p : tr.trigPathSummaries) {
-        LogFwkVerbatim("FwkSummary") << "";
-        LogFwkVerbatim("FwkSummary") << "TrigReport "
-                                     << "---------- Modules in Path: " << p.name << " ------------";
-        LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(10) << "Trig Bit#"
+        LogFwkVerbatim("FwkSummary") << "\n"
+                                     << "TrigReport "
+                                     << "---------- Modules in Path: " << p.name << " ------------\n"
+                                     << "TrigReport " << std::right << std::setw(10) << "Trig Bit#"
                                      << " " << std::right << std::setw(10) << "Visited"
                                      << " " << std::right << std::setw(10) << "Passed"
                                      << " " << std::right << std::setw(10) << "Failed"
                                      << " " << std::right << std::setw(10) << "Error"
                                      << " "
-                                     << "Name"
-                                     << "";
+                                     << "Name";
 
-        unsigned int bitpos = 0;
-        for (auto const& mod : p.moduleInPathSummaries) {
-          LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(5) << 1 << std::right << std::setw(5)
-                                       << bitpos << " " << std::right << std::setw(10) << mod.timesVisited << " "
-                                       << std::right << std::setw(10) << mod.timesPassed << " " << std::right
-                                       << std::setw(10) << mod.timesFailed << " " << std::right << std::setw(10)
-                                       << mod.timesExcept << " " << mod.moduleLabel << "";
-          ++bitpos;
-        }
+        logForEach(p.moduleInPathSummaries, [](auto& logger, auto const& mod) {
+          logger << "TrigReport " << std::right << std::setw(5) << 1 << std::right << std::setw(5) << mod.bitPosition
+                 << " " << std::right << std::setw(10) << mod.timesVisited << " " << std::right << std::setw(10)
+                 << mod.timesPassed << " " << std::right << std::setw(10) << mod.timesFailed << " " << std::right
+                 << std::setw(10) << mod.timesExcept << " " << mod.moduleLabel;
+        });
       }
 
       for (auto const& p : tr.endPathSummaries) {
-        LogFwkVerbatim("FwkSummary") << "";
-        LogFwkVerbatim("FwkSummary") << "TrigReport "
-                                     << "------ Modules in End-Path: " << p.name << " ------------";
-        LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(10) << "Trig Bit#"
+        LogFwkVerbatim("FwkSummary") << "\n"
+                                     << "TrigReport "
+                                     << "------ Modules in End-Path: " << p.name << " ------------\n"
+                                     << "TrigReport " << std::right << std::setw(10) << "Trig Bit#"
                                      << " " << std::right << std::setw(10) << "Visited"
                                      << " " << std::right << std::setw(10) << "Passed"
                                      << " " << std::right << std::setw(10) << "Failed"
                                      << " " << std::right << std::setw(10) << "Error"
                                      << " "
-                                     << "Name"
-                                     << "";
+                                     << "Name";
 
         unsigned int bitpos = 0;
-        for (auto const& mod : p.moduleInPathSummaries) {
-          LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(5) << 0 << std::right << std::setw(5)
-                                       << bitpos << " " << std::right << std::setw(10) << mod.timesVisited << " "
-                                       << std::right << std::setw(10) << mod.timesPassed << " " << std::right
-                                       << std::setw(10) << mod.timesFailed << " " << std::right << std::setw(10)
-                                       << mod.timesExcept << " " << mod.moduleLabel << "";
+        logForEach(p.moduleInPathSummaries, [&bitpos](auto& logger, auto const& mod) {
+          logger << "TrigReport " << std::right << std::setw(5) << 0 << std::right << std::setw(5) << bitpos << " "
+                 << std::right << std::setw(10) << mod.timesVisited << " " << std::right << std::setw(10)
+                 << mod.timesPassed << " " << std::right << std::setw(10) << mod.timesFailed << " " << std::right
+                 << std::setw(10) << mod.timesExcept << " " << mod.moduleLabel;
           ++bitpos;
-        }
+        });
       }
 
-      LogFwkVerbatim("FwkSummary") << "";
-      LogFwkVerbatim("FwkSummary") << "TrigReport "
-                                   << "---------- Module Summary ------------";
-      LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(10) << "Visited"
+      LogFwkVerbatim("FwkSummary") << "\n"
+                                   << "TrigReport "
+                                   << "---------- Module Summary ------------\n"
+                                   << "TrigReport " << std::right << std::setw(10) << "Visited"
                                    << " " << std::right << std::setw(10) << "Executed"
                                    << " " << std::right << std::setw(10) << "Passed"
                                    << " " << std::right << std::setw(10) << "Failed"
                                    << " " << std::right << std::setw(10) << "Error"
                                    << " "
-                                   << "Name"
-                                   << "";
-      for (auto const& worker : tr.workerSummaries) {
-        LogFwkVerbatim("FwkSummary") << "TrigReport " << std::right << std::setw(10) << worker.timesVisited << " "
-                                     << std::right << std::setw(10) << worker.timesRun << " " << std::right
-                                     << std::setw(10) << worker.timesPassed << " " << std::right << std::setw(10)
-                                     << worker.timesFailed << " " << std::right << std::setw(10) << worker.timesExcept
-                                     << " " << worker.moduleLabel << "";
-      }
+                                   << "Name";
+
+      logForEach(tr.workerSummaries, [](auto& logger, auto const& worker) {
+        logger << "TrigReport " << std::right << std::setw(10) << worker.timesVisited << " " << std::right
+               << std::setw(10) << worker.timesRun << " " << std::right << std::setw(10) << worker.timesPassed << " "
+               << std::right << std::setw(10) << worker.timesFailed << " " << std::right << std::setw(10)
+               << worker.timesExcept << " " << worker.moduleLabel;
+      });
       LogFwkVerbatim("FwkSummary") << "";
     }
     // The timing report (CPU and Real Time):
@@ -1127,104 +967,88 @@ namespace edm {
     LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                  << " " << std::right << std::setw(kColumn2Size) << "per exec"
                                  << "  Name";
-    for (auto const& p : tr.trigPathSummaries) {
+    logForEach(tr.trigPathSummaries, [&](auto& logger, auto const& p) {
       const int timesRun = std::max(1, p.timesRun);
-      LogFwkVerbatim("FwkSummary") << "TimeReport " << std::setprecision(6) << std::fixed << std::right
-                                   << std::setw(kColumn1Size) << p.realTime / totalEvents << " " << std::right
-                                   << std::setw(kColumn2Size) << p.realTime / timesRun << "  " << p.name << "";
-    }
+      logger << "TimeReport " << std::setprecision(6) << std::fixed << std::right << std::setw(kColumn1Size)
+             << p.realTime / totalEvents << " " << std::right << std::setw(kColumn2Size) << p.realTime / timesRun
+             << "  " << p.name;
+    });
     LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                  << " " << std::right << std::setw(kColumn2Size) << "per exec"
-                                 << "  Name"
-                                 << "";
+                                 << "  Name";
 
-    LogFwkVerbatim("FwkSummary") << "";
-    LogFwkVerbatim("FwkSummary") << "TimeReport "
-                                 << "-------End-Path   Summary ---[Real sec]----";
-    LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
+    LogFwkVerbatim("FwkSummary") << "\n"
+                                 << "TimeReport "
+                                 << "-------End-Path   Summary ---[Real sec]----\n"
+                                 << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                  << " " << std::right << std::setw(kColumn2Size) << "per exec"
-                                 << "  Name"
-                                 << "";
-    for (auto const& p : tr.endPathSummaries) {
+                                 << "  Name";
+    logForEach(tr.endPathSummaries, [&](auto& logger, auto const& p) {
       const int timesRun = std::max(1, p.timesRun);
 
-      LogFwkVerbatim("FwkSummary") << "TimeReport " << std::setprecision(6) << std::fixed << std::right
-                                   << std::setw(kColumn1Size) << p.realTime / totalEvents << " " << std::right
-                                   << std::setw(kColumn2Size) << p.realTime / timesRun << "  " << p.name << "";
-    }
+      logger << "TimeReport " << std::setprecision(6) << std::fixed << std::right << std::setw(kColumn1Size)
+             << p.realTime / totalEvents << " " << std::right << std::setw(kColumn2Size) << p.realTime / timesRun
+             << "  " << p.name;
+    });
     LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                  << " " << std::right << std::setw(kColumn2Size) << "per exec"
-                                 << "  Name"
-                                 << "";
+                                 << "  Name";
 
     for (auto const& p : tr.trigPathSummaries) {
-      LogFwkVerbatim("FwkSummary") << "";
-      LogFwkVerbatim("FwkSummary") << "TimeReport "
-                                   << "---------- Modules in Path: " << p.name << " ---[Real sec]----";
-      LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
+      LogFwkVerbatim("FwkSummary") << "\n"
+                                   << "TimeReport "
+                                   << "---------- Modules in Path: " << p.name << " ---[Real sec]----\n"
+                                   << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                    << " " << std::right << std::setw(kColumn2Size) << "per visit"
-                                   << "  Name"
-                                   << "";
-      for (auto const& mod : p.moduleInPathSummaries) {
-        LogFwkVerbatim("FwkSummary") << "TimeReport " << std::setprecision(6) << std::fixed << std::right
-                                     << std::setw(kColumn1Size) << mod.realTime / totalEvents << " " << std::right
-                                     << std::setw(kColumn2Size) << mod.realTime / std::max(1, mod.timesVisited) << "  "
-                                     << mod.moduleLabel << "";
-      }
+                                   << "  Name";
+      logForEach(p.moduleInPathSummaries, [&](auto& logger, auto const& mod) {
+        logger << "TimeReport " << std::setprecision(6) << std::fixed << std::right << std::setw(kColumn1Size)
+               << mod.realTime / totalEvents << " " << std::right << std::setw(kColumn2Size)
+               << mod.realTime / std::max(1, mod.timesVisited) << "  " << mod.moduleLabel;
+      });
     }
     if (not tr.trigPathSummaries.empty()) {
       LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                    << " " << std::right << std::setw(kColumn2Size) << "per visit"
-                                   << "  Name"
-                                   << "";
+                                   << "  Name";
     }
     for (auto const& p : tr.endPathSummaries) {
-      LogFwkVerbatim("FwkSummary") << "";
-      LogFwkVerbatim("FwkSummary") << "TimeReport "
-                                   << "------ Modules in End-Path: " << p.name << " ---[Real sec]----";
-      LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
+      LogFwkVerbatim("FwkSummary") << "\n"
+                                   << "TimeReport "
+                                   << "------ Modules in End-Path: " << p.name << " ---[Real sec]----\n"
+                                   << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                    << " " << std::right << std::setw(kColumn2Size) << "per visit"
-                                   << "  Name"
-                                   << "";
-      for (auto const& mod : p.moduleInPathSummaries) {
-        LogFwkVerbatim("FwkSummary") << "TimeReport " << std::setprecision(6) << std::fixed << std::right
-                                     << std::setw(kColumn1Size) << mod.realTime / totalEvents << " " << std::right
-                                     << std::setw(kColumn2Size) << mod.realTime / std::max(1, mod.timesVisited) << "  "
-                                     << mod.moduleLabel << "";
-      }
+                                   << "  Name";
+      logForEach(p.moduleInPathSummaries, [&](auto& logger, auto const& mod) {
+        logger << "TimeReport " << std::setprecision(6) << std::fixed << std::right << std::setw(kColumn1Size)
+               << mod.realTime / totalEvents << " " << std::right << std::setw(kColumn2Size)
+               << mod.realTime / std::max(1, mod.timesVisited) << "  " << mod.moduleLabel;
+      });
     }
     if (not tr.endPathSummaries.empty()) {
       LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                    << " " << std::right << std::setw(kColumn2Size) << "per visit"
-                                   << "  Name"
-                                   << "";
+                                   << "  Name";
     }
-    LogFwkVerbatim("FwkSummary") << "";
-    LogFwkVerbatim("FwkSummary") << "TimeReport "
-                                 << "---------- Module Summary ---[Real sec]----";
+    LogFwkVerbatim("FwkSummary") << "\n"
+                                 << "TimeReport "
+                                 << "---------- Module Summary ---[Real sec]----\n"
+                                 << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
+                                 << " " << std::right << std::setw(kColumn2Size) << "per exec"
+                                 << " " << std::right << std::setw(kColumn3Size) << "per visit"
+                                 << "  Name";
+    logForEach(tr.workerSummaries, [&](auto& logger, auto const& worker) {
+      logger << "TimeReport " << std::setprecision(6) << std::fixed << std::right << std::setw(kColumn1Size)
+             << worker.realTime / totalEvents << " " << std::right << std::setw(kColumn2Size)
+             << worker.realTime / std::max(1, worker.timesRun) << " " << std::right << std::setw(kColumn3Size)
+             << worker.realTime / std::max(1, worker.timesVisited) << "  " << worker.moduleLabel;
+    });
     LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
                                  << " " << std::right << std::setw(kColumn2Size) << "per exec"
                                  << " " << std::right << std::setw(kColumn3Size) << "per visit"
-                                 << "  Name"
-                                 << "";
-    for (auto const& worker : tr.workerSummaries) {
-      LogFwkVerbatim("FwkSummary") << "TimeReport " << std::setprecision(6) << std::fixed << std::right
-                                   << std::setw(kColumn1Size) << worker.realTime / totalEvents << " " << std::right
-                                   << std::setw(kColumn2Size) << worker.realTime / std::max(1, worker.timesRun) << " "
-                                   << std::right << std::setw(kColumn3Size)
-                                   << worker.realTime / std::max(1, worker.timesVisited) << "  " << worker.moduleLabel
-                                   << "";
-    }
-    LogFwkVerbatim("FwkSummary") << "TimeReport " << std::right << std::setw(kColumn1Size) << "per event"
-                                 << " " << std::right << std::setw(kColumn2Size) << "per exec"
-                                 << " " << std::right << std::setw(kColumn3Size) << "per visit"
-                                 << "  Name"
-                                 << "";
+                                 << "  Name";
 
-    LogFwkVerbatim("FwkSummary") << "";
-    LogFwkVerbatim("FwkSummary") << "T---Report end!"
-                                 << "";
-    LogFwkVerbatim("FwkSummary") << "";
+    LogFwkVerbatim("FwkSummary") << "\nT---Report end!\n\n";
   }
 
   void Schedule::closeOutputFiles() {
@@ -1352,7 +1176,7 @@ namespace edm {
   }
 
   void Schedule::beginJob(ProductRegistry const& iRegistry,
-                          eventsetup::ESRecordsToProxyIndices const& iESIndices,
+                          eventsetup::ESRecordsToProductResolverIndices const& iESIndices,
                           ProcessBlockHelperBase const& processBlockHelperBase) {
     globalSchedule_->beginJob(iRegistry, iESIndices, processBlockHelperBase);
   }
@@ -1378,7 +1202,7 @@ namespace edm {
   bool Schedule::changeModule(std::string const& iLabel,
                               ParameterSet const& iPSet,
                               const ProductRegistry& iRegistry,
-                              eventsetup::ESRecordsToProxyIndices const& iIndices) {
+                              eventsetup::ESRecordsToProductResolverIndices const& iIndices) {
     Worker* found = nullptr;
     for (auto const& worker : allWorkers()) {
       if (worker->description()->moduleLabel() == iLabel) {
@@ -1430,6 +1254,16 @@ namespace edm {
       stream->deleteModule(iLabel);
     }
     moduleRegistry_->deleteModule(iLabel, areg->preModuleDestructionSignal_, areg->postModuleDestructionSignal_);
+  }
+
+  void Schedule::initializeEarlyDelete(std::vector<std::string> const& branchesToDeleteEarly,
+                                       std::multimap<std::string, std::string> const& referencesToBranches,
+                                       std::vector<std::string> const& modulesToSkip,
+                                       edm::ProductRegistry const& preg) {
+    for (auto& stream : streamSchedules_) {
+      stream->initializeEarlyDelete(
+          *moduleRegistry(), branchesToDeleteEarly, referencesToBranches, modulesToSkip, preg);
+    }
   }
 
   std::vector<ModuleDescription const*> Schedule::getAllModuleDescriptions() const {
@@ -1525,15 +1359,6 @@ namespace edm {
       ++i;
     }
   }
-
-  void Schedule::enableEndPaths(bool active) {
-    endpathsAreActive_ = active;
-    for (auto& s : streamSchedules_) {
-      s->enableEndPaths(active);
-    }
-  }
-
-  bool Schedule::endPathsEnabled() const { return endpathsAreActive_; }
 
   void Schedule::getTriggerReport(TriggerReport& rep) const {
     rep.eventSummary.totalEvents = 0;

@@ -60,9 +60,7 @@ public:
 
 protected:
   // methods
-  void beginJob() override;
   void produce(edm::Event&, const edm::EventSetup&) override;
-  void endJob() override;
 
 private:
   void buildKernelConvolver(const edm::ParameterSet&);
@@ -115,6 +113,8 @@ private:
   std::string flatteningTableName;
   std::string flatteningTableCategory;
   bool loadFlatteningFactorsFromDB;
+
+  FFTJetLookupTableSequenceLoader esLoader;
 };
 
 //
@@ -167,6 +167,8 @@ FFTJetPileupProcessor::FFTJetPileupProcessor(const edm::ParameterSet& ps)
 
   produces<reco::DiscretizedEnergyFlow>(outputLabel);
   produces<std::pair<double, double>>(outputLabel);
+
+  esLoader.acquireToken(flatteningTableRecord, consumesCollector());
 }
 
 void FFTJetPileupProcessor::buildKernelConvolver(const edm::ParameterSet& ps) {
@@ -317,15 +319,8 @@ void FFTJetPileupProcessor::mixExtraGrid() {
   }
 }
 
-// ------------ method called once each job just before starting event loop
-void FFTJetPileupProcessor::beginJob() {}
-
-// ------------ method called once each job just after ending the event loop
-void FFTJetPileupProcessor::endJob() {}
-
 void FFTJetPileupProcessor::loadFlatteningFactors(const edm::EventSetup& iSetup) {
-  edm::ESHandle<FFTJetLookupTableSequence> h;
-  StaticFFTJetLookupTableSequenceLoader::instance().load(iSetup, flatteningTableRecord, h);
+  edm::ESHandle<FFTJetLookupTableSequence> h = esLoader.load(flatteningTableRecord, iSetup);
   std::shared_ptr<npstat::StorableMultivariateFunctor> f = (*h)[flatteningTableCategory][flatteningTableName];
 
   // Fill out the table of flattening factors as a function of eta

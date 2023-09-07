@@ -95,7 +95,7 @@ public:
   uint32_t lv1Id() const { return CDFHeader{cdfh_}.lv1Id; }
   uint16_t sourceId() const { return CDFHeader{cdfh_}.sourceId; }
 
-  uint16_t orbitNumber() const { return AMC13Header{amc13h_}.orbitN; }
+  uint32_t orbitNumber() const { return AMC13Header{amc13h_}.orbitN; }
   uint8_t nAMC() const { return AMC13Header{amc13h_}.nAMC; }
 
   const std::vector<uint64_t>* getAMCheaders() const { return &amcHeaders_; }
@@ -108,6 +108,8 @@ public:
   const std::vector<GEMAMC>* getAMCpayloads() const { return &amcs_; }
   void addAMCpayload(const GEMAMC& a) { amcs_.push_back(a); }
   void clearAMCpayloads() { amcs_.clear(); }
+
+  static const int lastBC = 3564;
 
 private:
   uint64_t cdfh_;    // CDFHeader

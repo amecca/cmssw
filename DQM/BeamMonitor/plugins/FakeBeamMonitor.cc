@@ -726,7 +726,6 @@ void FakeBeamMonitor::analyze(const Event& iEvent, const EventSetup& iSetup) {
   //  edm::Handle<reco::VertexCollection> PVCollection;
 
   //  if (iEvent.getByToken(pvSrc_, PVCollection)) {
-  int nPVcount = 0;
   int nPVcount_ST = 0;  //For Single Trigger(hence ST)
 
   //    for (reco::VertexCollection::const_iterator pv = PVCollection->begin(); pv != PVCollection->end(); ++pv) {
@@ -734,8 +733,6 @@ void FakeBeamMonitor::analyze(const Event& iEvent, const EventSetup& iSetup) {
     //--- vertex selection
     //    if (pv->isFake() || pv->tracksSize() == 0)
     //      continue;
-    nPVcount++;  // count non fake pv:
-
     //if (JetTrigPass)
     nPVcount_ST++;  //non-fake pv with a specific trigger
 
@@ -760,8 +757,6 @@ void FakeBeamMonitor::analyze(const Event& iEvent, const EventSetup& iSetup) {
     //      }
 
   }  //loop over pvs
-
-  //    h_nVtx->Fill(nPVcount * 1.);  //no need to change it for average BS
 
   mapNPV[countLumi_].push_back((nPVcount_ST));
 
@@ -853,8 +848,6 @@ void FakeBeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, 
   }
 
   int MaxPVs = 0;
-  int countEvtLastNLS_ = 0;
-  int countTotPV_ = 0;
 
   std::map<int, std::vector<int> >::iterator mnpv = mapNPV.begin();
   std::map<int, std::vector<float> >::iterator mpv2 = mapPVy.begin();
@@ -877,8 +870,6 @@ void FakeBeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, 
     for (std::vector<int>::iterator mnpvs = (mnpv->second).begin(); mnpvs != (mnpv->second).end(); ++mnpvs) {
       if ((*mnpvs > 0) && (resetHistoFlag_))
         h_nVtx_st->Fill((*mnpvs) * (1.0));
-      countEvtLastNLS_++;
-      countTotPV_ += (*mnpvs);
       if ((*mnpvs) > MaxPVs)
         MaxPVs = (*mnpvs);
     }  //loop over second of mapNPV
@@ -891,33 +882,12 @@ void FakeBeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, 
 
   std::vector<float> DipPVInfo_;
   DipPVInfo_.clear();
-  //
-  //  if (countTotPV_ != 0) {
-  //    DipPVInfo_.push_back((float)countEvtLastNLS_);
-  //    DipPVInfo_.push_back(h_nVtx_st->getMean());
-  //    DipPVInfo_.push_back(h_nVtx_st->getMeanError());
-  //    DipPVInfo_.push_back(h_nVtx_st->getRMS());
-  //    DipPVInfo_.push_back(h_nVtx_st->getRMSError());
-  //    DipPVInfo_.push_back((float)MaxPVs);
-  //    DipPVInfo_.push_back((float)countTotPV_);
-  //    MaxPVs = 0;
-  //  } else {
-  //    for (size_t i = 0; i < 7; i++) {
-  //      if (i > 0) {
-  //        DipPVInfo_.push_back(0.);
-  //      } else {
-  //        DipPVInfo_.push_back((float)countEvtLastNLS_);
-  //      }
-  //    }
-  //  }
-  //  theBeamFitter->SetPVInfo(DipPVInfo_);
   DipPVInfo_.push_back(rndm_->Gaus(1000., 100.));  // Events used
   DipPVInfo_.push_back(rndm_->Gaus(100., 10.));    // Mean PV
   DipPVInfo_.push_back(rndm_->Gaus(10., 5.));      // Mean PV err
   DipPVInfo_.push_back(rndm_->Gaus(10., 5.));      // Rms PV
   DipPVInfo_.push_back(rndm_->Gaus(5., 3.));       // Rms PV err
   DipPVInfo_.push_back(rndm_->Gaus(100., 10.));    // Max PVs
-  countEvtLastNLS_ = 0;
 
   if (onlineMode_) {  // filling LS gap
     // FIXME: need to add protection for the case if the gap is at the resetting LS!
@@ -1384,51 +1354,48 @@ void FakeBeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, 
   //     }
 
   // Create the BeamSpotOnlineObjects object
-  BeamSpotOnlineObjects* BSOnline = new BeamSpotOnlineObjects();
-  BSOnline->SetLastAnalyzedLumi(LSRange.second);
-  BSOnline->SetLastAnalyzedRun(frun);
-  BSOnline->SetLastAnalyzedFill(0);  // To be updated with correct LHC Fill number
-  BSOnline->SetPosition(bs.x0(), bs.y0(), bs.z0());
-  BSOnline->SetSigmaZ(bs.sigmaZ());
-  BSOnline->SetBeamWidthX(bs.BeamWidthX());
-  BSOnline->SetBeamWidthY(bs.BeamWidthY());
-  BSOnline->SetBeamWidthXError(bs.BeamWidthXError());
-  BSOnline->SetBeamWidthYError(bs.BeamWidthYError());
-  BSOnline->Setdxdz(bs.dxdz());
-  BSOnline->Setdydz(bs.dydz());
-  BSOnline->SetType(bs.type());
-  BSOnline->SetEmittanceX(bs.emittanceX());
-  BSOnline->SetEmittanceY(bs.emittanceY());
-  BSOnline->SetBetaStar(bs.betaStar());
+  BeamSpotOnlineObjects BSOnline;
+  BSOnline.setLastAnalyzedLumi(LSRange.second);
+  BSOnline.setLastAnalyzedRun(frun);
+  BSOnline.setLastAnalyzedFill(0);  // To be updated with correct LHC Fill number
+  BSOnline.setPosition(bs.x0(), bs.y0(), bs.z0());
+  BSOnline.setSigmaZ(bs.sigmaZ());
+  BSOnline.setBeamWidthX(bs.BeamWidthX());
+  BSOnline.setBeamWidthY(bs.BeamWidthY());
+  BSOnline.setBeamWidthXError(bs.BeamWidthXError());
+  BSOnline.setBeamWidthYError(bs.BeamWidthYError());
+  BSOnline.setdxdz(bs.dxdz());
+  BSOnline.setdydz(bs.dydz());
+  BSOnline.setType(bs.type());
+  BSOnline.setEmittanceX(bs.emittanceX());
+  BSOnline.setEmittanceY(bs.emittanceY());
+  BSOnline.setBetaStar(bs.betaStar());
   for (int i = 0; i < 7; ++i) {
     for (int j = 0; j < 7; ++j) {
-      BSOnline->SetCovariance(i, j, bs.covariance(i, j));
+      BSOnline.setCovariance(i, j, bs.covariance(i, j));
     }
   }
-  //      BSOnline->SetNumTracks(theBeamFitter->getNTracks());
-  //      BSOnline->SetNumPVs(theBeamFitter->getNPVs());
-  BSOnline->SetNumTracks(50);
-  BSOnline->SetNumPVs(10);
-  BSOnline->SetUsedEvents((int)DipPVInfo_[0]);
-  BSOnline->SetMeanPV(DipPVInfo_[1]);
-  BSOnline->SetMeanErrorPV(DipPVInfo_[2]);
-  BSOnline->SetRmsPV(DipPVInfo_[3]);
-  BSOnline->SetRmsErrorPV(DipPVInfo_[4]);
-  BSOnline->SetMaxPVs((int)DipPVInfo_[5]);
+  BSOnline.setNumTracks(50);
+  BSOnline.setNumPVs(10);
+  BSOnline.setUsedEvents((int)DipPVInfo_[0]);
+  BSOnline.setMeanPV(DipPVInfo_[1]);
+  BSOnline.setMeanErrorPV(DipPVInfo_[2]);
+  BSOnline.setRmsPV(DipPVInfo_[3]);
+  BSOnline.setRmsErrorPV(DipPVInfo_[4]);
+  BSOnline.setMaxPVs((int)DipPVInfo_[5]);
   auto creationTime =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-  BSOnline->SetCreationTime(creationTime);
+  BSOnline.setCreationTime(creationTime);
 
   // use fake timestamps from 1970.01.01 00:00:00 to 1970.01.01 00:00:01 GMT
   std::pair<time_t, time_t> timeForDIP = std::make_pair(0, 1);
-  BSOnline->SetStartTimeStamp(timeForDIP.first);
-  BSOnline->SetStartTime(getGMTstring(timeForDIP.first));
-  BSOnline->SetEndTimeStamp(timeForDIP.second);
-  BSOnline->SetEndTime(getGMTstring(timeForDIP.second));
+  BSOnline.setStartTimeStamp(timeForDIP.first);
+  BSOnline.setStartTime(getGMTstring(timeForDIP.first));
+  BSOnline.setEndTimeStamp(timeForDIP.second);
+  BSOnline.setEndTime(getGMTstring(timeForDIP.second));
 
   edm::LogInfo("FakeBeamMonitor") << "FitAndFill::[PayloadCreation] BeamSpotOnline object created: \n" << std::endl;
-  edm::LogInfo("FakeBeamMonitor") << *BSOnline << std::endl;
-  //std::cout << "------------------> fitted BS: " << *BSOnline << std::endl;
+  edm::LogInfo("FakeBeamMonitor") << BSOnline << std::endl;
 
   // Create the payload for BeamSpotOnlineObjects object
   if (onlineDbService_.isAvailable()) {
@@ -1444,25 +1411,25 @@ void FakeBeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, 
     onlineDbService_->logger().logInfo() << "\n" << bs;
     onlineDbService_->logger().logInfo()
         << "FakeBeamMonitor::FitAndFill - [PayloadCreation] BeamSpotOnline object created:";
-    onlineDbService_->logger().logInfo() << "\n" << *BSOnline;
+    onlineDbService_->logger().logInfo() << "\n" << BSOnline;
     onlineDbService_->logger().logInfo() << "FakeBeamMonitor - Additional parameters for DIP:";
-    onlineDbService_->logger().logInfo() << "Events used in the fit: " << BSOnline->GetUsedEvents();
-    onlineDbService_->logger().logInfo() << "Mean PV               : " << BSOnline->GetMeanPV();
-    onlineDbService_->logger().logInfo() << "Mean PV Error         : " << BSOnline->GetMeanErrorPV();
-    onlineDbService_->logger().logInfo() << "Rms PV                : " << BSOnline->GetRmsPV();
-    onlineDbService_->logger().logInfo() << "Rms PV Error          : " << BSOnline->GetRmsErrorPV();
-    onlineDbService_->logger().logInfo() << "Max PVs               : " << BSOnline->GetMaxPVs();
-    onlineDbService_->logger().logInfo() << "StartTime             : " << BSOnline->GetStartTime();
-    onlineDbService_->logger().logInfo() << "StartTimeStamp        : " << BSOnline->GetStartTimeStamp();
-    onlineDbService_->logger().logInfo() << "EndTime               : " << BSOnline->GetEndTime();
-    onlineDbService_->logger().logInfo() << "EndTimeStamp          : " << BSOnline->GetEndTimeStamp();
+    onlineDbService_->logger().logInfo() << "Events used in the fit: " << BSOnline.usedEvents();
+    onlineDbService_->logger().logInfo() << "Mean PV               : " << BSOnline.meanPV();
+    onlineDbService_->logger().logInfo() << "Mean PV Error         : " << BSOnline.meanErrorPV();
+    onlineDbService_->logger().logInfo() << "Rms PV                : " << BSOnline.rmsPV();
+    onlineDbService_->logger().logInfo() << "Rms PV Error          : " << BSOnline.rmsErrorPV();
+    onlineDbService_->logger().logInfo() << "Max PVs               : " << BSOnline.maxPVs();
+    onlineDbService_->logger().logInfo() << "StartTime             : " << BSOnline.startTime();
+    onlineDbService_->logger().logInfo() << "StartTimeStamp        : " << BSOnline.startTimeStamp();
+    onlineDbService_->logger().logInfo() << "EndTime               : " << BSOnline.endTime();
+    onlineDbService_->logger().logInfo() << "EndTimeStamp          : " << BSOnline.endTimeStamp();
     onlineDbService_->logger().logInfo() << "FakeBeamMonitor::FitAndFill - [PayloadCreation] onlineDbService available";
     onlineDbService_->logger().logInfo() << "FakeBeamMonitor::FitAndFill - [PayloadCreation] SetCreationTime: "
                                          << creationTime << " [epoch in microseconds]";
     try {
       onlineDbService_->writeIOVForNextLumisection(BSOnline, recordName_);
       onlineDbService_->logger().logInfo()
-          << "FakeBeamMonitor::FitAndFill - [PayloadCreation] writeForNextLumisection executed correctly";
+          << "FakeBeamMonitor::FitAndFill - [PayloadCreation] writeIOVForNextLumisection executed correctly";
     } catch (const std::exception& e) {
       onlineDbService_->logger().logError() << "FakeBeamMonitor - Error writing record: " << recordName_
                                             << " for Run: " << frun << " - Lumi: " << LSRange.second;

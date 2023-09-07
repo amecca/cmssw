@@ -44,9 +44,11 @@ vector<GeometricSearchDet::DetWithState> MTDDetTray::compatibleDets(const Trajec
                                                                     const Propagator& prop,
                                                                     const MeasurementEstimator& est) const {
   LogTrace("MTDDetLayers") << "MTDDetTray::compatibleDets, Surface at R,phi: " << surface().position().perp() << ","
-                           << surface().position().phi() << "     DetRod pos.";
-  // FIXME	    << " TS at R,phi: " << startingState.position().perp() << ","
-  // 		    << startingState.position().phi()
+                           << surface().position().phi() << "     DetRod pos."
+                           << " TS at R,phi: " << startingState.globalPosition().perp() << ","
+                           << startingState.globalPosition().phi() << " TSOS dx/dy "
+                           << std::sqrt(startingState.localError().positionError().xx()) << " "
+                           << std::sqrt(startingState.localError().positionError().yy());
 
   vector<DetWithState> result;
 
@@ -129,8 +131,14 @@ vector<GeometricSearchDet::DetWithState> MTDDetTray::compatibleDets(const Trajec
 vector<DetGroup> MTDDetTray::groupedCompatibleDets(const TrajectoryStateOnSurface& startingState,
                                                    const Propagator& prop,
                                                    const MeasurementEstimator& est) const {
-  // FIXME should return only 1 group
-  edm::LogError("MTDDetLayers") << "dummy implementation of MTDDetTray::groupedCompatibleDets()";
+  vector<GeometricSearchDet::DetWithState> detWithStates;
+
+  detWithStates = compatibleDets(startingState, prop, est);
+
   vector<DetGroup> result;
+  if (!detWithStates.empty()) {
+    result.push_back(DetGroup(detWithStates));
+  }
+  LogTrace("MTDDetLayers") << "MTDdetTray Compatible modules: " << result.size();
   return result;
 }

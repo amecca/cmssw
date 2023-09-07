@@ -31,12 +31,21 @@ using namespace std;
 using namespace edm;
 
 /// Constructor
-TrackTransformerForCosmicMuons::TrackTransformerForCosmicMuons(const ParameterSet& parameterSet) {
-  theTrackerRecHitBuilderName = parameterSet.getParameter<string>("TrackerRecHitBuilder");
-  theMuonRecHitBuilderName = parameterSet.getParameter<string>("MuonRecHitBuilder");
-
+TrackTransformerForCosmicMuons::TrackTransformerForCosmicMuons(const ParameterSet& parameterSet,
+                                                               edm::ConsumesCollector iC)
+    : theIOpropToken(iC.esConsumes(edm::ESInputTag("", "SmartPropagatorRK"))),
+      theOIpropToken(iC.esConsumes(edm::ESInputTag("", "SmartPropagatorRKOpposite"))),
+      thGlobTrackGeoToken(iC.esConsumes()),
+      theMFToken(iC.esConsumes()),
+      theIOFitterToken(iC.esConsumes(edm::ESInputTag("", "KFFitterForRefitInsideOut"))),
+      theOIFitterToken(iC.esConsumes(edm::ESInputTag("", "KFSmootherForRefitInsideOut"))),
+      theIOSmootherToken(iC.esConsumes(edm::ESInputTag("", "KFFitterForRefitOutsideIn"))),
+      theOISmootherToken(iC.esConsumes(edm::ESInputTag("", "KFSmootherForRefitOutsideIn"))),
+      theTkRecHitBuildToken(
+          iC.esConsumes(edm::ESInputTag("", parameterSet.getParameter<string>("TrackerRecHitBuilder")))),
+      theMuonRecHitBuildToken(
+          iC.esConsumes(edm::ESInputTag("", parameterSet.getParameter<string>("MuonRecHitBuilder")))) {
   theRPCInTheFit = parameterSet.getParameter<bool>("RefitRPCHits");
-
   theCacheId_TC = theCacheId_GTG = theCacheId_MG = theCacheId_TRH = 0;
 }
 
@@ -46,18 +55,18 @@ TrackTransformerForCosmicMuons::~TrackTransformerForCosmicMuons() {}
 void TrackTransformerForCosmicMuons::setServices(const EventSetup& setup) {
   const std::string metname = "Reco|TrackingTools|TrackTransformer";
 
-  setup.get<TrajectoryFitter::Record>().get("KFFitterForRefitInsideOut", theFitterIO);
-  setup.get<TrajectoryFitter::Record>().get("KFSmootherForRefitInsideOut", theSmootherIO);
-  setup.get<TrajectoryFitter::Record>().get("KFFitterForRefitOutsideIn", theFitterOI);
-  setup.get<TrajectoryFitter::Record>().get("KFSmootherForRefitOutsideIn", theSmootherOI);
+  theFitterIO = setup.getHandle(theIOFitterToken);
+  theFitterOI = setup.getHandle(theOIFitterToken);
+  theSmootherIO = setup.getHandle(theIOSmootherToken);
+  theSmootherOI = setup.getHandle(theOISmootherToken);
 
   unsigned long long newCacheId_TC = setup.get<TrackingComponentsRecord>().cacheIdentifier();
 
   if (newCacheId_TC != theCacheId_TC) {
     LogTrace(metname) << "Tracking Component changed!";
     theCacheId_TC = newCacheId_TC;
-    setup.get<TrackingComponentsRecord>().get("SmartPropagatorRK", thePropagatorIO);
-    setup.get<TrackingComponentsRecord>().get("SmartPropagatorRKOpposite", thePropagatorOI);
+    thePropagatorIO = setup.getHandle(theIOpropToken);
+    thePropagatorOI = setup.getHandle(theOIpropToken);
   }
 
   // Global Tracking Geometry
@@ -65,7 +74,7 @@ void TrackTransformerForCosmicMuons::setServices(const EventSetup& setup) {
   if (newCacheId_GTG != theCacheId_GTG) {
     LogTrace(metname) << "GlobalTrackingGeometry changed!";
     theCacheId_GTG = newCacheId_GTG;
-    setup.get<GlobalTrackingGeometryRecord>().get(theTrackingGeometry);
+    theTrackingGeometry = setup.getHandle(thGlobTrackGeoToken);
   }
 
   // Magfield Field
@@ -73,7 +82,7 @@ void TrackTransformerForCosmicMuons::setServices(const EventSetup& setup) {
   if (newCacheId_MG != theCacheId_MG) {
     LogTrace(metname) << "Magnetic Field changed!";
     theCacheId_MG = newCacheId_MG;
-    setup.get<IdealMagneticFieldRecord>().get(theMGField);
+    theMGField = setup.getHandle(theMFToken);
   }
 
   // Transient Rechit Builders
@@ -81,8 +90,8 @@ void TrackTransformerForCosmicMuons::setServices(const EventSetup& setup) {
   if (newCacheId_TRH != theCacheId_TRH) {
     theCacheId_TRH = newCacheId_TRH;
     LogTrace(metname) << "TransientRecHitRecord changed!";
-    setup.get<TransientRecHitRecord>().get(theTrackerRecHitBuilderName, theTrackerRecHitBuilder);
-    setup.get<TransientRecHitRecord>().get(theMuonRecHitBuilderName, theMuonRecHitBuilder);
+    theTrackerRecHitBuilder = setup.getHandle(theTkRecHitBuildToken);
+    theMuonRecHitBuilder = setup.getHandle(theMuonRecHitBuildToken);
   }
 }
 
@@ -437,7 +446,6 @@ bool TrackTransformerForCosmicMuons::SlopeSum(const TransientTrackingRecHit::Con
   std::vector<float> pz;
   //	int quadrant = -1;
 
-  float sumdy = 0;
   float sumdz = 0;
 
   for (TransientTrackingRecHit::ConstRecHitContainer::const_iterator hit = tkHits.begin(); hit != tkHits.end(); ++hit) {
@@ -461,7 +469,6 @@ bool TrackTransformerForCosmicMuons::SlopeSum(const TransientTrackingRecHit::Con
       dslope = dy / dz;
     if (!first) {
       retval += dslope;
-      sumdy += dy;
       sumdz += dz;
     }
     first = false;
@@ -483,7 +490,6 @@ bool TrackTransformerForCosmicMuons::SlopeSum(const TransientTrackingRecHit::Con
 
 ///decide if the track should be reversed
 float TrackTransformerForCosmicMuons::SumDy(const TransientTrackingRecHit::ConstRecHitContainer& tkHits) const {
-  bool retval = false;
   float y1 = 0;
   float z1 = 0;
 
@@ -494,7 +500,6 @@ float TrackTransformerForCosmicMuons::SumDy(const TransientTrackingRecHit::Const
   //	int quadrant = -1;
 
   float sumdy = 0;
-  float sumdz = 0;
 
   for (TransientTrackingRecHit::ConstRecHitContainer::const_iterator hit = tkHits.begin(); hit != tkHits.end(); ++hit) {
     DetId hitId = (*hit)->geographicalId();
@@ -504,21 +509,15 @@ float TrackTransformerForCosmicMuons::SumDy(const TransientTrackingRecHit::Const
 
     float y2 = glbpoint.y();
     float z2 = glbpoint.z();
-    float dslope = 0;
     float dy = y2 - y1;
-    float dz = z2 - z1;
 
     //		if (y2 > 0 && z2 > 0) quadrant = 1;
     //		else if (y2 > 0 && z2 < 0) quadrant = 2;
     //		else if (y2 < 0 && z2 < 0) quadrant = 3;
     //		else if (y2 < 0 && z2 > 0) quadrant = 4;
 
-    if (fabs(dz) > 1e-3)
-      dslope = dy / dz;
     if (!first) {
-      retval += dslope;
       sumdy += dy;
-      sumdz += dz;
     }
     first = false;
     py.push_back(y1);

@@ -19,7 +19,6 @@
 
 // Framework
 #include "DataFormats/Common/interface/Handle.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -153,7 +152,12 @@ void EnergyScaleAnalyzer::analyze(const edm::Event &evt, const edm::EventSetup &
 
   //=======================For Vertex correction
   std::vector<Handle<HepMCProduct>> evtHandles;
-  evt.getManyByType(evtHandles);
+
+  //evt.getManyByType(evtHandles);
+  throw cms::Exception("UnsupportedFunction") << "EnergyScaleAnalyzer::analyze: "
+                                              << "getManyByType has not been supported by the Framework since 2015. "
+                                              << "This module has been broken since then. Maybe it should be deleted. "
+                                              << "Another possibility is to upgrade to use GetterOfProducts instead.";
 
   for (unsigned int i = 0; i < evtHandles.size(); ++i) {
     if (evtHandles[i].isValid()) {

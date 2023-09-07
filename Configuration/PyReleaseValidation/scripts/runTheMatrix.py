@@ -74,30 +74,35 @@ if __name__ == '__main__':
                      136.88811,#2018D JetHT reMINIAOD from UL processing
                      136.793, #2017C DoubleEG
                      136.874, #2018C EGamma
+                     138.4, #2021 MinimumBias prompt reco
+                     138.5, #2021 MinimumBias express
+                     139.001, #2021 MinimumBias offline with HLT step
                      140.53, #2011 HI data
                      140.56, #2018 HI data
                      158.01, #reMiniAOD of 2018 HI MC with pp-like reco
                      312.0, #2021/Run3 HI MC Pyquen_ZeemumuJets_pt10 with pp-like reco
                      1306.0, #SingleMu Pt1 UP15
-                     1325.81, #test NanoAOD from existing MINI UL 106Xv1
-                     136.8523, #test NanoAOD from existing reMINI UL 106Xv2
+                     2500.4, #test NanoAOD from existing MINI
                      1330, #Run2 2015/2016 MC Zmm
                      135.4, #Run 2 2015/2016 Zee ttbar fastsim
                      10042.0, #2017 ZMM
                      10024.0, #2017 ttbar
-                     10224.0, #2017 ttbar PU
                      10824.0, #2018 ttbar
                      2018.1, #2018 ttbar fastsim
                      11634.911, #2021 DD4hep ttbar reading geometry from XML
                      11634.914, #2021 DDD ttbar reading geometry from the DB
                      11634.0, #2021 ttbar (switching to DD4hep by default)
-                     11634.7, #2021 ttbar mkFit
+                     11834.0, #2021 ttbar PU
+                     13234.0, #2021 ttbar fastsim
+                     13434.0, #2021 ttbar PU fastsim
                      12434.0, #2023 ttbar
-                     23234.0, #2026D49 ttbar (HLT TDR baseline w/ HGCal v11)
-                     28234.0, #2026D60 (exercise HF nose)
-                     34634.0, #2026D76 ttbar (2021 new baseline)
-                     34834.999, #2026D76 ttbar premixing stage1+stage2, PU50
-                     38634.0, #2026D86 ttbar
+                     12434.7, #2023 ttbar mkFit
+                     24834.0, #2026D98 ttbar (Phase-2 baseline)
+                     24834.911, #2026D98 ttbar DD4hep XML
+                     25034.999, #2026D98 ttbar premixing stage1+stage2, PU50
+                     24896.0, #CE_E_Front_120um D98
+                     24900.0, #CE_H_Coarse_Scint D98
+                     23234.0, #2026D94 ttbar (exercise with HFNose)
                      25202.0, #2016 ttbar UP15 PU
                      250202.181, #2018 ttbar stage1 + stage2 premix
                      ],
@@ -147,6 +152,12 @@ if __name__ == '__main__':
                         type=int,
                         default=0)
     
+    parser.add_argument('--nEvents',
+                        help='number of events to process in cmsRun. If 0 will use the standard 10 events.',
+                        dest='nEvents',
+                        type=int,
+                        default=0)
+    
     parser.add_argument('--numberEventsInLuminosityBlock',
                         help='number of events in a luminosity block',
                         dest='numberEventsInLuminosityBlock',
@@ -175,7 +186,12 @@ if __name__ == '__main__':
                         help='Comma separated list of workflow to be shown or ran. Possible keys are also '+str(predefinedSet.keys())+'. and wild card like muon, or mc',
                         dest='testList',
                         default=None)
-    
+
+    parser.add_argument('-f','--failed-from',
+                        help='Provide a matrix report to specify the workflows to be run again. Augments the -l option if specified already',
+                        dest='failed_from',
+                        default=None)
+
     parser.add_argument('-r','--raw',
                         help='Temporary dump the .txt needed for prodAgent interface. To be discontinued soon. Argument must be the name of the set (standard, pileup,...)',
                         dest='raw')
@@ -371,6 +387,18 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     if opt.command: opt.command = ' '.join(opt.command)
     os.environ["CMSSW_DAS_QUERY_SITES"]=opt.dasSites
+    if opt.failed_from:
+        rerunthese=[]
+        with open(opt.failed_from,'r') as report:
+            for report_line in report:
+                if 'FAILED' in report_line:
+                    to_run,_=report_line.split('_',1)
+                    rerunthese.append(to_run)
+        if opt.testList:
+            opt.testList+=','.join(['']+rerunthese)
+        else:
+            opt.testList = ','.join(rerunthese)
+
     if opt.IBEos:
       from subprocess import getstatusoutput as run_cmd
 
@@ -390,6 +418,7 @@ if __name__ == '__main__':
         if os.path.exists(cmssw_base):
           os.environ["PATH"]=cmssw_base+":"+os.getenv("PATH")
           os.environ["CMS_PATH"]="/cvmfs/cms-ib.cern.ch"
+          os.environ["SITECONFIG_PATH"]="/cvmfs/cms-ib.cern.ch/SITECONF/local"
           os.environ["CMSSW_USE_IBEOS"]="true"
           print(">> WARNING: You are using SITECONF from /cvmfs/cms-ib.cern.ch")
           break
@@ -432,6 +461,8 @@ if __name__ == '__main__':
         opt.overWrite=eval(opt.overWrite)
     if opt.interactive:
         import cmd
+        from colorama import Fore, Style
+        from os import isatty
 
         class TheMatrix(cmd.Cmd):
             intro = "Welcome to the Matrix (? for help)"
@@ -461,6 +492,12 @@ if __name__ == '__main__':
             def default(self, inp):
                 if inp == 'x' or inp == 'q':
                     return self.do_exit(inp)
+                else:
+                    is_pipe = not isatty(sys.stdin.fileno())
+                    print(Fore.RED + "Error: " + Fore.RESET + "unrecognized command.")
+                    # Quit only if given a piped command.
+                    if is_pipe:
+                      sys.exit(1)
 
             def help_predefined(self):
                 print("\n".join(["predefined [predef1 [...]]\n",
@@ -484,7 +521,7 @@ if __name__ == '__main__':
                         else:
                             print("Unknown Set: %s" % w)
                 else:
-                    print(predefinedSet.keys())
+                    print("[ " + Fore.RED + ", ".join([str(k) for k in predefinedSet.keys()]) + Fore.RESET + " ]")
 
             def help_showWorkflow(self):
                 print("\n".join(["showWorkflow [workflow1 [...]]\n",
@@ -501,7 +538,8 @@ if __name__ == '__main__':
                 if arg == '':
                     print("Available workflows:")
                     for k in self.matrices_.keys():
-                        print(k)
+                        print(Fore.RED + Style.BRIGHT + k)
+                    print(Style.RESET_ALL)
                 else:
                     selected = arg.split()
                     for k in selected:
@@ -509,9 +547,9 @@ if __name__ == '__main__':
                             print("Unknown workflow %s: skipping" % k)
                         else:
                             for wfl in self.matrices_[k].workFlows:
-                                wfName, stepNames = wfl.nameId.split('+',1)
-                                print("%s %s %s" % (wfl.numId, wfName, stepNames))
-                            print("%s contains %d workflows" % (k, len(self.matrices_[k].workFlows)))
+                                print("%s %s" % (Fore.BLUE + str(wfl.numId) + Fore.RESET,
+                                                              Fore.GREEN + wfl.nameId + Fore.RESET))
+                            print("%s contains %d workflows" % (Fore.RED + k + Fore.RESET, len(self.matrices_[k].workFlows)))
 
             def help_searchInWorkflow(self):
                 print("\n".join(["searchInWorkflow wfl_name search_regexp\n",
@@ -541,11 +579,12 @@ if __name__ == '__main__':
                     return
                 counter = 0
                 for wfl in self.matrices_[args[0]].workFlows:
-                    wfName, stepNames = wfl.nameId.split('+',1)
-                    if re.match(pattern, wfName) or re.match(pattern, stepNames):
-                        print("%s %s %s" % (wfl.numId, wfName, stepNames))
-                        counter += 1
-                print("Found %d compatible workflows inside %s" % (counter, args[0]))
+                    if re.match(pattern, wfl.nameId):
+                      print("%s %s" % (Fore.BLUE + str(wfl.numId) + Fore.RESET,
+                                       Fore.GREEN + wfl.nameId + Fore.RESET))
+                      counter +=1
+                print("Found %s compatible workflows inside %s" % (Fore.RED + str(counter) + Fore.RESET,
+                                                                   Fore.YELLOW + str(args[0])) + Fore.RESET)
 
             def help_search(self):
                 print("\n".join(["search search_regexp\n",
@@ -570,19 +609,19 @@ if __name__ == '__main__':
                     print("dumpWorkflowId [wfl-id1 [...]]")
                     return
 
-                fmt   = "[%d]: %s\n"
+                fmt   = "[%s]: %s\n"
                 maxLen = 100
                 for wflid in wflids:
                     dump = True
                     for key, mrd in self.matrices_.items():
                         for wfl in mrd.workFlows:
                             if wfl.numId == float(wflid):
-                                wfName, stepNames = wfl.nameId.split('+',1)
                                 if dump:
                                     dump = False
-                                    print(wfl.numId, stepNames)
+                                    print(Fore.GREEN + str(wfl.numId) + Fore.RESET + " " + Fore.YELLOW + wfl.nameId + Fore.RESET)
                                     for i,s in enumerate(wfl.cmds):
-                                        print(fmt % (i+1, (str(s)+' ')))
+                                        print(fmt % (Fore.RED + str(i+1) + Fore.RESET,
+                                          (str(s)+' ')))
                                     print("\nWorkflow found in %s." % key)
                                 else:
                                     print("Workflow also found in %s." % key)

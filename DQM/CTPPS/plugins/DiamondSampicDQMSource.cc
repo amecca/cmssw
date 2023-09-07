@@ -381,11 +381,14 @@ DiamondSampicDQMSource::ChannelPlots::ChannelPlots(DQMStore::IBooker &ibooker, u
 //----------------------------------------------------------------------------------------------------
 
 DiamondSampicDQMSource::DiamondSampicDQMSource(const edm::ParameterSet &ps)
-    : tokenLocalTrack_(consumes<edm::DetSetVector<TotemRPLocalTrack>>(ps.getParameter<edm::InputTag>("tagLocalTrack"))),
-      tokenDigi_(consumes<edm::DetSetVector<TotemTimingDigi>>(ps.getParameter<edm::InputTag>("tagDigi"))),
-      tokenRecHit_(consumes<edm::DetSetVector<TotemTimingRecHit>>(ps.getParameter<edm::InputTag>("tagRecHits"))),
-      tokenTrack_(consumes<edm::DetSetVector<TotemTimingLocalTrack>>(ps.getParameter<edm::InputTag>("tagTracks"))),
-      tokenFEDInfo_(consumes<std::vector<TotemFEDInfo>>(ps.getParameter<edm::InputTag>("tagFEDInfo"))),
+    : tokenLocalTrack_(
+          consumes<edm::DetSetVector<TotemRPLocalTrack>>(ps.getUntrackedParameter<edm::InputTag>("tagLocalTrack"))),
+      tokenDigi_(consumes<edm::DetSetVector<TotemTimingDigi>>(ps.getUntrackedParameter<edm::InputTag>("tagDigi"))),
+      tokenRecHit_(
+          consumes<edm::DetSetVector<TotemTimingRecHit>>(ps.getUntrackedParameter<edm::InputTag>("tagRecHits"))),
+      tokenTrack_(
+          consumes<edm::DetSetVector<TotemTimingLocalTrack>>(ps.getUntrackedParameter<edm::InputTag>("tagTracks"))),
+      tokenFEDInfo_(consumes<std::vector<TotemFEDInfo>>(ps.getUntrackedParameter<edm::InputTag>("tagFEDInfo"))),
       ctppsGeometryRunToken_(esConsumes<CTPPSGeometry, VeryForwardRealGeometryRecord, edm::Transition::BeginRun>()),
       samplesForNoise_(ps.getUntrackedParameter<unsigned int>("samplesForNoise", 5)),
       verbosity_(ps.getUntrackedParameter<unsigned int>("verbosity", 0)),
@@ -546,7 +549,8 @@ void DiamondSampicDQMSource::analyze(const edm::Event &event, const edm::EventSe
           if (channelsPerPlane.find(detId_plane) != channelsPerPlane.end())
             channelsPerPlane[detId_plane]++;
           else
-            channelsPerPlane[detId_plane] = 0;
+            //if it's the first channel, create new map element with the value of 1
+            channelsPerPlane[detId_plane] = 1;
         }
 
         // Channel Plots
@@ -620,7 +624,8 @@ void DiamondSampicDQMSource::analyze(const edm::Event &event, const edm::EventSe
               if (channelsPerPlaneWithTime.find(detId_plane) != channelsPerPlaneWithTime.end())
                 channelsPerPlaneWithTime[detId_plane]++;
               else
-                channelsPerPlaneWithTime[detId_plane] = 0;
+                //if it's the first channel, create new map element with the value of 1
+                channelsPerPlaneWithTime[detId_plane] = 1;
             }
 
             if (channelPlots_.find(detId) != channelPlots_.end()) {

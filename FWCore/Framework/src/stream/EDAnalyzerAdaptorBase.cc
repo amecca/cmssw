@@ -11,6 +11,7 @@
 //
 
 // system include files
+#include <array>
 #include <cassert>
 
 // user include files
@@ -54,6 +55,13 @@ EDAnalyzerAdaptorBase::~EDAnalyzerAdaptorBase() {
   }
 }
 
+void EDAnalyzerAdaptorBase::deleteModulesEarly() {
+  for (auto m : m_streamModules) {
+    delete m;
+  }
+  m_streamModules.clear();
+}
+
 //
 // assignment operators
 //
@@ -72,6 +80,7 @@ EDAnalyzerAdaptorBase::~EDAnalyzerAdaptorBase() {
 void EDAnalyzerAdaptorBase::doPreallocate(PreallocationConfiguration const& iPrealloc) {
   m_streamModules.resize(iPrealloc.numberOfStreams(), static_cast<stream::EDAnalyzerBase*>(nullptr));
   setupStreamModules();
+  preallocRuns(iPrealloc.numberOfRuns());
   preallocLumis(iPrealloc.numberOfLuminosityBlocks());
 }
 
@@ -95,7 +104,7 @@ std::vector<edm::ProductResolverIndexAndSkipBit> const& EDAnalyzerAdaptorBase::i
   return m_streamModules[0]->itemsToGetFrom(iType);
 }
 
-std::vector<edm::ESProxyIndex> const& EDAnalyzerAdaptorBase::esGetTokenIndicesVector(edm::Transition iTrans) const {
+std::vector<edm::ESResolverIndex> const& EDAnalyzerAdaptorBase::esGetTokenIndicesVector(edm::Transition iTrans) const {
   assert(not m_streamModules.empty());
   return m_streamModules[0]->esGetTokenIndicesVector(iTrans);
 }
@@ -114,7 +123,7 @@ void EDAnalyzerAdaptorBase::updateLookup(BranchType iType,
   }
 }
 
-void EDAnalyzerAdaptorBase::updateLookup(eventsetup::ESRecordsToProxyIndices const& iPI) {
+void EDAnalyzerAdaptorBase::updateLookup(eventsetup::ESRecordsToProductResolverIndices const& iPI) {
   for (auto mod : m_streamModules) {
     mod->updateLookup(iPI);
   }
@@ -154,7 +163,7 @@ bool EDAnalyzerAdaptorBase::doEvent(EventTransitionInfo const& info,
   e.setConsumer(mod);
   ESParentContext parentC(mcc);
   const EventSetup c{
-      info, static_cast<unsigned int>(Transition::Event), mod->esGetTokenIndices(Transition::Event), parentC, false};
+      info, static_cast<unsigned int>(Transition::Event), mod->esGetTokenIndices(Transition::Event), parentC};
   EventSignalsSentry sentry(act, mcc);
   mod->analyze(e, c);
   return true;
@@ -172,11 +181,8 @@ void EDAnalyzerAdaptorBase::doStreamBeginRun(StreamID id,
 
   Run r(rp, moduleDescription_, mcc, false);
   ESParentContext parentC(mcc);
-  const EventSetup c{info,
-                     static_cast<unsigned int>(Transition::BeginRun),
-                     mod->esGetTokenIndices(Transition::BeginRun),
-                     parentC,
-                     false};
+  const EventSetup c{
+      info, static_cast<unsigned int>(Transition::BeginRun), mod->esGetTokenIndices(Transition::BeginRun), parentC};
   r.setConsumer(mod);
   mod->beginRun(r, c);
 }
@@ -189,7 +195,7 @@ void EDAnalyzerAdaptorBase::doStreamEndRun(StreamID id,
   r.setConsumer(mod);
   ESParentContext parentC(mcc);
   const EventSetup c{
-      info, static_cast<unsigned int>(Transition::EndRun), mod->esGetTokenIndices(Transition::EndRun), parentC, false};
+      info, static_cast<unsigned int>(Transition::EndRun), mod->esGetTokenIndices(Transition::EndRun), parentC};
   mod->endRun(r, c);
   streamEndRunSummary(mod, r, c);
 }
@@ -207,8 +213,7 @@ void EDAnalyzerAdaptorBase::doStreamBeginLuminosityBlock(StreamID id,
   const EventSetup c{info,
                      static_cast<unsigned int>(Transition::BeginLuminosityBlock),
                      mod->esGetTokenIndices(Transition::BeginLuminosityBlock),
-                     parentC,
-                     false};
+                     parentC};
   mod->beginLuminosityBlock(lb, c);
 }
 void EDAnalyzerAdaptorBase::doStreamEndLuminosityBlock(StreamID id,
@@ -221,8 +226,7 @@ void EDAnalyzerAdaptorBase::doStreamEndLuminosityBlock(StreamID id,
   const EventSetup c{info,
                      static_cast<unsigned int>(Transition::EndLuminosityBlock),
                      mod->esGetTokenIndices(Transition::EndLuminosityBlock),
-                     parentC,
-                     false};
+                     parentC};
   mod->endLuminosityBlock(lb, c);
   streamEndLuminosityBlockSummary(mod, lb, c);
 }

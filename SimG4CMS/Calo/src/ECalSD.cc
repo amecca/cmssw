@@ -49,8 +49,8 @@ ECalSD::ECalSD(const std::string& name,
              manager,
              (float)(p.getParameter<edm::ParameterSet>("ECalSD").getParameter<double>("TimeSliceUnit")),
              p.getParameter<edm::ParameterSet>("ECalSD").getParameter<bool>("IgnoreTrackID")),
-      ecalSimParameters_(ecpar),
-      numberingScheme_(nullptr) {
+      ecalSimParameters_(ecpar) {
+  numberingScheme_.reset(nullptr);
   //   static SimpleConfigurable<bool>   on1(false,  "ECalSD:UseBirkLaw");
   //   static SimpleConfigurable<double> bk1(0.00463,"ECalSD:BirkC1");
   //   static SimpleConfigurable<double> bk2(-0.03,  "ECalSD:BirkC2");
@@ -127,7 +127,7 @@ ECalSD::ECalSD(const std::string& name,
   int type0 = dumpGeom / 1000;
   type += (10 * type0);
 
-  if (scheme)
+  if (nullptr != scheme)
     setNumberingScheme(scheme);
 #ifdef EDM_ML_DEBUG
   edm::LogVerbatim("EcalSim") << "Constructing a ECalSD  with name " << GetName();
@@ -175,7 +175,7 @@ ECalSD::ECalSD(const std::string& name,
   }
 }
 
-ECalSD::~ECalSD() { delete numberingScheme_; }
+ECalSD::~ECalSD() {}
 
 double ECalSD::getEnergyDeposit(const G4Step* aStep) {
   const G4StepPoint* preStepPoint = aStep->GetPreStepPoint();
@@ -227,10 +227,12 @@ double ECalSD::getEnergyDeposit(const G4Step* aStep) {
 }
 
 double ECalSD::EnergyCorrected(const G4Step& step, const G4Track* track) {
-  double edep = step.GetTotalEnergyDeposit();
   const G4StepPoint* hitPoint = step.GetPreStepPoint();
   const G4LogicalVolume* lv = hitPoint->GetTouchable()->GetVolume(0)->GetLogicalVolume();
+  if (lv->GetSensitiveDetector() != this)
+    return 0.0;
 
+  double edep = step.GetTotalEnergyDeposit();
   if (useWeight && !any(noWeight, lv)) {
     currentLocalPoint = setToLocal(hitPoint->GetPosition(), hitPoint->GetTouchable());
     auto ite = xtalLMap.find(lv);
@@ -316,7 +318,7 @@ uint16_t ECalSD::getLayerIDForTimeSim() {
 }
 
 uint32_t ECalSD::setDetUnitId(const G4Step* aStep) {
-  if (numberingScheme_ == nullptr) {
+  if (numberingScheme_.get() == nullptr) {
     return EBDetId(1, 1)();
   } else {
     getBaseNumber(aStep);
@@ -327,9 +329,7 @@ uint32_t ECalSD::setDetUnitId(const G4Step* aStep) {
 void ECalSD::setNumberingScheme(EcalNumberingScheme* scheme) {
   if (scheme != nullptr) {
     edm::LogVerbatim("EcalSim") << "EcalSD: updates numbering scheme for " << GetName();
-    if (numberingScheme_)
-      delete numberingScheme_;
-    numberingScheme_ = scheme;
+    numberingScheme_.reset(scheme);
   }
 }
 

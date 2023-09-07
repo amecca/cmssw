@@ -20,7 +20,6 @@ from RecoJets.JetProducers.ak5GenJets_cfi import ak5GenJets
 from RecoMET.METProducers.pfMet_cfi import pfMet
 
 process.load("CommonTools.ParticleFlow.pfCHS_cff")
-task.add(process.packedPrimaryVertexAssociationJME)
 task.add(process.pfCHS)
 
 process.ak5PFJets = ak5PFJets.clone(src = 'packedPFCandidates', doAreaFastjet = True) # no idea while doArea is false by default, but it's True in RECO so we have to set it
@@ -31,11 +30,10 @@ process.pfMet.calculateSignificance = False # this can't be easily implemented o
 
 process.load("PhysicsTools.PatAlgos.producersLayer1.patCandidates_cff")
 process.load("Configuration.EventContent.EventContent_cff")
-process.load('Configuration.StandardSequences.Geometry_cff')
+process.load('Configuration.StandardSequences.GeometryDB_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
-process.GlobalTag.globaltag = 'START70_V6::All'
-
+process.GlobalTag.globaltag = cms.string( autoCond[ 'phase1_2022_realistic' ] )
 
 
 process.patJets.addJetCharge   = False

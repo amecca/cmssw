@@ -19,6 +19,7 @@
 //
 
 // system include files
+#include <array>
 #include <map>
 #include <string>
 #include <vector>
@@ -56,7 +57,7 @@ namespace edm {
   }
 
   namespace eventsetup {
-    class ESRecordsToProxyIndices;
+    class ESRecordsToProductResolverIndices;
   }
 
   namespace stream {
@@ -107,11 +108,11 @@ namespace edm {
       void itemsMayGet(BranchType, std::vector<ProductResolverIndexAndSkipBit>&) const;
       std::vector<ProductResolverIndexAndSkipBit> const& itemsToGetFrom(BranchType) const;
 
-      std::vector<ESProxyIndex> const& esGetTokenIndicesVector(edm::Transition iTrans) const;
+      std::vector<ESResolverIndex> const& esGetTokenIndicesVector(edm::Transition iTrans) const;
       std::vector<ESRecordIndex> const& esGetTokenRecordIndicesVector(edm::Transition iTrans) const;
 
       void updateLookup(BranchType iBranchType, ProductResolverIndexHelper const&, bool iPrefetchMayGet);
-      void updateLookup(eventsetup::ESRecordsToProxyIndices const&);
+      void updateLookup(eventsetup::ESRecordsToProductResolverIndices const&);
       virtual void selectInputProcessBlocks(ProductRegistry const&, ProcessBlockHelperBase const&) = 0;
 
       const EDConsumerBase* consumer() const;
@@ -126,9 +127,12 @@ namespace edm {
 
       std::vector<ConsumesInfo> consumesInfo() const;
 
+      void deleteModulesEarly();
+
     private:
       bool doEvent(EventTransitionInfo const&, ActivityRegistry*, ModuleCallingContext const*);
       void doPreallocate(PreallocationConfiguration const&);
+      virtual void preallocRuns(unsigned int) {}
       virtual void preallocLumis(unsigned int) {}
 
       //For now this is a placeholder

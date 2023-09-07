@@ -8,6 +8,7 @@ models = {
     "TritonGraphProducer": ["gat_test"],
     "TritonGraphFilter": ["gat_test"],
     "TritonGraphAnalyzer": ["gat_test"],
+    "TritonIdentityProducer": ["ragged_io"],
 }
 
 # other choices
@@ -161,6 +162,7 @@ for im,module in enumerate(options.modules):
         )
         processModule2 = getattr(process, _module2)
         process.p += processModule2
+        keepMsgs.extend([_module2,_module2+':TritonClient'])
 
 process.load('FWCore/MessageService/MessageLogger_cfi')
 process.MessageLogger.cerr.FwkReport.reportEvery = 500

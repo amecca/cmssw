@@ -7,8 +7,18 @@
 //#define EDM_ML_DEBUG
 
 HGCMouseBite::HGCMouseBite(const HGCalDDDConstants& hgc, const std::vector<double>& angle, double maxL, bool rot)
-    : hgcons_(hgc), cut_(maxL), rot_(rot) {
-  modeUV_ = hgcons_.waferHexagon8();
+    : hgcons_(&hgc), hgTBcons_(nullptr), ifTB_(false), cut_(maxL), rot_(rot) {
+  modeUV_ = hgcons_->waferHexagon8();
+  init(angle);
+}
+
+HGCMouseBite::HGCMouseBite(const HGCalTBDDDConstants& hgc, const std::vector<double>& angle, double maxL, bool rot)
+    : hgcons_(nullptr), hgTBcons_(&hgc), ifTB_(true), cut_(maxL), rot_(rot) {
+  modeUV_ = false;
+  init(angle);
+}
+
+void HGCMouseBite::init(const std::vector<double>& angle) {
   for (auto ang : angle) {
     projXY_.push_back(std::pair<double, double>(cos(ang * CLHEP::deg), sin(ang * CLHEP::deg)));
   }
@@ -21,19 +31,27 @@ HGCMouseBite::HGCMouseBite(const HGCalDDDConstants& hgc, const std::vector<doubl
 #endif
 }
 
-bool HGCMouseBite::exclude(G4ThreeVector& point, int zside, int waferU, int waferV) {
+bool HGCMouseBite::exclude(G4ThreeVector& point, int zside, int lay, int waferU, int waferV) {
   bool check(false);
-  int lay = hgcons_.getLayer(point.z(), false);
-  std::pair<double, double> xy =
-      (modeUV_ ? hgcons_.waferPosition(lay, waferU, waferV, false) : hgcons_.waferPosition(waferU, false));
-  double xx = (zside > 0) ? xy.first : -xy.first;
   double dx(0), dy(0);
-  if (rot_) {
-    dx = std::abs(point.y() - xy.second);
-    dy = std::abs(point.x() - xx);
+  if (point == G4ThreeVector()) {
+    std::pair<double, double> xy;
+    if (ifTB_)
+      xy = hgTBcons_->waferPosition(waferU, false);
+    else
+      xy =
+          (modeUV_ ? hgcons_->waferPosition(lay, waferU, waferV, false, false) : hgcons_->waferPosition(waferU, false));
+    double xx = (zside > 0) ? xy.first : -xy.first;
+    if (rot_) {
+      dx = std::abs(point.y() - xy.second);
+      dy = std::abs(point.x() - xx);
+    } else {
+      dx = std::abs(point.x() - xx);
+      dy = std::abs(point.y() - xy.second);
+    }
   } else {
-    dx = std::abs(point.x() - xx);
-    dy = std::abs(point.y() - xy.second);
+    dx = std::abs(point.x());
+    dy = std::abs(point.y());
   }
   for (auto proj : projXY_) {
     double dist = dx * proj.first + dy * proj.second;
@@ -44,8 +62,7 @@ bool HGCMouseBite::exclude(G4ThreeVector& point, int zside, int waferU, int wafe
   }
 #ifdef EDM_ML_DEBUG
   edm::LogVerbatim("HGCSim") << "HGCMouseBite:: Point " << point << " zside " << zside << " wafer " << waferU << ":"
-                             << waferV << " position " << xy.first << ":" << xx << ":" << xy.second << " dxy " << dx
-                             << ":" << dy << " check " << check;
+                             << waferV << " position " << dx << ":" << dy << "  check " << check;
 #endif
   return check;
 }

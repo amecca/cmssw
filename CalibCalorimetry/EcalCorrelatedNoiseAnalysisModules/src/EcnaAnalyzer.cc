@@ -23,7 +23,8 @@
 //#include <signal.h>
 
 #include "CalibCalorimetry/EcalCorrelatedNoiseAnalysisModules/interface/EcnaAnalyzer.h"
-//#include <DataFormats/Provenance/interface/Timestamp.h>
+#include <vector>
+#include "FWCore/Utilities/interface/Exception.h"
 
 //--------------------------------------
 //  EcnaAnalyzer.cc
@@ -39,54 +40,43 @@
 //
 
 //
-// constructors and destructor
+// Constructor and destructor
 //
 EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
-    : verbosity_(pSet.getUntrackedParameter("verbosity", 1U)), nChannels_(0), iEvent_(0) {
+    : verbosity_(pSet.getUntrackedParameter("verbosity", 1U)),
+      nChannels_(0),
+      iEvent_(0),
+      fMyEBNumbering(&fMyEcnaEBObjectManager, "EB"),
+      fMyEBEcal(&fMyEcnaEBObjectManager, "EB"),
+      fMyEENumbering(&fMyEcnaEEObjectManager, "EE"),
+      fMyEEEcal(&fMyEcnaEEObjectManager, "EE") {
   // now do what ever initialization is needed
 
-  using namespace edm;
-  using namespace std;
+  std::unique_ptr<TEcnaParPaths> myPathEB = std::make_unique<TEcnaParPaths>(&fMyEcnaEBObjectManager);
+  std::unique_ptr<TEcnaParPaths> myPathEE = std::make_unique<TEcnaParPaths>(&fMyEcnaEEObjectManager);
 
-  fMyEcnaEBObjectManager = new TEcnaObject();
-  fMyEcnaEEObjectManager = new TEcnaObject();
-
-  TEcnaParPaths *myPathEB = new TEcnaParPaths(fMyEcnaEBObjectManager);
-  TEcnaParPaths *myPathEE = new TEcnaParPaths(fMyEcnaEEObjectManager);
-
-  std::cout << "*EcnaAnalyzer-constructor> Check path for resultsq Root files." << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-constructor> Check path for resultsq Root files.";
 
   if (myPathEB->GetPathForResultsRootFiles() == kFALSE) {
-    std::cout << "*EcnaAnalyzer-constructor> *** ERROR *** Path for result "
-                 "files not found."
-              << std::endl;
-    kill(getpid(), SIGUSR2);
+    edm::LogError("ecnaAnal") << "*EcnaAnalyzer-constructor> *** ERROR *** Path for result files not found.";
+    throw cms::Exception("Calibration") << "*EcnaAnalyzer-constructor> *** ERROR *** Path for result files not found.";
   } else {
-    std::cout << "*EcnaAnalyzer-constructor> Path for result files found = " << myPathEB->ResultsRootFilePath()
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-constructor> Path for result files found = "
+                                 << myPathEB->ResultsRootFilePath();
   }
 
   if (myPathEE->GetPathForResultsRootFiles() == kFALSE) {
-    std::cout << "*EcnaAnalyzer-constructor> *** ERROR *** Path for result "
-                 "files not found."
-              << std::endl;
-    kill(getpid(), SIGUSR2);
+    edm::LogError("ecnaAnal") << "*EcnaAnalyzer-constructor> *** ERROR *** Path for result files not found.";
+    throw cms::Exception("Calibration") << "*EcnaAnalyzer-constructor> *** ERROR *** Path for result files not found.";
   } else {
-    std::cout << "*EcnaAnalyzer-constructor> Path for result files found = " << myPathEE->ResultsRootFilePath()
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-constructor> Path for result files found = "
+                                 << myPathEE->ResultsRootFilePath();
   }
 
-  std::cout << "*EcnaAnalyzer-constructor> Parameter initialization." << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-constructor> Parameter initialization.";
 
-  fgMaxCar = (Int_t)512;
   fTTBELL = '\007';
   fOutcomeError = kFALSE;
-
-  fMyEBEcal = new TEcnaParEcal(fMyEcnaEBObjectManager, "EB");
-  fMyEBNumbering = new TEcnaNumbering(fMyEcnaEBObjectManager, "EB");
-
-  fMyEEEcal = new TEcnaParEcal(fMyEcnaEEObjectManager, "EE");
-  fMyEENumbering = new TEcnaNumbering(fMyEcnaEEObjectManager, "EE");
 
   //==========================================================================================
   //.................................. Get parameter values from python file
@@ -94,8 +84,12 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
   digiProducer_ = pSet.getParameter<std::string>("digiProducer");
 
   eventHeaderCollection_ = pSet.getParameter<std::string>("eventHeaderCollection");
+  eventHeaderToken_ = consumes<EcalRawDataCollection>(edm::InputTag(digiProducer_, eventHeaderCollection_));
+
   EBdigiCollection_ = pSet.getParameter<std::string>("EBdigiCollection");
   EEdigiCollection_ = pSet.getParameter<std::string>("EEdigiCollection");
+  EBdigiToken_ = consumes<EBDigiCollection>(edm::InputTag(digiProducer_, EBdigiCollection_));
+  EEdigiToken_ = consumes<EEDigiCollection>(edm::InputTag(digiProducer_, EEdigiCollection_));
 
   sAnalysisName_ = pSet.getParameter<std::string>("sAnalysisName");
   sNbOfSamples_ = pSet.getParameter<std::string>("sNbOfSamples");
@@ -126,26 +120,9 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
     return;
   //===========================================================================================
 
-  fRunTypeCounter = nullptr;
-  fMaxRunTypeCounter = 26;
-  fRunTypeCounter = new Int_t[fMaxRunTypeCounter];
-  for (Int_t i = 0; i < fMaxRunTypeCounter; i++) {
-    fRunTypeCounter[i] = 0;
-  }
-
-  fMgpaGainCounter = nullptr;
-  fMaxMgpaGainCounter = 4;  // Because chozen gain = 0,1,2,3
-  fMgpaGainCounter = new Int_t[fMaxMgpaGainCounter];
-  for (Int_t i = 0; i < fMaxMgpaGainCounter; i++) {
-    fMgpaGainCounter[i] = 0;
-  }
-
-  fFedIdCounter = nullptr;
-  fMaxFedIdCounter = 54;
-  fFedIdCounter = new Int_t[fMaxFedIdCounter];
-  for (Int_t i = 0; i < fMaxFedIdCounter; i++) {
-    fFedIdCounter[i] = 0;
-  }
+  std::fill(fRunTypeCounter.begin(), fRunTypeCounter.end(), 0);
+  std::fill(fMgpaGainCounter.begin(), fMgpaGainCounter.end(), 0);
+  std::fill(fFedIdCounter.begin(), fFedIdCounter.end(), 0);
 
   fEvtNumber = 0;
   fEvtNumberMemo = -1;
@@ -163,56 +140,38 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
 
   //-------------- Fed
   if (fStexName == "SM") {
-    fMaxFedUnitCounter = fMyEBEcal->MaxSMInEB();
+    fMaxFedUnitCounter = fMyEBEcal.MaxSMInEB();
   }  // EB: FED Unit = SM
   if (fStexName == "Dee") {
-    fMaxFedUnitCounter = fMyEEEcal->MaxDSInEE();
+    fMaxFedUnitCounter = fMyEEEcal.MaxDSInEE();
   }  // EE: FED Unit = Data Sector
 
-  fFedDigiOK = new Int_t[fMaxFedUnitCounter];
-  for (Int_t i = 0; i < fMaxFedUnitCounter; i++) {
-    fFedDigiOK[i] = 0;
-  }
+  fFedDigiOK = std::vector<Int_t>(fMaxFedUnitCounter, 0);
+  fFedNbOfTreatedEvents = std::vector<Int_t>(fMaxFedUnitCounter, 0);
+  fFedStatus = std::vector<Int_t>(fMaxFedUnitCounter, 0);
+  fFedStatusOrder = std::vector<Int_t>(fMaxFedUnitCounter, 0);
 
-  fFedNbOfTreatedEvents = new Int_t[fMaxFedUnitCounter];
-  for (Int_t i = 0; i < fMaxFedUnitCounter; i++) {
-    fFedNbOfTreatedEvents[i] = 0;
-  }
-
-  fFedStatus = new Int_t[fMaxFedUnitCounter];
-  for (Int_t i = 0; i < fMaxFedUnitCounter; i++) {
-    fFedStatus[i] = 0;
-  }
-
-  fFedStatusOrder = new Int_t[fMaxFedUnitCounter];
-  for (Int_t i = 0; i < fMaxFedUnitCounter; i++) {
-    fFedStatusOrder[i] = 0;
-  }
-
-  fDeeNumberString = new TString[fMaxFedUnitCounter];
-  for (Int_t i = 0; i < fMaxFedUnitCounter; i++) {
-    fDeeNumberString[i] = "SM";
-  }
-
-  if (fStexName == "Dee") {
-    fDeeNumberString[0] = "Sector1 Dee4";
-    fDeeNumberString[1] = "Sector2 Dee4";
-    fDeeNumberString[2] = "Sector3 Dee4";
-    fDeeNumberString[3] = "Sector4 Dee4";
-    fDeeNumberString[4] = "Sector5 Dee4-Dee3";
-    fDeeNumberString[5] = "Sector6 Dee3";
-    fDeeNumberString[6] = "Sector7 Dee3";
-    fDeeNumberString[7] = "Sector8 Dee3";
-    fDeeNumberString[8] = "Sector9 Dee3";
-    fDeeNumberString[9] = "Sector1 Dee1";
-    fDeeNumberString[10] = "Sector2 Dee1";
-    fDeeNumberString[11] = "Sector3 Dee1";
-    fDeeNumberString[12] = "Sector4 Dee1";
-    fDeeNumberString[13] = "Sector5 Dee1-Dee2";
-    fDeeNumberString[14] = "Sector6 Dee2";
-    fDeeNumberString[15] = "Sector7 Dee2";
-    fDeeNumberString[16] = "Sector8 Dee2";
-    fDeeNumberString[17] = "Sector9 Dee2";
+  if (fStexName != "Dee") {
+    fDeeNumberString = std::vector<std::string>(fMaxFedUnitCounter, "SM");
+  } else {
+    fDeeNumberString = {"Sector1 Dee4",
+                        "Sector2 Dee4",
+                        "Sector3 Dee4",
+                        "Sector4 Dee4",
+                        "Sector5 Dee4-Dee3",
+                        "Sector6 Dee3",
+                        "Sector7 Dee3",
+                        "Sector8 Dee3",
+                        "Sector9 Dee3",
+                        "Sector1 Dee1",
+                        "Sector2 Dee1",
+                        "Sector3 Dee1",
+                        "Sector4 Dee1",
+                        "Sector5 Dee1-Dee2",
+                        "Sector6 Dee2",
+                        "Sector7 Dee2",
+                        "Sector8 Dee2",
+                        "Sector9 Dee2"};
   }
   //............................... arrays fSMFromFedDcc and fESFromFedTcc
   //
@@ -237,13 +196,10 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
   //       DS:   7   8   9   1   2   3   4   5   6
   //       ES:  16  17  18  10  11  12  13  14  15  (ES = DS + 9)
 
-  Int_t MaxSMAndDS = fMyEBEcal->MaxSMInEB() + fMyEEEcal->MaxDSInEE();
+  const Int_t MaxSMAndDS = fMyEBEcal.MaxSMInEB() + fMyEEEcal.MaxDSInEE();
 
-  fSMFromFedTcc = new Int_t[MaxSMAndDS];
-  fESFromFedTcc = new Int_t[MaxSMAndDS];
-  for (Int_t nFedTcc = 1; nFedTcc <= MaxSMAndDS; nFedTcc++) {
-    fESFromFedTcc[nFedTcc - 1] = -1;
-  }
+  fSMFromFedTcc = std::vector<Int_t>(MaxSMAndDS, -1);
+  fESFromFedTcc = std::vector<Int_t>(MaxSMAndDS, -1);
 
   for (Int_t nFedTcc = 1; nFedTcc <= 3; nFedTcc++) {
     fESFromFedTcc[nFedTcc - 1] = nFedTcc + 6;
@@ -270,78 +226,43 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
   //"AdcSPeg12" analysis
   //-------------- Stex
   if (fStexName == "SM") {
-    fMaxTreatedStexCounter = fMyEBEcal->MaxSMInEB();
+    fMaxTreatedStexCounter = fMyEBEcal.MaxSMInEB();
   }  // EB: Stex = SM
   if (fStexName == "Dee") {
-    fMaxTreatedStexCounter = fMyEEEcal->MaxDeeInEE();
+    fMaxTreatedStexCounter = fMyEEEcal.MaxDeeInEE();
   }  // EE: Stex = Dee
 
-  fStexNbOfTreatedEvents = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fStexNbOfTreatedEvents[i] = 0;
-  }
+  fStexNbOfTreatedEvents = std::vector<Int_t>(fMaxTreatedStexCounter, 0);
 
-  fTimeFirst = new time_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fTimeFirst[i] = 0;
-  }
-  fTimeLast = new time_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fTimeLast[i] = 0;
-  }
+  fTimeFirst = std::vector<time_t>(fMaxTreatedStexCounter, 0);
+  fTimeLast = std::vector<time_t>(fMaxTreatedStexCounter, 0);
 
-  fMemoDateFirstEvent = new Int_t[fMaxTreatedStexCounter];
-  ;
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fMemoDateFirstEvent[i] = 0;
-  }
+  fMemoDateFirstEvent = std::vector<Int_t>(fMaxTreatedStexCounter, 0);
 
   Int_t MaxCar = fgMaxCar;
-  fDateFirst = new TString[fMaxTreatedStexCounter];
+  fDateFirst = std::vector<TString>(fMaxTreatedStexCounter);
   for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
     fDateFirst[i].Resize(MaxCar);
     fDateFirst[i] = "*1st event date not found*";
   }
 
   MaxCar = fgMaxCar;
-  fDateLast = new TString[fMaxTreatedStexCounter];
+  fDateLast = std::vector<TString>(fMaxTreatedStexCounter);
   for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
     fDateLast[i].Resize(MaxCar);
     fDateLast[i] = "*last event date not found*";
   }
 
-  fStexStatus = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fStexStatus[i] = 0;
-  }
+  fStexStatus = std::vector(fMaxTreatedStexCounter, 0);
+  fStexDigiOK = std::vector(fMaxTreatedStexCounter, 0);
 
-  fStexDigiOK = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fStexDigiOK[i] = 0;
-  }
-
-  fNbOfTreatedFedsInDee = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fNbOfTreatedFedsInDee[i] = 0;
-  }
-
-  fNbOfTreatedFedsInStex = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fNbOfTreatedFedsInStex[i] = 0;
-  }
+  fNbOfTreatedFedsInDee = std::vector(fMaxTreatedStexCounter, 0);
+  fNbOfTreatedFedsInStex = std::vector(fMaxTreatedStexCounter, 0);
 
   //.......................... counters of events for GetSampleAdcValues
-  fBuildEventDistribBad = nullptr;
-  fBuildEventDistribBad = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fBuildEventDistribBad[i] = 0;
-  }
+  fBuildEventDistribBad = std::vector(fMaxTreatedStexCounter, 0);
 
-  fBuildEventDistribGood = nullptr;
-  fBuildEventDistribGood = new Int_t[fMaxTreatedStexCounter];
-  for (Int_t i = 0; i < fMaxTreatedStexCounter; i++) {
-    fBuildEventDistribGood[i] = 0;
-  }
+  fBuildEventDistribGood = std::vector(fMaxTreatedStexCounter, 0);
 
   //----------------------------------- Analysis name codes
   //------------------------------------------
@@ -451,7 +372,7 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
   if (fStexNumber == 0) {
     if (fStexName == "SM") {
       fSMIndexBegin = 0;
-      fSMIndexStop = fMyEBEcal->MaxSMInEB();
+      fSMIndexStop = fMyEBEcal.MaxSMInEB();
       fStexIndexBegin = fSMIndexBegin;
       fStexIndexStop = fSMIndexStop;
       fDeeIndexBegin = 0;
@@ -461,7 +382,7 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
       fSMIndexBegin = 0;
       fSMIndexStop = 0;
       fDeeIndexBegin = 0;
-      fDeeIndexStop = fMyEEEcal->MaxDeeInEE();
+      fDeeIndexStop = fMyEEEcal.MaxDeeInEE();
       fStexIndexBegin = fDeeIndexBegin;
       fStexIndexStop = fDeeIndexStop;
     }
@@ -487,27 +408,25 @@ EcnaAnalyzer::EcnaAnalyzer(const edm::ParameterSet &pSet)
   //......... DATA DEPENDENT PARAMETERS
   fRunNumber = 0;
 
-  fMyCnaEBSM = nullptr;
-  fMyCnaEEDee = nullptr;
-
   fRunTypeNumber = -1;
   fMgpaGainNumber = -1;
 
   fFedId = -1;
   fFedTcc = -1;
 
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fAnalysisName        = " << fAnalysisName << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fNbOfSamples         = " << fNbOfSamples << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fFirstReqEvent       = " << fFirstReqEvent << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fLastReqEvent        = " << fLastReqEvent << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fReqNbOfEvts         = " << fReqNbOfEvts << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fStexName            = " << fStexName << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fStexNumber          = " << fStexNumber << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fChozenRunTypeNumber = " << fChozenRunTypeNumber << std::endl;
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fChozenGainNumber    = " << fChozenGainNumber << std::endl
-            << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fAnalysisName        = " << fAnalysisName;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fNbOfSamples         = " << fNbOfSamples;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fFirstReqEvent       = " << fFirstReqEvent;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fLastReqEvent        = " << fLastReqEvent;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fReqNbOfEvts         = " << fReqNbOfEvts;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fStexName            = " << fStexName;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fStexNumber          = " << fStexNumber;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fChozenRunTypeNumber = "
+                               << fChozenRunTypeNumber;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> fChozenGainNumber    = "
+                               << fChozenGainNumber << std::endl;
 
-  std::cout << "*EcnaAnalyzer::EcnaAnalyzer-constructor> Init done. " << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer::EcnaAnalyzer-constructor> Init done. ";
 }
 // end of constructor
 
@@ -515,16 +434,8 @@ EcnaAnalyzer::~EcnaAnalyzer() {
   // do anything here that needs to be done at destruction time
   // (e.g. close files, deallocate resources etc.)
 
-  using namespace std;
   //..................................... format numerical values
-  std::cout << std::setiosflags(std::ios::showpoint | std::ios::uppercase);
-  std::cout << std::setprecision(3) << std::setw(6);
-  cout.setf(std::ios::dec, std::ios::basefield);
-  cout.setf(std::ios::fixed, std::ios::floatfield);
-  cout.setf(std::ios::left, std::ios::adjustfield);
-  cout.setf(std::ios::right, std::ios::adjustfield);
-
-  std::cout << "EcnaAnalyzer::~EcnaAnalyzer()> destructor is going to be executed." << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "EcnaAnalyzer::~EcnaAnalyzer()> destructor is going to be executed." << std::endl;
 
   if (fOutcomeError == kTRUE)
     return;
@@ -532,17 +443,17 @@ EcnaAnalyzer::~EcnaAnalyzer() {
   //-------------------------------------------------------------------------------
 
   //....................................................... EB (SM)
-  if (fMyCnaEBSM == nullptr && fStexName == "SM") {
-    std::cout << std::endl
-              << "!EcnaAnalyzer-destructor> **** ERROR **** fMyCnaEBSM = " << fMyCnaEBSM
-              << ". !===> ECNA HAS NOT BEEN INITIALIZED." << std::endl
-              << "  Last event run type = " << runtype(fRunTypeNumber) << ", fRunTypeNumber = " << fRunTypeNumber
-              << ", last event Mgpa gain = " << gainvalue(fMgpaGainNumber) << ", fMgpaGainNumber = " << fMgpaGainNumber
-              << ", last event fFedId(+601) = " << fFedId + 601 << std::endl
-              << std::endl;
+  if (fMyCnaEBSM.empty() && fStexName == "SM") {
+    edm::LogVerbatim("ecnaAnal") << "\n!EcnaAnalyzer-destructor> **** ERROR **** fMyCnaEBSM is empty"
+                                 << ". !===> ECNA HAS NOT BEEN INITIALIZED."
+                                 << "\n  Last event run type = " << runtype(fRunTypeNumber)
+                                 << ", fRunTypeNumber = " << fRunTypeNumber
+                                 << ", last event Mgpa gain = " << gainvalue(fMgpaGainNumber)
+                                 << ", fMgpaGainNumber = " << fMgpaGainNumber
+                                 << ", last event fFedId(+601) = " << fFedId + 601 << std::endl;
   } else {
     for (Int_t iSM = fSMIndexBegin; iSM < fSMIndexStop; iSM++) {
-      if (fMyCnaEBSM[iSM] != nullptr) {
+      if (fMyCnaEBSM[iSM].get() != nullptr) {
         //........................................ register dates 1 and 2
         fMyCnaEBSM[iSM]->StartStopDate(fDateFirst[iSM], fDateLast[iSM]);
         fMyCnaEBSM[iSM]->StartStopTime(fTimeFirst[iSM], fTimeLast[iSM]);
@@ -554,30 +465,28 @@ EcnaAnalyzer::~EcnaAnalyzer() {
         //........................................ write the sample values in
         //.root file
         if (fMyCnaEBSM[iSM]->WriteRootFile() == kFALSE) {
-          std::cout << "!EcnaAnalyzer-destructor> PROBLEM with write ROOT file for SM" << iSM + 1 << fTTBELL
-                    << std::endl;
+          edm::LogVerbatim("ecnaAnal") << "!EcnaAnalyzer-destructor> PROBLEM with write ROOT file for SM" << iSM + 1
+                                       << fTTBELL;
         }
       } else {
-        std::cout << "*EcnaAnalyzer-destructor> Calculations and writing on "
-                     "file already done for SM "
-                  << iSM + 1 << std::endl;
+        edm::LogVerbatim("ecnaAnal")
+            << "*EcnaAnalyzer-destructor> Calculations and writing on file already done for SM " << iSM + 1;
       }
     }
-    delete fMyCnaEBSM;
   }
   //....................................................... EE (Dee)
 
-  if (fMyCnaEEDee == nullptr && fStexName == "Dee") {
-    std::cout << std::endl
-              << "!EcnaAnalyzer-destructor> **** ERROR **** fMyCnaEEDee = " << fMyCnaEEDee
-              << ". !===> ECNA HAS NOT BEEN INITIALIZED." << std::endl
-              << "  Last event run type = " << runtype(fRunTypeNumber) << ", fRunTypeNumber = " << fRunTypeNumber
-              << ", last event Mgpa gain = " << gainvalue(fMgpaGainNumber) << ", fMgpaGainNumber = " << fMgpaGainNumber
-              << ", last event fFedId(+601) = " << fFedId + 601 << std::endl
-              << std::endl;
+  if (fMyCnaEEDee.empty() && fStexName == "Dee") {
+    edm::LogVerbatim("ecnaAnal") << "\n!EcnaAnalyzer-destructor> **** ERROR **** fMyCnaEEDee is empty"
+                                 << ". !===> ECNA HAS NOT BEEN INITIALIZED."
+                                 << "\n  Last event run type = " << runtype(fRunTypeNumber)
+                                 << ", fRunTypeNumber = " << fRunTypeNumber
+                                 << ", last event Mgpa gain = " << gainvalue(fMgpaGainNumber)
+                                 << ", fMgpaGainNumber = " << fMgpaGainNumber
+                                 << ", last event fFedId(+601) = " << fFedId + 601 << std::endl;
   } else {
     for (Int_t iDee = fDeeIndexBegin; iDee < fDeeIndexStop; iDee++) {
-      if (fMyCnaEEDee[iDee] != nullptr) {
+      if (fMyCnaEEDee[iDee].get() != nullptr) {
         //........................................ register dates 1 and 2
         fMyCnaEEDee[iDee]->StartStopDate(fDateFirst[iDee], fDateLast[iDee]);
         fMyCnaEEDee[iDee]->StartStopTime(fTimeFirst[iDee], fTimeLast[iDee]);
@@ -589,91 +498,70 @@ EcnaAnalyzer::~EcnaAnalyzer() {
         //........................................ write the sample values in
         //.root file
         if (fMyCnaEEDee[iDee]->WriteRootFile() == kFALSE) {
-          std::cout << "!EcnaAnalyzer-destructor> PROBLEM with write ROOT file "
-                       "for Dee"
-                    << iDee + 1 << fTTBELL << std::endl;
+          edm::LogVerbatim("ecnaAnal") << "!EcnaAnalyzer-destructor> PROBLEM with write ROOT file for Dee" << iDee + 1
+                                       << " " << fTTBELL;
         }
       } else {
-        std::cout << "*EcnaAnalyzer-destructor> Calculations and writing on "
-                     "file already done for Dee "
-                  << iDee + 1 << std::endl;
+        edm::LogVerbatim("ecnaAnal")
+            << "*EcnaAnalyzer-destructor> Calculations and writing on file already done for Dee " << iDee + 1;
       }
     }
-    delete fMyCnaEEDee;
   }
-  std::cout << endl;
+  edm::LogVerbatim("ecnaAnal") << std::endl;
 
   //-----------------------------------------------------------------------------------
 
-  std::cout << "*EcnaAnalyzer-destructor> Status of events returned by "
-               "GetSampleAdcValues(): "
-            << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-destructor> Status of events returned by GetSampleAdcValues(): ";
 
   for (Int_t i0Stex = fStexIndexBegin; i0Stex < fStexIndexStop; i0Stex++) {
-    std::cout << fStexName << i0Stex + 1 << "> Status OK: " << fBuildEventDistribGood[i0Stex]
-              << " / ERROR(S): " << fBuildEventDistribBad[i0Stex];
+    edm::LogVerbatim("ecnaAnal") << fStexName << i0Stex + 1 << "> Status OK: " << fBuildEventDistribGood[i0Stex]
+                                 << " / ERROR(S): " << fBuildEventDistribBad[i0Stex];
     if (fBuildEventDistribBad[i0Stex] > 0) {
-      std::cout << " <=== SHOULD BE EQUAL TO ZERO ! " << fTTBELL;
+      edm::LogVerbatim("ecnaAnal") << " <=== SHOULD BE EQUAL TO ZERO ! " << fTTBELL;
     }
-    std::cout << std::endl;
+    edm::LogVerbatim("ecnaAnal") << std::endl;
   }
 
-  std::cout << std::endl << "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ";
 
-  std::cout << "*EcnaAnalyzer-destructor> Run types seen in event headers "
-               "before selection:"
-            << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-destructor> Run types seen in event headers before selection:";
 
   for (Int_t i = 0; i < fMaxRunTypeCounter; i++) {
-    std::cout << " => " << std::setw(10) << fRunTypeCounter[i] << " event header(s) with run type " << runtype(i)
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << " => " << std::setw(10) << fRunTypeCounter[i] << " event header(s) with run type "
+                                 << runtype(i);
   }
 
-  std::cout << std::endl << "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ";
 
-  std::cout << "*EcnaAnalyzer-destructor> Mgpa gains seen in event headers "
-               "before selection:"
-            << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-destructor> Mgpa gains seen in event headers before selection:";
 
   for (Int_t i = 0; i < fMaxMgpaGainCounter; i++) {
-    std::cout << " => " << std::setw(10) << fMgpaGainCounter[i] << " event header(s) with gain " << gainvalue(i)
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << " => " << std::setw(10) << fMgpaGainCounter[i] << " event header(s) with gain "
+                                 << gainvalue(i);
   }
 
-  std::cout << std::endl << "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ";
 
-  std::cout << "*EcnaAnalyzer-destructor> Numbers of selected events for each FED:" << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-destructor> Numbers of selected events for each FED:";
 
   for (Int_t i = 0; i < fMaxFedIdCounter; i++) {
-    std::cout << " => FedId " << i + 601 << ": " << std::setw(10) << fFedIdCounter[i] << " events" << std::endl;
+    edm::LogVerbatim("ecnaAnal") << " => FedId " << i + 601 << ": " << std::setw(10) << fFedIdCounter[i] << " events";
   }
 
-  std::cout << std::endl << "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ";
 
-  if (fStexNumber == 0) {
-    // std::cout << "*EcnaAnalyzer-destructor> fDateFirst = " << fDateFirst[0]
-    // << std::endl
-    //           << "                          fDateLast  = " <<
-    //           fDateLast[fMaxTreatedStexCounter-1] << std::endl << std::endl;
-  }
   if (fStexNumber > 0) {
-    std::cout << "*EcnaAnalyzer-destructor> fDateFirst = " << fDateFirst[fStexNumber - 1] << std::endl
-              << "                          fDateLast  = " << fDateLast[fStexNumber - 1] << std::endl
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-destructor> fDateFirst = " << fDateFirst[fStexNumber - 1]
+                                 << "\n                          fDateLast  = " << fDateLast[fStexNumber - 1]
+                                 << std::endl;
   }
 
-  std::cout << std::endl << "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ";
 
   Int_t n0 = 0;
   CheckMsg(n0);
 
-  delete fMyEBNumbering;
-  delete fMyEENumbering;
-
-  delete fMyEBEcal;
-  delete fMyEEEcal;
-
-  std::cout << "*EcnaAnalyzer-destructor> End of execution." << std::endl;
+  edm::LogVerbatim("ecnaAnal") << "*EcnaAnalyzer-destructor> End of execution.";
 }
 // end of destructor
 
@@ -683,16 +571,13 @@ EcnaAnalyzer::~EcnaAnalyzer() {
 
 // ------------ method called to produce the data  ------------
 void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup) {
-  using namespace std;
   //..................................... format numerical values
   std::cout << std::setiosflags(std::ios::showpoint | std::ios::uppercase);
   std::cout << std::setprecision(3) << std::setw(6);
-  cout.setf(std::ios::dec, std::ios::basefield);
-  cout.setf(std::ios::fixed, std::ios::floatfield);
-  cout.setf(std::ios::left, std::ios::adjustfield);
-  cout.setf(std::ios::right, std::ios::adjustfield);
-
-  using namespace edm;
+  std::cout.setf(std::ios::dec, std::ios::basefield);
+  std::cout.setf(std::ios::fixed, std::ios::floatfield);
+  std::cout.setf(std::ios::left, std::ios::adjustfield);
+  std::cout.setf(std::ios::right, std::ios::adjustfield);
 
   fRecNumber++;
 
@@ -701,17 +586,16 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
     iFreq = 10000;
   }
 
-  Int_t MaxSMAndDS = fMyEBEcal->MaxSMInEB() + fMyEEEcal->MaxDSInEE();
+  Int_t MaxSMAndDS = fMyEBEcal.MaxSMInEB() + fMyEEEcal.MaxDSInEE();
 
   //********************************************* EVENT TREATMENT
   //********************************
-  Handle<EcalRawDataCollection> pEventHeader;
+  const edm::Handle<EcalRawDataCollection> &pEventHeader = iEvent.getHandle(eventHeaderToken_);
   const EcalRawDataCollection *myEventHeader = nullptr;
-  try {
-    iEvent.getByLabel(eventHeaderProducer_, eventHeaderCollection_, pEventHeader);
+  if (pEventHeader.isValid()) {
     myEventHeader = pEventHeader.product();
-  } catch (std::exception &ex) {
-    std::cerr << "Error! can't get the product " << eventHeaderCollection_.c_str() << std::endl;
+  } else {
+    edm::LogError("ecnaAnal") << "Error! can't get the product " << eventHeaderCollection_.c_str();
   }
   //........... Decode myEventHeader infos
   for (EcalRawDataCollection::const_iterator headerItr = myEventHeader->begin(); headerItr != myEventHeader->end();
@@ -789,7 +673,7 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           if (fFedTcc < 10 || fFedTcc > 45)
             return;
 
-          if (fSMFromFedTcc[fFedTcc - 1] >= 1 && fSMFromFedTcc[fFedTcc - 1] <= fMyEBEcal->MaxSMInEB() &&
+          if (fSMFromFedTcc[fFedTcc - 1] >= 1 && fSMFromFedTcc[fFedTcc - 1] <= fMyEBEcal.MaxSMInEB() &&
               fStexNbOfTreatedEvents[fSMFromFedTcc[fFedTcc - 1] - 1] >= fReqNbOfEvts)
             return;
         }
@@ -798,7 +682,7 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           if (fFedTcc >= 10 && fFedTcc <= 45)
             return;
 
-          if (fESFromFedTcc[fFedTcc - 1] >= 1 && fESFromFedTcc[fFedTcc - 1] <= fMyEEEcal->MaxDSInEE() &&
+          if (fESFromFedTcc[fFedTcc - 1] >= 1 && fESFromFedTcc[fFedTcc - 1] <= fMyEEEcal.MaxDSInEE() &&
               fFedNbOfTreatedEvents[fESFromFedTcc[fFedTcc - 1] - 1] >= fReqNbOfEvts)
             return;
         }
@@ -828,27 +712,21 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
   //============================ Ecna init for the pointers array
   //=================================
   //.................................................................. EB (SM)
-  if (fMyCnaEBSM == nullptr && fStexName == "SM") {
-    fMyCnaEBSM = new TEcnaRun *[fMyEBEcal->MaxSMInEB()];
-    for (Int_t i0SM = 0; i0SM < fMyEBEcal->MaxSMInEB(); i0SM++) {
-      fMyCnaEBSM[i0SM] = nullptr;
-    }
+  if (fMyCnaEBSM.empty() && fStexName == "SM") {
+    fMyCnaEBSM.resize(fMyEBEcal.MaxSMInEB());
   }
   //.................................................................. EE (Dee)
-  if (fMyCnaEEDee == nullptr && fStexName == "Dee") {
-    fMyCnaEEDee = new TEcnaRun *[fMyEEEcal->MaxDeeInEE()];
-    for (Int_t iDee = 0; iDee < fMyEEEcal->MaxDeeInEE(); iDee++) {
-      fMyCnaEEDee[iDee] = nullptr;
-    }
+  if (fMyCnaEEDee.empty() && fStexName == "Dee") {
+    fMyCnaEEDee.resize(fMyEEEcal.MaxDeeInEE());
   }
 
   //============================ EVENT TREATMENT ==============================
   Int_t MaxNbOfStex = 0;
   if (fStexName == "SM") {
-    MaxNbOfStex = fMyEBEcal->MaxSMInEB();
+    MaxNbOfStex = fMyEBEcal.MaxSMInEB();
   }
   if (fStexName == "Dee") {
-    MaxNbOfStex = fMyEEEcal->MaxDeeInEE();
+    MaxNbOfStex = fMyEEEcal.MaxDeeInEE();
   }
 
   if ((fStexNumber > 0 && fNbOfTreatedStexs == 0) || (fStexNumber == 0 && fNbOfTreatedStexs < MaxNbOfStex)) {
@@ -856,13 +734,12 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
     // type EB (SM)
     if (fStexName == "SM" && fSMIndexBegin < fSMIndexStop) {
       //......................................... Get digisEB
-      Handle<EBDigiCollection> pdigisEB;
+      const edm::Handle<EBDigiCollection> &pdigisEB = iEvent.getHandle(EBdigiToken_);
       const EBDigiCollection *digisEB = nullptr;
-      try {
-        iEvent.getByLabel(digiProducer_, EBdigiCollection_, pdigisEB);
+      if (pdigisEB.isValid()) {
         digisEB = pdigisEB.product();
-      } catch (std::exception &ex) {
-        std::cerr << "Error! can't get the product " << EBdigiCollection_.c_str() << std::endl;
+      } else {
+        edm::LogError("ecnaAnal") << "Error! can't get the product " << EBdigiCollection_.c_str();
       }
 
       // Initialize vectors if not already done
@@ -887,24 +764,22 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           Int_t i0SM = id_crystal.ism() - 1;  //   <============== GET the SM number - 1 here
 
           if (i0SM >= 0 && i0SM < fMaxTreatedStexCounter) {
-            if (fMyCnaEBSM[i0SM] == nullptr && fStexStatus[i0SM] != 2) {
+            if (fMyCnaEBSM[i0SM].get() == nullptr && fStexStatus[i0SM] != 2) {
               //=============================== Init Ecna EB
               //===============================
-              fMyCnaEBSM[i0SM] = new TEcnaRun(fMyEcnaEBObjectManager, "EB", fNbOfSamples);
+              fMyCnaEBSM[i0SM] = std::make_unique<TEcnaRun>(&fMyEcnaEBObjectManager, "EB", fNbOfSamples);
               fMyCnaEBSM[i0SM]->GetReadyToReadData(
                   fAnalysisName, fRunNumber, fFirstReqEvent, fLastReqEvent, fReqNbOfEvts, i0SM + 1, fRunTypeNumber);
 
-              std::cout << "*EcnaAnalyzer::analyze(...)> ********* INIT ECNA "
-                           "EB ********* "
-                        << std::endl
-                        << "                                   fAnalysisName = " << fAnalysisName << std::endl
-                        << "                                      fRunNumber = " << fRunNumber << std::endl
-                        << "                                  fFirstReqEvent = " << fFirstReqEvent << std::endl
-                        << "                                   fLastReqEvent = " << fLastReqEvent << std::endl
-                        << "                                    fReqNbOfEvts = " << fReqNbOfEvts << std::endl
-                        << "                                              SM = " << i0SM + 1 << std::endl
-                        << "                                        run type = " << runtype(fRunTypeNumber)
-                        << std::endl;
+              edm::LogVerbatim("ecnaAnal")
+                  << "*EcnaAnalyzer::analyze(...)> ********* INIT ECNA EB ********* "
+                  << "\n                                   fAnalysisName = " << fAnalysisName
+                  << "\n                                      fRunNumber = " << fRunNumber
+                  << "\n                                  fFirstReqEvent = " << fFirstReqEvent
+                  << "\n                                   fLastReqEvent = " << fLastReqEvent
+                  << "\n                                    fReqNbOfEvts = " << fReqNbOfEvts
+                  << "\n                                              SM = " << i0SM + 1
+                  << "\n                                        run type = " << runtype(fRunTypeNumber);
               //============================================================================
             }
 
@@ -930,14 +805,8 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
                   fDateFirst[i0SM] = astime;
                   fTimeLast[i0SM] = i_current_ev_time;
                   fDateLast[i0SM] = astime;
-                  std::cout << "*----> beginning of analysis for " << fStexName << i0SM + 1
-                            << ". First analyzed event date : " << astime << std::endl;
-                  //      << " t_current_ev_time = " << t_current_ev_time  <<
-                  //      std::endl
-                  //      << " i_current_ev_time = " << i_current_ev_time  <<
-                  //      std::endl
-                  //      << " p_current_ev_time = " << p_current_ev_time  <<
-                  //      std::endl
+                  edm::LogVerbatim("ecnaAnal") << "*----> beginning of analysis for " << fStexName << i0SM + 1
+                                               << ". First analyzed event date : " << astime;
                 }
 
                 if (i_current_ev_time < fTimeFirst[i0SM]) {
@@ -955,16 +824,16 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
                   Int_t iEta = id_crystal.ietaSM();  // ietaSM() : range = [1,85]
                   Int_t iPhi = id_crystal.iphiSM();  // iphiSM() : range = [1,20]
 
-                  Int_t n1SMCrys = (iEta - 1) * (fMyEBEcal->MaxTowPhiInSM() * fMyEBEcal->MaxCrysPhiInTow()) +
-                                   iPhi;                                               // range = [1,1700]
-                  Int_t n1SMTow = fMyEBNumbering->Get1SMTowFrom1SMCrys(n1SMCrys);      // range = [1,68]
-                  Int_t i0TowEcha = fMyEBNumbering->Get0TowEchaFrom1SMCrys(n1SMCrys);  // range = [0,24]
+                  Int_t n1SMCrys = (iEta - 1) * (fMyEBEcal.MaxTowPhiInSM() * fMyEBEcal.MaxCrysPhiInTow()) +
+                                   iPhi;                                              // range = [1,1700]
+                  Int_t n1SMTow = fMyEBNumbering.Get1SMTowFrom1SMCrys(n1SMCrys);      // range = [1,68]
+                  Int_t i0TowEcha = fMyEBNumbering.Get0TowEchaFrom1SMCrys(n1SMCrys);  // range = [0,24]
 
                   Int_t NbOfSamplesFromDigis = digiItr->size();
 
                   EBDataFrame df(*digiItr);
 
-                  if (NbOfSamplesFromDigis > 0 && NbOfSamplesFromDigis <= fMyEBEcal->MaxSampADC()) {
+                  if (NbOfSamplesFromDigis > 0 && NbOfSamplesFromDigis <= fMyEBEcal.MaxSampADC()) {
                     Double_t adcDBLS = (Double_t)0;
                     // Three 1st samples mean value for Dynamic Base Line
                     // Substraction (DBLS)
@@ -987,9 +856,8 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
                       }
                     }
                   } else {
-                    std::cout << "EcnaAnalyzer::analyze(...)> "
-                                 "NbOfSamplesFromDigis out of bounds = "
-                              << NbOfSamplesFromDigis << std::endl;
+                    edm::LogVerbatim("ecnaAnal")
+                        << "EcnaAnalyzer::analyze(...)> NbOfSamplesFromDigis out of bounds = " << NbOfSamplesFromDigis;
                   }
                 }  // end of if( (fStexNumber > 0 && i0SM == fStexNumber-1) ||
                    // (fStexNumber == 0) )
@@ -1013,13 +881,12 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
     // type EE (Dee)
     if (fStexName == "Dee" && fDeeIndexBegin < fDeeIndexStop) {
       //......................................... Get digisEE
-      Handle<EEDigiCollection> pdigisEE;
+      const edm::Handle<EEDigiCollection> &pdigisEE = iEvent.getHandle(EEdigiToken_);
       const EEDigiCollection *digisEE = nullptr;
-      try {
-        iEvent.getByLabel(digiProducer_, EEdigiCollection_, pdigisEE);
+      if (pdigisEE.isValid()) {
         digisEE = pdigisEE.product();
-      } catch (std::exception &ex) {
-        std::cerr << "Error! can't get the product " << EEdigiCollection_.c_str() << std::endl;
+      } else {
+        edm::LogError("ecnaAnal") << "Error! can't get the product " << EEdigiCollection_.c_str();
       }
 
       // Initialize vectors if not already done
@@ -1058,7 +925,7 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           }  // iX_data : range = [50,1],   iX : range = [1,50]
 
           Int_t n1DeeCrys =
-              (iX - 1) * (fMyEEEcal->MaxSCIYInDee() * fMyEEEcal->MaxCrysIYInSC()) + iY;  // n1DeeCrys: range = [1,5000]
+              (iX - 1) * (fMyEEEcal.MaxSCIYInDee() * fMyEEEcal.MaxCrysIYInSC()) + iY;  // n1DeeCrys: range = [1,5000]
 
           Int_t n1DeeNumber = 0;
           if (i_quad == 1 && i_sgnZ == 1) {
@@ -1089,24 +956,22 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           Int_t i0Dee = n1DeeNumber - 1;  //   <============== GET the Dee number - 1 here
 
           if (i0Dee >= 0 && i0Dee < fMaxTreatedStexCounter) {
-            if (fMyCnaEEDee[i0Dee] == nullptr && fStexStatus[i0Dee] != 2) {
+            if (fMyCnaEEDee[i0Dee].get() == nullptr && fStexStatus[i0Dee] != 2) {
               //=============================== Init Ecna EE
               //===============================
-              fMyCnaEEDee[i0Dee] = new TEcnaRun(fMyEcnaEEObjectManager, "EE", fNbOfSamples);
+              fMyCnaEEDee[i0Dee] = std::make_unique<TEcnaRun>(&fMyEcnaEEObjectManager, "EE", fNbOfSamples);
               fMyCnaEEDee[i0Dee]->GetReadyToReadData(
                   fAnalysisName, fRunNumber, fFirstReqEvent, fLastReqEvent, fReqNbOfEvts, i0Dee + 1, fRunTypeNumber);
 
-              std::cout << "*EcnaAnalyzer::analyze(...)> ********* INIT ECNA "
-                           "EE ********* "
-                        << std::endl
-                        << "                                   fAnalysisName = " << fAnalysisName << std::endl
-                        << "                                      fRunNumber = " << fRunNumber << std::endl
-                        << "                                  fFirstReqEvent = " << fFirstReqEvent << std::endl
-                        << "                                   fLastReqEvent = " << fLastReqEvent << std::endl
-                        << "                                    fReqNbOfEvts = " << fReqNbOfEvts << std::endl
-                        << "                                             Dee = " << i0Dee + 1 << std::endl
-                        << "                                        run type = " << runtype(fRunTypeNumber)
-                        << std::endl;
+              edm::LogVerbatim("ecnaAnal")
+                  << "*EcnaAnalyzer::analyze(...)> ********* INIT ECNA EE ********* "
+                  << "\n                                   fAnalysisName = " << fAnalysisName
+                  << "\n                                      fRunNumber = " << fRunNumber
+                  << "\n                                  fFirstReqEvent = " << fFirstReqEvent
+                  << "\n                                   fLastReqEvent = " << fLastReqEvent
+                  << "\n                                    fReqNbOfEvts = " << fReqNbOfEvts
+                  << "\n                                             Dee = " << i0Dee + 1
+                  << "\n                                        run type = " << runtype(fRunTypeNumber);
               //============================================================================
             }
 
@@ -1181,19 +1046,10 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
                   fDateFirst[i0Dee] = astime;
                   fTimeLast[i0Dee] = i_current_ev_time;
                   fDateLast[i0Dee] = astime;
-                  std::cout << "----- beginning of analysis for " << fStexName << i0Dee + 1 << "-------"
-                            << std::endl
-                            //<< " t_current_ev_time = " << t_current_ev_time <<
-                            // std::endl
-                            //<< " i_current_ev_time = " << i_current_ev_time <<
-                            // std::endl
-                            //<< " p_current_ev_time = " << p_current_ev_time <<
-                            // std::endl
-                            << " First event date  = " << astime << std::endl
-                            << " Nb of selected evts = " << fNbOfSelectedEvents << std::endl
-                            << "-----------------------------------------------"
-                               "----------------"
-                            << std::endl;
+                  edm::LogVerbatim("ecnaAnal")
+                      << "----- beginning of analysis for " << fStexName << i0Dee + 1 << "-------"
+                      << "\n First event date  = " << astime << "\n Nb of selected evts = " << fNbOfSelectedEvents
+                      << "\n---------------------------------------------------------------";
                   fMemoDateFirstEvent[i0Dee]++;
                 }
 
@@ -1209,15 +1065,15 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
                 //=============================================> cut on i0Dee
                 // value
                 if ((fStexNumber > 0 && i0Dee == fStexNumber - 1) || (fStexNumber == 0)) {
-                  TString sDir = fMyEENumbering->GetDeeDirViewedFromIP(n1DeeNumber);
-                  Int_t n1DeeSCEcna = fMyEENumbering->Get1DeeSCEcnaFrom1DeeCrys(n1DeeCrys, sDir);
-                  Int_t i0SCEcha = fMyEENumbering->Get1SCEchaFrom1DeeCrys(n1DeeCrys, sDir) - 1;
+                  TString sDir = fMyEENumbering.GetDeeDirViewedFromIP(n1DeeNumber);
+                  Int_t n1DeeSCEcna = fMyEENumbering.Get1DeeSCEcnaFrom1DeeCrys(n1DeeCrys, sDir);
+                  Int_t i0SCEcha = fMyEENumbering.Get1SCEchaFrom1DeeCrys(n1DeeCrys, sDir) - 1;
 
                   Int_t NbOfSamplesFromDigis = digiItr->size();
 
                   EEDataFrame df(*digiItr);
 
-                  if (NbOfSamplesFromDigis > 0 && NbOfSamplesFromDigis <= fMyEEEcal->MaxSampADC()) {
+                  if (NbOfSamplesFromDigis > 0 && NbOfSamplesFromDigis <= fMyEEEcal.MaxSampADC()) {
                     Double_t adcDBLS = (Double_t)0;
                     // Three 1st samples mean value for Dynamic Base Line
                     // Substraction (DBLS)
@@ -1240,9 +1096,8 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
                       }
                     }
                   } else {
-                    std::cout << "EcnaAnalyzer::analyze(...)> "
-                                 "NbOfSamplesFromDigis out of bounds = "
-                              << NbOfSamplesFromDigis << std::endl;
+                    edm::LogVerbatim("ecnaAnal")
+                        << "EcnaAnalyzer::analyze(...)> NbOfSamplesFromDigis out of bounds = " << NbOfSamplesFromDigis;
                   }
                 }  // end of if( (fStexNumber > 0 && i0Dee == fStexNumber-1) ||
                    // (fStexNumber == 0) )
@@ -1410,24 +1265,18 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
       // if( i_current_ev_time > fTimeLast[i0Stex] )
       // {fTimeLast[i0Stex] = i_current_ev_time; fDateLast[i0Stex] = astime;}
 
-      std::cout << "---------- End of analysis for " << fStexName << i0Stex + 1 << " -----------" << std::endl;
+      edm::LogVerbatim("ecnaAnal") << "---------- End of analysis for " << fStexName << i0Stex + 1 << " -----------";
       Int_t n3 = 3;
       CheckMsg(n3, i0Stex);
-      // std::cout 	   << " t_current_ev_time = " << t_current_ev_time  <<
-      // std::endl
-      //<< " i_current_ev_time = " << i_current_ev_time  << std::endl
-      //<< " p_current_ev_time = " << p_current_ev_time  << std::endl
-      // std::cout 	    << " Last analyzed event date  = " << astime <<
-      // std::endl;
-      std::cout << " Number of selected events = " << fNbOfSelectedEvents << std::endl;
-      std::cout << std::endl
-                << fNbOfTreatedStexs << " " << fStexName << "'s with " << fReqNbOfEvts << " events analyzed."
-                << std::endl
-                << "---------------------------------------------------------" << std::endl;
+      edm::LogVerbatim("ecnaAnal") << " Number of selected events = " << fNbOfSelectedEvents;
+      edm::LogVerbatim("ecnaAnal") << std::endl
+                                   << fNbOfTreatedStexs << " " << fStexName << "'s with " << fReqNbOfEvts
+                                   << " events analyzed."
+                                   << "\n---------------------------------------------------------";
 
       //================================= WRITE RESULTS FILE
       if (fStexName == "SM") {
-        if (fMyCnaEBSM[i0Stex] != nullptr) {
+        if (fMyCnaEBSM[i0Stex].get() != nullptr) {
           //........................................ register dates 1 and 2
           fMyCnaEBSM[i0Stex]->StartStopDate(fDateFirst[i0Stex], fDateLast[i0Stex]);
           fMyCnaEBSM[i0Stex]->StartStopTime(fTimeFirst[i0Stex], fTimeLast[i0Stex]);
@@ -1439,19 +1288,18 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           //........................................ write the sample values in
           //.root file
           if (fMyCnaEBSM[i0Stex]->WriteRootFile() == kFALSE) {
-            std::cout << "!EcnaAnalyzer::analyze> PROBLEM with write ROOT file for SM" << i0Stex + 1 << fTTBELL
-                      << std::endl;
+            edm::LogVerbatim("ecnaAnal") << "!EcnaAnalyzer::analyze> PROBLEM with write ROOT file for SM" << i0Stex + 1
+                                         << fTTBELL;
           }
         }
         // set pointer to zero in order to avoid recalculation and rewriting at
         // the destructor level
-        delete fMyCnaEBSM[i0Stex];
-        fMyCnaEBSM[i0Stex] = nullptr;
-        std::cout << "!EcnaAnalyzer::analyze> Set memory free: delete done for SM " << i0Stex + 1 << std::endl;
+        fMyCnaEBSM[i0Stex].reset();
+        edm::LogVerbatim("ecnaAnal") << "!EcnaAnalyzer::analyze> Set memory free: delete done for SM " << i0Stex + 1;
       }
 
       if (fStexName == "Dee") {
-        if (fMyCnaEEDee[i0Stex] != nullptr) {
+        if (fMyCnaEEDee[i0Stex].get() != nullptr) {
           //........................................ register dates 1 and 2
           fMyCnaEEDee[i0Stex]->StartStopDate(fDateFirst[i0Stex], fDateLast[i0Stex]);
           fMyCnaEEDee[i0Stex]->StartStopTime(fTimeFirst[i0Stex], fTimeLast[i0Stex]);
@@ -1463,22 +1311,18 @@ void EcnaAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSet
           //........................................ write the sample values in
           //.root file
           if (fMyCnaEEDee[i0Stex]->WriteRootFile() == kFALSE) {
-            std::cout << "!EcnaAnalyzer::analyze> PROBLEM with write ROOT file "
-                         "for Dee"
-                      << i0Stex + 1 << fTTBELL << std::endl;
+            edm::LogVerbatim("ecnaAnal") << "!EcnaAnalyzer::analyze> PROBLEM with write ROOT file for Dee" << i0Stex + 1
+                                         << " " << fTTBELL;
           }
         }
         // set pointer to zero in order to avoid recalculation and rewriting at
         // the destructor level
-        delete fMyCnaEEDee[i0Stex];
-        fMyCnaEEDee[i0Stex] = nullptr;
-        std::cout << "!EcnaAnalyzer::analyze> Set memory free: delete done for Dee " << i0Stex + 1 << std::endl;
+        fMyCnaEEDee[i0Stex].reset();
+        edm::LogVerbatim("ecnaAnal") << "!EcnaAnalyzer::analyze> Set memory free: delete done for Dee " << i0Stex + 1;
       }
 
       fStexStatus[i0Stex] = 2;  // set fStexStatus[i0Stex] to 2 definitively
-      std::cout << "*----------------------------------------------------------"
-                   "------------------ "
-                << std::endl;
+      edm::LogVerbatim("ecnaAnal") << "*---------------------------------------------------------------------------- ";
 
     }  // end of if( fStexStatus[i0Stex] == 1 )
   }    // end of for(Int_t i0Stex=fStexIndexBegin; i0Stex<fStexIndexStop; i0Stex++)
@@ -1493,126 +1337,83 @@ Bool_t EcnaAnalyzer::AnalysisOutcome(const TString &s_opt) {
   if (s_opt == "EVT") {
     Int_t MaxNbOfStex = 0;
     if (fStexName == "SM") {
-      MaxNbOfStex = fMyEBEcal->MaxSMInEB();
+      MaxNbOfStex = fMyEBEcal.MaxSMInEB();
     }
     if (fStexName == "Dee") {
-      MaxNbOfStex = fMyEEEcal->MaxDeeInEE();
+      MaxNbOfStex = fMyEEEcal.MaxDeeInEE();
     }
 
     if (((fStexNumber > 0 && fNbOfTreatedStexs == 1) || (fStexNumber == 0 && fNbOfTreatedStexs == MaxNbOfStex)) &&
         ((fLastReqEvent < fFirstReqEvent) ||
          (fLastReqEvent >= fFirstReqEvent && fCurrentEventNumber <= fLastReqEvent))) {
-      std::cout << std::endl
-                << "**************************** ANALYSIS REPORT > OK "
-                   "**************************************"
-                << std::endl
-                << "*EcnaAnalyzer::AnalysisOutcome(...)> The maximum requested "
-                   "number of events and the maximum"
-                << std::endl
-                << "                                     number of treated " << fStexName << "'s have been reached."
-                << std::endl
-                << "                                     Analysis successfully "
-                   "ended from EcnaAnalyzer "
-                << std::endl
-                << "                                     by SIGNAL: "
-                   "kill(getpid(),SIGUSR2)."
-                << std::endl
-                << "                                     Number of selected "
-                   "events   = "
-                << fNbOfSelectedEvents << std::endl
-                << "                                     Last requested event "
-                   "number = "
-                << fLastReqEvent << std::endl
-                << "                                     Current event number  "
-                   "      = "
-                << fCurrentEventNumber << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "\n**************************** ANALYSIS REPORT > OK **************************************"
+          << "\n*EcnaAnalyzer::AnalysisOutcome(...)> The maximum requested number of events and the maximum"
+          << "\n                                     number of treated " << fStexName << "'s have been reached."
+          << "\n                                     Analysis successfully ended from EcnaAnalyzer "
+          << "\n                                     Number of selected events   = " << fNbOfSelectedEvents
+          << "\n                                     Last requested event number = " << fLastReqEvent
+          << "\n                                     Current event number        = " << fCurrentEventNumber;
 
       Int_t n0 = 0;
       CheckMsg(n0);
 
-      std::cout << "***********************************************************"
-                   "*****************************"
-                << std::endl
-                << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "****************************************************************************************\n";
 
       result = kTRUE;
-      kill(getpid(), SIGUSR2);
+      return result;
     }
 
     if (fLastReqEvent >= fFirstReqEvent && fCurrentEventNumber > fLastReqEvent &&
         !((fStexNumber > 0 && fNbOfTreatedStexs == 1) || (fStexNumber == 0 && fNbOfTreatedStexs == MaxNbOfStex))) {
-      std::cout << std::endl
-                << "**************************** ANALYSIS REPORT >>> *** "
-                   "WARNING *** WARNING *** WARNING ***"
-                << std::endl
-                << "*EcnaAnalyzer::AnalysisOutcome(...)> Last event reached "
-                   "before completion of analysis."
-                << std::endl
-                << "                                     Analysis ended from "
-                   "EcnaAnalyzer "
-                << std::endl
-                << "                                     by SIGNAL: "
-                   "kill(getpid(),SIGUSR2)."
-                << std::endl
-                << "                                     Number of selected "
-                   "events   = "
-                << fNbOfSelectedEvents << std::endl
-                << "                                     Last requested event "
-                   "number = "
-                << fLastReqEvent << std::endl
-                << "                                     Current event number  "
-                   "      = "
-                << fCurrentEventNumber << std::endl;
+      edm::LogVerbatim("ecnaAnal") << "\n**************************** ANALYSIS REPORT >>> *** "
+                                      "WARNING *** WARNING *** WARNING ***"
+                                   << "\n*EcnaAnalyzer::AnalysisOutcome(...)> Last event reached "
+                                      "before completion of analysis."
+                                   << "\n                                     Analysis ended from EcnaAnalyzer "
+                                   << "\n                                     Number of selected events   = "
+                                   << fNbOfSelectedEvents
+                                   << "\n                                     Last requested event number = "
+                                   << fLastReqEvent
+                                   << "\n                                     Current event number        = "
+                                   << fCurrentEventNumber;
 
       Int_t n0 = 0;
       CheckMsg(n0);
 
-      std::cout << "***********************************************************"
-                   "*****************************"
-                << std::endl
-                << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "****************************************************************************************" << std::endl;
 
       result = kTRUE;
-      kill(getpid(), SIGUSR2);
+      return result;
     }
   } else {
     if (s_opt == "ERR_FNEG") {
-      std::cout << std::endl
-                << "**************************** ANALYSIS REPORT >>> **** ERROR **** "
-                   "ERROR **** ERROR ******"
-                << std::endl
-                << "*EcnaAnalyzer::AnalysisOutcome(...)> First event number = " << fFirstReqEvent
-                << ". Should be strictly potitive." << std::endl
-                << "                             Analysis ended from EcnaAnalyzer " << std::endl
-                << "                             by SIGNAL: kill(getpid(),SIGUSR2)." << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "\n**************************** ANALYSIS REPORT >>> **** ERROR **** ERROR **** ERROR ******"
+          << "\n*EcnaAnalyzer::AnalysisOutcome(...)> First event number = " << fFirstReqEvent
+          << ". Should be strictly potitive."
+          << "\n                             Analysis ended from EcnaAnalyzer ";
 
-      std::cout << "***********************************************************"
-                   "*****************************"
-                << std::endl
-                << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "****************************************************************************************" << std::endl;
 
       result = kTRUE;
-      kill(getpid(), SIGUSR2);
+      return result;
     }
     if (s_opt == "ERR_LREQ") {
-      std::cout << std::endl
-                << "**************************** ANALYSIS REPORT >>> **** ERROR **** "
-                   "ERROR **** ERROR ******"
-                << std::endl
-                << "*EcnaAnalyzer::analyze(...)> Requested number of events = " << fReqNbOfEvts << "." << std::endl
-                << "                             Too large compared to the event "
-                   "range: "
-                << fFirstReqEvent << " - " << fLastReqEvent << std::endl
-                << "                             Analysis ended from EcnaAnalyzer " << std::endl
-                << "                             by SIGNAL: kill(getpid(),SIGUSR2)." << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "\n**************************** ANALYSIS REPORT >>> **** ERROR **** ERROR **** ERROR ******"
+          << "\n*EcnaAnalyzer::analyze(...)> Requested number of events = " << fReqNbOfEvts << "."
+          << "\n                             Too large compared to the event range: " << fFirstReqEvent << " - "
+          << fLastReqEvent << "\n                             Analysis ended from EcnaAnalyzer ";
 
-      std::cout << "***********************************************************"
-                   "*****************************"
-                << std::endl
-                << std::endl;
+      edm::LogVerbatim("ecnaAnal")
+          << "****************************************************************************************" << std::endl;
 
       result = kTRUE;
-      kill(getpid(), SIGUSR2);
+      return result;
     }
   }
   return result;
@@ -1627,33 +1428,31 @@ void EcnaAnalyzer::CheckMsg(const Int_t &MsgNum, const Int_t &i0Stex) {
   //------ Cross-check messages
 
   if (MsgNum == 1) {
-    std::cout << "---------------- CROSS-CHECK A ------------------ " << std::endl
-              << "**************** CURRENT EVENT ****************** " << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "---------------- CROSS-CHECK A ------------------ "
+                                 << "\n**************** CURRENT EVENT ****************** ";
   }
   if (MsgNum == 2) {
-    std::cout << "---------------- CROSS-CHECK B ------------------ " << std::endl
-              << "**** FIRST EVENT PASSING USER'S ANALYSIS CUT **** " << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "---------------- CROSS-CHECK B ------------------ "
+                                 << "\n**** FIRST EVENT PASSING USER'S ANALYSIS CUT **** ";
   }
   if (MsgNum == 3) {
-    std::cout << "---------------- CROSS-CHECK C ------------------ " << std::endl
-              << "*** CURRENT VALUES BEFORE RESULT FILE WRITING *** " << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "---------------- CROSS-CHECK C ------------------ "
+                                 << "\n*** CURRENT VALUES BEFORE RESULT FILE WRITING *** ";
   }
   if (MsgNum == 3 || MsgNum == 4) {
-    std::cout << "          fRecNumber = " << fRecNumber << std::endl
-              << "          fEvtNumber = " << fEvtNumber << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "          fRecNumber = " << fRecNumber
+                                 << "\n          fEvtNumber = " << fEvtNumber;
   }
 
-  std::cout << " fCurrentEventNumber = " << fCurrentEventNumber << std::endl
-            << " fNbOfSelectedEvents = " << fNbOfSelectedEvents << std::endl
-            << "          fRunNumber = " << fRunNumber << std::endl
-            << "     Chozen run type = " << runtype(fChozenRunTypeNumber) << std::endl
-            << "            Run type = " << runtype(fRunTypeNumber) << std::endl
-            << "             fFedTcc = " << fFedTcc << std::endl
-            << "        fFedId(+601) = " << fFedId + 601 << std::endl
-            << "           fStexName = " << fStexName << std::endl
-            << "         Chozen gain = " << gainvalue(fChozenGainNumber) << std::endl
-            << "           Mgpa Gain = " << gainvalue(fMgpaGainNumber) << std::endl
-            << std::endl;
+  edm::LogVerbatim("ecnaAnal") << " fCurrentEventNumber = " << fCurrentEventNumber
+                               << "\n fNbOfSelectedEvents = " << fNbOfSelectedEvents
+                               << "\n          fRunNumber = " << fRunNumber
+                               << "\n     Chozen run type = " << runtype(fChozenRunTypeNumber)
+                               << "\n            Run type = " << runtype(fRunTypeNumber)
+                               << "\n             fFedTcc = " << fFedTcc << "\n        fFedId(+601) = " << fFedId + 601
+                               << "\n           fStexName = " << fStexName
+                               << "\n         Chozen gain = " << gainvalue(fChozenGainNumber)
+                               << "\n           Mgpa Gain = " << gainvalue(fMgpaGainNumber) << std::endl;
 
   if (fAnalysisName == "AdcPeg12" || fAnalysisName == "AdcSPeg12" || fAnalysisName == "AdcPhys" ||
       fAnalysisName == "AdcAny") {
@@ -1667,12 +1466,12 @@ void EcnaAnalyzer::CheckMsg(const Int_t &MsgNum, const Int_t &i0Stex) {
           nStexNbOfTreatedEvents = fStexNbOfTreatedEvents[j0Stex];
         }
 
-        std::cout << fStexName << std::setw(3) << j0Stex + 1 << ": " << std::setw(5) << nStexNbOfTreatedEvents
-                  << " events. " << fStexName << " status: " << fStexStatus[j0Stex];
+        edm::LogVerbatim("ecnaAnal") << fStexName << std::setw(3) << j0Stex + 1 << ": " << std::setw(5)
+                                     << nStexNbOfTreatedEvents << " events. " << fStexName
+                                     << " status: " << fStexStatus[j0Stex];
         if (j0Stex == i0Stex) {
-          std::cout << " (going to write file for this " << fStexName << ").";
+          edm::LogVerbatim("ecnaAnal") << " (going to write file for this " << fStexName << ").";
         }
-        std::cout << std::endl;
       }
     }
 
@@ -1686,35 +1485,31 @@ void EcnaAnalyzer::CheckMsg(const Int_t &MsgNum, const Int_t &i0Stex) {
           nFedNbOfTreatedEvents = fFedNbOfTreatedEvents[i0FedES];
         }
 
-        std::cout << "Fed (ES) " << std::setw(3) << i0FedES + 1 << ": " << std::setw(5) << nFedNbOfTreatedEvents
-                  << " events."
-                  << " Fed status: " << fFedStatus[i0FedES] << ", order: " << std::setw(3) << fFedStatusOrder[i0FedES]
-                  << " (" << fDeeNumberString[i0FedES] << ")" << std::endl;
+        edm::LogVerbatim("ecnaAnal") << "Fed (ES) " << std::setw(3) << i0FedES + 1 << ": " << std::setw(5)
+                                     << nFedNbOfTreatedEvents << " events."
+                                     << " Fed status: " << fFedStatus[i0FedES] << ", order: " << std::setw(3)
+                                     << fFedStatusOrder[i0FedES] << " (" << fDeeNumberString[i0FedES] << ")";
       }
 
       for (Int_t j0Stex = fStexIndexBegin; j0Stex < fStexIndexStop; j0Stex++) {
-        std::cout << fStexName << std::setw(3) << j0Stex + 1 << ": " << std::setw(5) << fNbOfTreatedFedsInStex[j0Stex]
-                  << " analyzed Fed(s). " << fStexName << " status: " << fStexStatus[j0Stex];
+        edm::LogVerbatim("ecnaAnal") << fStexName << std::setw(3) << j0Stex + 1 << ": " << std::setw(5)
+                                     << fNbOfTreatedFedsInStex[j0Stex] << " analyzed Fed(s). " << fStexName
+                                     << " status: " << fStexStatus[j0Stex];
         if (j0Stex == i0Stex) {
-          std::cout << " (going to write file for this " << fStexName << ").";
+          edm::LogVerbatim("ecnaAnal") << " (going to write file for this " << fStexName << ").";
         }
-        std::cout << std::endl;
       }
     }
 
-    std::cout << "Number of " << fStexName << "'s with " << fReqNbOfEvts << " events analyzed: " << fNbOfTreatedStexs
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "Number of " << fStexName << "'s with " << fReqNbOfEvts
+                                 << " events analyzed: " << fNbOfTreatedStexs;
   }
 
   if (MsgNum == 1 || MsgNum == 2) {
-    std::cout << "*------------------------------------------------------------"
-                 "---------------- "
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "*---------------------------------------------------------------------------- ";
   }
   if (MsgNum == 3) {
-    std::cout << "*............................................................"
-                 "................ "
-              << std::endl;
+    edm::LogVerbatim("ecnaAnal") << "*............................................................................ ";
   }
 
 }  // end of EcnaAnalyzer::CheckMsg(const Int_t& MsgNum, const Int_t& i0Stex)

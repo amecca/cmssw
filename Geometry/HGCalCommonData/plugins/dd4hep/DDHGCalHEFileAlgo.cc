@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 // File: DDHGCalHEFileAlgo.cc
-// Description: Geometry factory class for HGCal (Mix) adopted for DD4HEP
+// Description: Geometry factory class for HGCal (Mix) adopted for DD4hep
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <cmath>
@@ -598,7 +598,7 @@ struct HGCalHEFileAlgo {
 };
 
 static long algorithm(dd4hep::Detector& /* description */, cms::DDParsingContext& ctxt, xml_h e) {
-  HGCalHEFileAlgo healgo(ctxt, e);
+  HGCalHEFileAlgo heFileAlgo(ctxt, e);
   return cms::s_executed;
 }
 

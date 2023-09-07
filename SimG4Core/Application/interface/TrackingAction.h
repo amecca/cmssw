@@ -3,20 +3,20 @@
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "SimG4Core/Notification/interface/SimActivityRegistry.h"
-#include "SimG4Core/Notification/interface/TrackInformationExtractor.h"
 
 #include "G4UserTrackingAction.hh"
 
-class EventAction;
+class SimTrackManager;
 class TrackWithHistory;
 class BeginOfTrack;
 class EndOfTrack;
 class CMSSteppingVerbose;
+class TrackInformation;
 
 class TrackingAction : public G4UserTrackingAction {
 public:
-  explicit TrackingAction(EventAction* ea, const edm::ParameterSet& ps, CMSSteppingVerbose*);
-  ~TrackingAction() override;
+  explicit TrackingAction(SimTrackManager*, CMSSteppingVerbose*, const edm::ParameterSet& ps);
+  ~TrackingAction() override = default;
 
   void PreUserTrackingAction(const G4Track* aTrack) override;
   void PostUserTrackingAction(const G4Track* aTrack) override;
@@ -29,11 +29,12 @@ public:
   SimActivityRegistry::EndOfTrackSignal m_endOfTrackSignal;
 
 private:
-  TrackInformationExtractor extractor_;
-  EventAction* eventAction_;
-  TrackWithHistory* currentTrack_;
+  SimTrackManager* trackManager_;
   CMSSteppingVerbose* steppingVerbose_;
-  const G4Track* g4Track_;
+  const G4Track* g4Track_ = nullptr;
+  TrackInformation* trkInfo_ = nullptr;
+  TrackWithHistory* currentTrack_ = nullptr;
+  int endPrintTrackID_;
   bool checkTrack_;
   bool doFineCalo_;
   bool saveCaloBoundaryInformation_;

@@ -70,11 +70,28 @@ void FWTracksterHitsProxyBuilder::build(const FWEventItem *iItem, TEveElementLis
           << "lower time bound is larger than upper time bound. Maybe opposite is desired?";
     }
   } else {
-    edm::LogWarning("DataNotFound|InvalidData") << "couldn't locate 'timeLayerCluster' ValueMap in root file.";
+    iItem->getEvent()->getByLabel(edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"), TimeValueMapHandle_);
+    edm::LogWarning("DataNotFound|InvalidData")
+        << __FILE__ << ":" << __LINE__
+        << " couldn't locate 'hgcalLayerClusters:timeLayerCluster' ValueMap in input file. Trying to access "
+           "'hgcalMergeLayerClusters:timeLayerClusters' ValueMap";
+    if (!TimeValueMapHandle_.isValid()) {
+      edm::LogWarning("DataNotFound|InvalidData")
+          << __FILE__ << ":" << __LINE__
+          << " couldn't locate 'hgcalMergeLayerClusters:timeLayerCluster' ValueMap in input file.";
+    }
   }
 
   if (!layerClustersHandle_.isValid()) {
-    edm::LogWarning("DataNotFound|InvalidData") << "couldn't locate 'timeLayerCluster' ValueMap in root file.";
+    iItem->getEvent()->getByLabel(edm::InputTag("hgcalMergeLayerClusters"), layerClustersHandle_);
+    edm::LogWarning("DataNotFound|InvalidData")
+        << __FILE__ << ":" << __LINE__
+        << " couldn't locate 'hgcalLayerClusters' collection "
+           "in input file. Trying to access 'hgcalMergeLayerClusters' collection.";
+    if (!layerClustersHandle_.isValid()) {
+      edm::LogWarning("DataNotFound|InvalidData")
+          << __FILE__ << ":" << __LINE__ << " couldn't locate 'hgcalMergeLayerClusters' collection in input file.";
+    }
   }
 
   layer_ = item()->getConfig()->value<long>("Layer");
@@ -232,7 +249,7 @@ void FWTracksterHitsProxyBuilder::build(const ticl::Trackster &iData,
         float centerX = (corners[6] + corners[6 + offset]) / 2;
         float centerY = (corners[7] + corners[7 + offset]) / 2;
         float radius = fabs(corners[6] - corners[6 + offset]) / 2;
-        hex_boxset->AddHex(TEveVector(centerX, centerY, corners[2]), radius, 90.0, shapes[3]);
+        hex_boxset->AddHex(TEveVector(centerX, centerY, corners[2]), radius, shapes[2], shapes[3]);
         if (heatmap_) {
           energy ? hex_boxset->DigitColor(
                        gradient[0][colorFactor], gradient[1][colorFactor], gradient[2][colorFactor], alpha)

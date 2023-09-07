@@ -36,8 +36,8 @@ hiRegitDetachedTripletStepSeedLayers =  RecoTracker.IterativeTracking.DetachedTr
     FPix = dict(skipClusters = 'hiRegitDetachedTripletStepClusters')
 )
 
-from RecoPixelVertexing.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
-#import RecoPixelVertexing.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi
+from RecoTracker.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
+#import RecoTracker.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi
 # seeding
 hiRegitDetachedTripletStepSeeds     = RecoTracker.IterativeTracking.DetachedTripletStep_cff.detachedTripletStepSeeds.clone(
     RegionFactoryPSet = HiTrackingRegionFactoryFromJetsBlock.clone(
@@ -46,14 +46,14 @@ hiRegitDetachedTripletStepSeeds     = RecoTracker.IterativeTracking.DetachedTrip
     ClusterCheckPSet = dict(doClusterCheck = False), # do not check for max number of clusters pixel or strips
     OrderedHitsFactoryPSet = dict(
 	SeedingLayers = 'hiRegitDetachedTripletStepSeedLayers'
-       #GeneratorPSet = dict(SeedComparitorPSet = RecoPixelVertexing.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi.LowPtClusterShapeSeedComparitor.clone()),
+       #GeneratorPSet = dict(SeedComparitorPSet = RecoTracker.PixelLowPtUtilities.LowPtClusterShapeSeedComparitor_cfi.LowPtClusterShapeSeedComparitor.clone()),
     ),
 )
 # building: feed the new-named seeds
 hiRegitDetachedTripletStepTrajectoryFilter = RecoTracker.IterativeTracking.DetachedTripletStep_cff.detachedTripletStepTrajectoryFilterBase.clone()
 hiRegitDetachedTripletStepTrajectoryBuilder = RecoTracker.IterativeTracking.DetachedTripletStep_cff.detachedTripletStepTrajectoryBuilder.clone(
-    trajectoryFilter     = cms.PSet(refToPSet_ = cms.string('hiRegitDetachedTripletStepTrajectoryFilter')),
-    clustersToSkip       = cms.InputTag('hiRegitDetachedTripletStepClusters')
+    trajectoryFilter     = dict(refToPSet_ = 'hiRegitDetachedTripletStepTrajectoryFilter'),
+    clustersToSkip       = 'hiRegitDetachedTripletStepClusters'
 )
 
 hiRegitDetachedTripletStepTrackCandidates        =  RecoTracker.IterativeTracking.DetachedTripletStep_cff._detachedTripletStepTrackCandidatesCkf.clone(

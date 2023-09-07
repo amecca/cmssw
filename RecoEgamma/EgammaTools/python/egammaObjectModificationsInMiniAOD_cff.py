@@ -7,12 +7,16 @@ import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Fall17_iso
 import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Fall17_noIso_V1_cff as ele_fall17_noIso_v1
 import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Fall17_iso_V2_cff as ele_fall17_iso_v2
 import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Fall17_noIso_V2_cff as ele_fall17_noIso_v2
+import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Summer18UL_ID_ISO_cff as ele_summer18UL_hzz
 
+import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_RunIIIWinter22_iso_V1_cff as ele_RunIIIWinter22_iso_v1
+import RecoEgamma.ElectronIdentification.Identification.mvaElectronID_RunIIIWinter22_noIso_V1_cff as ele_RunIIIWinter22_noIso_v1
 
 #photon mva ids
 import RecoEgamma.PhotonIdentification.Identification.mvaPhotonID_Spring16_nonTrig_V1_cff as pho_spring16_nt_v1
 import RecoEgamma.PhotonIdentification.Identification.mvaPhotonID_Fall17_94X_V1p1_cff as pho_fall17_94X_v1p1
 import RecoEgamma.PhotonIdentification.Identification.mvaPhotonID_Fall17_94X_V2_cff as pho_fall17_94X_v2
+import RecoEgamma.PhotonIdentification.Identification.mvaPhotonID_Winter22_122X_V1_cff as pho_winter22_122X_v1
 
 
 ele_mva_prod_name = 'electronMVAValueMapProducer'
@@ -43,6 +47,9 @@ for ele_mva_cff in [
           ele_fall17_noIso_v1,
           ele_fall17_iso_v2,
           ele_fall17_noIso_v2,
+          ele_summer18UL_hzz,
+          ele_RunIIIWinter22_iso_v1,
+          ele_RunIIIWinter22_noIso_v1
         ]:
 
     setup_mva(egamma_modifications[0].electron_config,
@@ -53,7 +60,8 @@ for ele_mva_cff in [
 for pho_mva_cff in [
           pho_spring16_nt_v1,
           pho_fall17_94X_v1p1,
-          pho_fall17_94X_v2
+          pho_fall17_94X_v2,
+          pho_winter22_122X_v1
         ]:
 
     setup_mva(egamma_modifications[0].photon_config,
@@ -145,6 +153,16 @@ egammaHIPhotonIsolationModifier = cms.PSet(
         )
     )
 
+photonDRNModifier = cms.PSet(
+      modifierName = cms.string("EGRegressionModifierDRN"),
+      patPhotons = cms.PSet(
+          source = cms.InputTag("selectedPatPhotons"),
+          correctionsSource = cms.InputTag('patPhotonsDRN'),
+          energyFloat = cms.string("energyDRN"),
+          resFloat = cms.string("resolutionDRN")
+        )
+    )
+
 def appendReducedEgammaEnergyScaleAndSmearingModifier(modifiers):
     modifiers.append(reducedEgammaEnergyScaleAndSmearingModifier)
 
@@ -158,6 +176,9 @@ def appendEgamma8XLegacyAppendableModifiers (modifiers):
 def appendEgammaHIPhotonIsolationModifier(modifiers):
     modifiers.append(egammaHIPhotonIsolationModifier)
 
+def appendPhotonDRNModifier(modifiers):
+    modifiers.append(photonDRNModifier)
+
 from Configuration.Eras.Modifier_run2_miniAOD_94XFall17_cff import run2_miniAOD_94XFall17
 from Configuration.ProcessModifiers.run2_miniAOD_UL_cff import run2_miniAOD_UL
 (run2_miniAOD_94XFall17 | run2_miniAOD_UL).toModify(egamma_modifications,appendReducedEgammaEnergyScaleAndSmearingModifier)
@@ -170,3 +191,6 @@ run2_miniAOD_80XLegacy.toModify(egamma_modifications,prependEgamma8XObjectUpdate
 
 from Configuration.ProcessModifiers.pp_on_AA_cff import pp_on_AA
 pp_on_AA.toModify(egamma_modifications, appendEgammaHIPhotonIsolationModifier)
+
+from Configuration.ProcessModifiers.photonDRN_cff import _photonDRN
+_photonDRN.toModify(egamma_modifications, appendPhotonDRNModifier)

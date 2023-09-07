@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Modifier_hgcaltb_cff import hgcaltb
 
-process = cms.Process('SIM')
+process = cms.Process('SIM', hgcaltb)
 
 # import of standard configurations
 process.load("FWCore.MessageService.MessageLogger_cfi")
@@ -9,8 +10,8 @@ process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
 process.load('SimGeneral.MixingModule.mixNoPU_cfi')
 process.load('SimG4CMS.HGCalTestBeam.HGCalTB181JuneXML_cfi')
-process.load('Geometry.HGCalCommonData.hgcalNumberingInitialization_cfi')
-process.load('Geometry.HGCalCommonData.hgcalParametersInitialization_cfi')
+process.load('Geometry.HGCalTBCommonData.hgcalTBNumberingInitialization_cfi')
+process.load('Geometry.HGCalTBCommonData.hgcalTBParametersInitialization_cfi')
 process.load('Configuration.StandardSequences.MagneticField_0T_cff')
 process.load('Configuration.StandardSequences.Generator_cff')
 process.load('IOMC.EventVertexGenerators.VtxSmearedFlat_cfi')
@@ -75,10 +76,6 @@ process.VtxSmeared.MinY = -7.5
 process.VtxSmeared.MaxY =  7.5
 process.g4SimHits.HGCSD.RejectMouseBite = True
 process.g4SimHits.HGCSD.RotatedWafer    = True
-process.g4SimHits.OnlySDs = ['AHcalSensitiveDetector',
-                             'HGCSensitiveDetector',
-                             'HGCalTB1601SensitiveDetector',
-                             'HcalTB06BeamDetector']
 
 # Path and EndPath definitions
 process.generation_step = cms.Path(process.pgen)

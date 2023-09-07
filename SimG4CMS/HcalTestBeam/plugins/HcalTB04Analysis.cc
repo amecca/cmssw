@@ -105,16 +105,18 @@ private:
   double timeOfFlight(int det, int layer, double eta);
 
 private:
+  // to read from parameter set
+  const edm::ParameterSet m_Anal;
+  const bool hcalOnly;
+  const int mode, type;
+  const double ecalNoise, beamOffset;
+  const double scaleHB0, scaleHB16, scaleHO, scaleHE0;
+  const std::vector<std::string> names;
+
   HcalQie* myQie;
   HcalTB04Histo* histo;
 
-  // to read from parameter set
-  bool hcalOnly;
-  int mode, type;
-  double ecalNoise, beamOffset;
   int iceta, icphi;
-  double scaleHB0, scaleHB16, scaleHO, scaleHE0;
-  std::vector<std::string> names;
   G4RotationMatrix* beamline_RM;
 
   // Constants for the run
@@ -145,18 +147,20 @@ private:
 // constructors and destructor
 //
 
-HcalTB04Analysis::HcalTB04Analysis(const edm::ParameterSet& p) : myQie(nullptr), histo(nullptr) {
-  edm::ParameterSet m_Anal = p.getParameter<edm::ParameterSet>("HcalTB04Analysis");
-  hcalOnly = m_Anal.getParameter<bool>("HcalOnly");
-  mode = m_Anal.getParameter<int>("Mode");
-  type = m_Anal.getParameter<int>("Type");
-  ecalNoise = m_Anal.getParameter<double>("EcalNoise");
-  scaleHB0 = m_Anal.getParameter<double>("ScaleHB0");
-  scaleHB16 = m_Anal.getParameter<double>("ScaleHB16");
-  scaleHO = m_Anal.getParameter<double>("ScaleHO");
-  scaleHE0 = m_Anal.getParameter<double>("ScaleHE0");
-  names = m_Anal.getParameter<std::vector<std::string> >("Names");
-  beamOffset = -m_Anal.getParameter<double>("BeamPosition") * cm;
+HcalTB04Analysis::HcalTB04Analysis(const edm::ParameterSet& p)
+    : m_Anal(p.getParameter<edm::ParameterSet>("HcalTB04Analysis")),
+      hcalOnly(m_Anal.getParameter<bool>("HcalOnly")),
+      mode(m_Anal.getParameter<int>("Mode")),
+      type(m_Anal.getParameter<int>("Type")),
+      ecalNoise(m_Anal.getParameter<double>("EcalNoise")),
+      beamOffset(-m_Anal.getParameter<double>("BeamPosition") * CLHEP::cm),
+      scaleHB0(m_Anal.getParameter<double>("ScaleHB0")),
+      scaleHB16(m_Anal.getParameter<double>("ScaleHB16")),
+      scaleHO(m_Anal.getParameter<double>("ScaleHO")),
+      scaleHE0(m_Anal.getParameter<double>("ScaleHE0")),
+      names(m_Anal.getParameter<std::vector<std::string> >("Names")),
+      myQie(nullptr),
+      histo(nullptr) {
   double fMinEta = m_Anal.getParameter<double>("MinEta");
   double fMaxEta = m_Anal.getParameter<double>("MaxEta");
   double fMinPhi = m_Anal.getParameter<double>("MinPhi");
@@ -166,8 +170,8 @@ HcalTB04Analysis::HcalTB04Analysis(const edm::ParameterSet& p) : myQie(nullptr),
   double beamThet = 2 * atan(exp(-beamEta));
   if (beamPhi < 0)
     beamPhi += twopi;
-  iceta = (int)(beamEta / 0.087) + 1;
-  icphi = (int)(fabs(beamPhi) / 0.087) + 5;
+  iceta = static_cast<int>(beamEta / 0.087) + 1;
+  icphi = static_cast<int>(std::fabs(beamPhi) / 0.087) + 5;
   if (icphi > 72)
     icphi -= 73;
 
@@ -354,12 +358,12 @@ void HcalTB04Analysis::update(const G4Step* aStep) {
       double kinEnergy = aTrack->GetKineticEnergy();
 
       // look for DeltaE > 10% kinEnergy of particle, or particle death - Ek=0
-      if (trackID == 1 && parentID == 0 && ((kinEnergy == 0.) || (fabs(stepDeltaEnergy / kinEnergy) > 0.1))) {
+      if (trackID == 1 && parentID == 0 && ((kinEnergy == 0.) || (std::fabs(stepDeltaEnergy / kinEnergy) > 0.1))) {
         pvType = -1;
         if (kinEnergy == 0.) {
           pvType = 0;
         } else {
-          if (fabs(stepDeltaEnergy / kinEnergy) > 0.1)
+          if (std::fabs(stepDeltaEnergy / kinEnergy) > 0.1)
             pvType = 1;
         }
         pvFound = true;
@@ -479,7 +483,9 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
   int idHC, j;
   CaloG4HitCollection* theHC;
   std::map<int, float, std::less<int> > primaries;
+#ifdef EDM_ML_DEBUG
   double etot1 = 0, etot2 = 0;
+#endif
 
   // Look for the Hit Collection of HCal
   G4HCofThisEvent* allHC = (*evt)()->GetHCofThisEvent();
@@ -501,7 +507,7 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
       math::XYZPoint pos = aHit->getEntry();
       unsigned int id = aHit->getUnitID();
       double theta = pos.theta();
-      double eta = -log(tan(theta * 0.5));
+      double eta = -std::log(std::tan(theta * 0.5));
       double phi = pos.phi();
       int det, z, group, ieta, iphi, layer;
       HcalTestNumbering::unpackHcalIndex(id, det, z, group, ieta, iphi, layer);
@@ -517,8 +523,8 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
       CaloHit hitl(det, layer, escl, eta, phi, jitter, id);
       hhitl.push_back(hitl);
       primaries[aHit->getTrackID()] += e;
-      etot1 += escl;
 #ifdef EDM_ML_DEBUG
+      etot1 += escl;
       edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Hcal Hit i/p " << j << "  ID 0x" << std::hex << id << " 0x"
                                     << idx << std::dec << " time " << std::setw(6) << time << " " << std::setw(6)
                                     << jitter << " theta " << std::setw(8) << theta << " eta " << std::setw(8) << eta
@@ -537,7 +543,9 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
   }
   sort(hits.begin(), hits.end(), CaloHitIdMore());
   std::vector<CaloHit*>::iterator k1, k2;
+#ifdef EDM_ML_DEBUG
   int nhit = 0;
+#endif
   for (k1 = hits.begin(); k1 != hits.end(); k1++) {
     int det = (**k1).det();
     int layer = (**k1).layer();
@@ -547,16 +555,16 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
     double jitter = (**k1).t();
     uint32_t unitID = (**k1).id();
     int jump = 0;
-    for (k2 = k1 + 1; k2 != hits.end() && fabs(jitter - (**k2).t()) < 1 && unitID == (**k2).id(); k2++) {
+    for (k2 = k1 + 1; k2 != hits.end() && std::fabs(jitter - (**k2).t()) < 1 && unitID == (**k2).id(); k2++) {
       ehit += (**k2).e();
       jump++;
     }
-    nhit++;
     CaloHit hit(det, layer, ehit, eta, phi, jitter, unitID);
     hcalHitCache.push_back(hit);
-    etot2 += ehit;
     k1 += jump;
 #ifdef EDM_ML_DEBUG
+    nhit++;
+    etot2 += ehit;
     edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Hcal Hit store " << nhit << "  ID 0x" << std::hex << unitID
                                   << std::dec << " time " << std::setw(6) << jitter << " eta " << std::setw(8) << eta
                                   << " phi " << std::setw(8) << phi << " e " << std::setw(8) << ehit;
@@ -571,8 +579,10 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
     hits[j] = &hhitl[j];
   }
   sort(hits.begin(), hits.end(), CaloHitIdMore());
+#ifdef EDM_ML_DEBUG
   int nhitl = 0;
   double etotl = 0;
+#endif
   for (k1 = hits.begin(); k1 != hits.end(); k1++) {
     int det = (**k1).det();
     int layer = (**k1).layer();
@@ -582,16 +592,16 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
     double jitter = (**k1).t();
     uint32_t unitID = (**k1).id();
     int jump = 0;
-    for (k2 = k1 + 1; k2 != hits.end() && fabs(jitter - (**k2).t()) < 1 && unitID == (**k2).id(); k2++) {
+    for (k2 = k1 + 1; k2 != hits.end() && std::fabs(jitter - (**k2).t()) < 1 && unitID == (**k2).id(); k2++) {
       ehit += (**k2).e();
       jump++;
     }
-    nhitl++;
     CaloHit hit(det, layer, ehit, eta, phi, jitter, unitID);
     hcalHitLayer.push_back(hit);
-    etotl += ehit;
     k1 += jump;
 #ifdef EDM_ML_DEBUG
+    nhitl++;
+    etotl += ehit;
     edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Hcal Hit store " << nhitl << "  ID 0x" << std::hex << unitID
                                   << std::dec << " time " << std::setw(6) << jitter << " eta " << std::setw(8) << eta
                                   << " phi " << std::setw(8) << phi << " e " << std::setw(8) << ehit;
@@ -606,8 +616,8 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
   sdName = names[1];
   idHC = G4SDManager::GetSDMpointer()->GetCollectionID(sdName);
   theHC = (CaloG4HitCollection*)allHC->GetHC(idHC);
-  etot1 = etot2 = 0;
 #ifdef EDM_ML_DEBUG
+  etot1 = etot2 = 0;
   edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Hit Collection for " << sdName << " of ID " << idHC
                                 << " is obtained at " << theHC << " with " << theHC->entries() << " entries";
 #endif
@@ -624,15 +634,15 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
         math::XYZPoint pos = aHit->getEntry();
         unsigned int id = aHit->getUnitID();
         double theta = pos.theta();
-        double eta = -log(tan(theta * 0.5));
+        double eta = -std::log(std::tan(theta * 0.5));
         double phi = pos.phi();
         int det, z, group, ieta, iphi, layer;
         HcalTestNumbering::unpackHcalIndex(id, det, z, group, ieta, iphi, layer);
         CaloHit hit(det, 0, e, eta, phi, time, id);
         ehits.push_back(hit);
         primaries[aHit->getTrackID()] += e;
-        etot1 += e;
 #ifdef EDM_ML_DEBUG
+        etot1 += e;
         edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Ecal Hit i/p " << j << "  ID 0x" << std::hex << id
                                       << std::dec << " time " << std::setw(6) << time << " theta " << std::setw(8)
                                       << theta << " eta " << std::setw(8) << eta << " phi " << std::setw(8) << phi
@@ -649,7 +659,9 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
     hite[j] = &ehits[j];
   }
   sort(hite.begin(), hite.end(), CaloHitIdMore());
+#ifdef EDM_ML_DEBUG
   nhit = 0;
+#endif
   for (k1 = hite.begin(); k1 != hite.end(); k1++) {
     int det = (**k1).det();
     int layer = (**k1).layer();
@@ -659,16 +671,16 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
     double jitter = (**k1).t();
     uint32_t unitID = (**k1).id();
     int jump = 0;
-    for (k2 = k1 + 1; k2 != hite.end() && fabs(jitter - (**k2).t()) < 1 && unitID == (**k2).id(); k2++) {
+    for (k2 = k1 + 1; k2 != hite.end() && std::fabs(jitter - (**k2).t()) < 1 && unitID == (**k2).id(); k2++) {
       ehit += (**k2).e();
       jump++;
     }
-    nhit++;
     CaloHit hit(det, layer, ehit, eta, phi, jitter, unitID);
     ecalHitCache.push_back(hit);
-    etot2 += ehit;
     k1 += jump;
 #ifdef EDM_ML_DEBUG
+    nhit++;
+    etot2 += ehit;
     edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Ecal Hit store " << nhit << "  ID 0x" << std::hex << unitID
                                   << std::dec << " time " << std::setw(6) << jitter << " eta " << std::setw(8) << eta
                                   << " phi " << std::setw(8) << phi << " e " << std::setw(8) << ehit;
@@ -679,7 +691,7 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
                                 << " input hits E(Ecal) " << etot1 << " " << etot2;
 #endif
   // Find Primary info:
-  nPrimary = (int)(primaries.size());
+  nPrimary = static_cast<int>(primaries.size());
   int trackID = 0;
   G4PrimaryParticle* thePrim = nullptr;
   int nvertex = (*evt)()->GetNumberOfPrimaryVertex();
@@ -713,9 +725,9 @@ void HcalTB04Analysis::fillBuffer(const EndOfEvent* evt) {
     else {
       double costheta = pz / p;
       double theta = acos(std::min(std::max(costheta, -1.), 1.));
-      etaInit = -log(tan(theta / 2));
+      etaInit = -std::log(std::tan(theta / 2));
       if (px != 0 || py != 0)
-        phiInit = atan2(py, px);
+        phiInit = std::atan2(py, px);
     }
     particleType = thePrim->GetPDGcode();
   } else
@@ -964,36 +976,38 @@ void HcalTB04Analysis::fillEvent(PHcalTB04Info& product) {
   product.setLongProf(eslay, eqlay);
 
   //Save Hits
-  int i, nhit = 0;
+  int nhit = 0;
   std::vector<CaloHit>::iterator itr;
-  for (i = 0, itr = ecalHitCache.begin(); itr != ecalHitCache.end(); i++, itr++) {
+  for (itr = ecalHitCache.begin(); itr != ecalHitCache.end(); itr++) {
     uint32_t id = itr->id();
     int det, z, group, ieta, iphi, lay;
     HcalTestNumbering::unpackHcalIndex(id, det, z, group, ieta, iphi, lay);
     product.saveHit(det, lay, ieta, iphi, itr->e(), itr->t());
     nhit++;
 #ifdef EDM_ML_DEBUG
-    edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Save Hit " << std::setw(3) << i + 1 << " ID 0x" << std::hex
+    edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Save Hit " << std::setw(3) << nhit << " ID 0x" << std::hex
                                   << group << std::dec << " " << std::setw(2) << det << " " << std::setw(2) << lay
                                   << " " << std::setw(1) << z << " " << std::setw(3) << ieta << " " << std::setw(3)
                                   << iphi << " T " << std::setw(6) << itr->t() << " E " << std::setw(6) << itr->e();
 #endif
   }
   edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Saves " << nhit << " hits from Crystals";
-  int hit = nhit;
+#ifdef EDM_ML_DEBUG
+  int nhit0 = nhit;
+#endif
   nhit = 0;
-
-  for (i = hit, itr = hcalHitCache.begin(); itr != hcalHitCache.end(); i++, itr++) {
+  for (itr = hcalHitCache.begin(); itr != hcalHitCache.end(); itr++) {
     uint32_t id = itr->id();
     int det, z, group, ieta, iphi, lay;
     HcalTestNumbering::unpackHcalIndex(id, det, z, group, ieta, iphi, lay);
     product.saveHit(det, lay, ieta, iphi, itr->e(), itr->t());
     nhit++;
 #ifdef EDM_ML_DEBUG
-    edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Save Hit " << std::setw(3) << i + 1 << " ID 0x" << std::hex
-                                  << group << std::dec << " " << std::setw(2) << det << " " << std::setw(2) << lay
-                                  << " " << std::setw(1) << z << " " << std::setw(3) << ieta << " " << std::setw(3)
-                                  << iphi << " T " << std::setw(6) << itr->t() << " E " << std::setw(6) << itr->e();
+    edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Save Hit " << std::setw(3) << nhit + nhit0 << " ID 0x"
+                                  << std::hex << group << std::dec << " " << std::setw(2) << det << " " << std::setw(2)
+                                  << lay << " " << std::setw(1) << z << " " << std::setw(3) << ieta << " "
+                                  << std::setw(3) << iphi << " T " << std::setw(6) << itr->t() << " E " << std::setw(6)
+                                  << itr->e();
 #endif
   }
   edm::LogVerbatim("HcalTBSim") << "HcalTB04Analysis:: Saves " << nhit << " hits from HCal";
@@ -1080,7 +1094,7 @@ double HcalTB04Analysis::scale(int det, int layer) {
 }
 
 double HcalTB04Analysis::timeOfFlight(int det, int layer, double eta) {
-  double theta = 2.0 * atan(exp(-eta));
+  double theta = 2.0 * std::atan(std::exp(-eta));
   double dist = beamOffset;
   if (det == static_cast<int>(HcalBarrel)) {
     const double rLay[19] = {1836.0,

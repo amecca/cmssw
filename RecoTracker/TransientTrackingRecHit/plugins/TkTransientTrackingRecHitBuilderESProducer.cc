@@ -36,6 +36,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 private:
+  const std::string pname_;
   std::optional<edm::ESGetToken<StripClusterParameterEstimator, TkStripCPERecord>> spToken_;
   std::optional<edm::ESGetToken<PixelClusterParameterEstimator, TkPixelCPERecord>> ppToken_;
   std::optional<edm::ESGetToken<SiStripRecHitMatcher, TkStripCPERecord>> mpToken_;
@@ -47,7 +48,8 @@ private:
 using namespace edm;
 
 TkTransientTrackingRecHitBuilderESProducer::TkTransientTrackingRecHitBuilderESProducer(const edm::ParameterSet& p)
-    : computeCoarseLocalPositionFromDisk_(p.getParameter<bool>("ComputeCoarseLocalPositionFromDisk")) {
+    : pname_(p.getParameter<std::string>("PixelCPE")),
+      computeCoarseLocalPositionFromDisk_(p.getParameter<bool>("ComputeCoarseLocalPositionFromDisk")) {
   std::string const myname = p.getParameter<std::string>("ComponentName");
   auto c = setWhatProduced(this, myname);
   geomToken_ = c.consumes();
@@ -57,9 +59,8 @@ TkTransientTrackingRecHitBuilderESProducer::TkTransientTrackingRecHitBuilderESPr
     spToken_ = c.consumes(edm::ESInputTag("", sname));
   }
 
-  std::string const pname = p.getParameter<std::string>("PixelCPE");
-  if (pname != "Fake") {
-    ppToken_ = c.consumes(edm::ESInputTag("", pname));
+  if (pname_ != "Fake") {
+    ppToken_ = c.consumes(edm::ESInputTag("", pname_));
   }
 
   auto const mname = p.getParameter<std::string>("Matcher");
@@ -75,8 +76,14 @@ TkTransientTrackingRecHitBuilderESProducer::TkTransientTrackingRecHitBuilderESPr
 
 std::unique_ptr<TransientTrackingRecHitBuilder> TkTransientTrackingRecHitBuilderESProducer::produce(
     const TransientRecHitRecord& iRecord) {
+  if (pname_ == "PixelCPEFast") {
+    edm::LogWarning("TkTransientTrackingRecHitBuilderESProducer")
+        << "\n\t\t WARNING!\n 'PixelCPEFast' has been chosen as PixelCPE choice.\n"
+        << " Track angles will NOT be used in the CPE estimation!\n";
+  }
+
   const StripClusterParameterEstimator* sp = nullptr;
-  if (spToken_) {
+  if (spToken_ && !p2OTToken_) {  // no strips in Phase-2
     sp = &iRecord.get(*spToken_);
   }
 
@@ -110,15 +117,13 @@ std::unique_ptr<TransientTrackingRecHitBuilder> TkTransientTrackingRecHitBuilder
 
 void TkTransientTrackingRecHitBuilderESProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-
-  desc.add<std::string>("ComponentName");
-  desc.add<bool>("ComputeCoarseLocalPositionFromDisk");
-  desc.add<std::string>("StripCPE")->setComment("Using \"Fake\" disables use of StripCPE");
-  desc.add<std::string>("PixelCPE")->setComment("Using \"Fake\" disables use of PixelCPE");
-  desc.add<std::string>("Matcher")->setComment("Using \"Fake\" disables use of SiStripRecHitMatcher");
+  desc.add<std::string>("ComponentName", "Fake");
+  desc.add<bool>("ComputeCoarseLocalPositionFromDisk", false);
+  desc.add<std::string>("StripCPE", "Fake")->setComment("Using \"Fake\" disables use of StripCPE");
+  desc.add<std::string>("PixelCPE", "Fake")->setComment("Using \"Fake\" disables use of PixelCPE");
+  desc.add<std::string>("Matcher", "Fake")->setComment("Using \"Fake\" disables use of SiStripRecHitMatcher");
   desc.add<std::string>("Phase2StripCPE", "")->setComment("Using empty string disables use of Phase2StripCPE");
-
-  descriptions.addDefault(desc);
+  descriptions.addWithDefaultLabel(desc);
 }
 
 DEFINE_FWK_EVENTSETUP_MODULE(TkTransientTrackingRecHitBuilderESProducer);

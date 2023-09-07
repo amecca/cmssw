@@ -28,7 +28,7 @@
 
 class GEMDQMBase : public DQMEDAnalyzer {
 public:
-  // Borrwed from DQMOffline/Muon/interface/GEMOfflineDQMBase.h
+  // Borrwed from DQM/GEM/interface/GEMOfflineDQMBase.h
   class BookingHelper {
   public:
     BookingHelper(DQMStore::IBooker &ibooker, const TString &name_suffix, const TString &title_suffix)
@@ -91,6 +91,8 @@ public:
       return ibooker_->bookProfile2D(name, title, nbinsx, xlow, xup, nbinsy, ylow, yup, zlow, zup);
     }
 
+    DQMStore::IBooker *getBooker() { return ibooker_; }
+
   private:
     DQMStore::IBooker *ibooker_;
     const TString name_suffix_;
@@ -100,7 +102,7 @@ public:
   template <class M, class K>
   class MEMapInfT {
   public:
-    MEMapInfT() : bOperating_(false){};
+    MEMapInfT() : bOperating_(false), bIsNoUnderOverflowBin_(false){};
 
     MEMapInfT(
         GEMDQMBase *pDQMBase, TString strName, TString strTitle, TString strTitleX = "", TString strTitleY = "Entries")
@@ -126,6 +128,7 @@ public:
           strTitleY_(strTitleY),
           bOperating_(true),
           bIsProfile_(false),
+          bIsNoUnderOverflowBin_(false),
           nBinsX_(nBinsX),
           dXL_(dXL),
           dXH_(dXH),
@@ -145,6 +148,7 @@ public:
           strTitleY_(strTitleY),
           bOperating_(true),
           bIsProfile_(false),
+          bIsNoUnderOverflowBin_(false),
           nBinsX_(-1),
           nBinsY_(-1),
           log_category_own_(pDQMBase->log_category_) {
@@ -170,6 +174,7 @@ public:
           strTitleY_(strTitleY),
           bOperating_(true),
           bIsProfile_(false),
+          bIsNoUnderOverflowBin_(false),
           nBinsX_(nBinsX),
           dXL_(dXL),
           dXH_(dXH),
@@ -200,6 +205,7 @@ public:
           strTitleY_(strTitleY),
           bOperating_(true),
           bIsProfile_(true),
+          bIsNoUnderOverflowBin_(false),
           nBinsX_(nBinsX),
           dXL_(dXL),
           dXH_(dXH),
@@ -223,6 +229,7 @@ public:
     //      strTitleX_(strTitleX),
     //      strTitleY_(strTitleY),
     //      bOperating_(true),
+    //      bIsNoUnderOverflowBin_(false),
     //      nBinsX_(nBinsX),
     //      dXL_(dXL),
     //      dXH_(dXH),
@@ -237,6 +244,7 @@ public:
     void SetOperating(Bool_t bOperating) { bOperating_ = bOperating; };
     void TurnOn() { bOperating_ = true; };
     void TurnOff() { bOperating_ = false; };
+    void SetNoUnderOverflowBin() { bIsNoUnderOverflowBin_ = true; };
 
     Bool_t isProfile() { return bIsProfile_; };
     void SetProfile(Bool_t bIsProfile) { bIsProfile_ = bIsProfile; };
@@ -286,10 +294,20 @@ public:
       dYH_ = dH;
     };
 
+    void SetPointUOFlow() {
+      dXU_ = dXL_ + (dXH_ - dXL_) / nBinsX_ * 0.5;
+      dXO_ = dXL_ + (dXH_ - dXL_) / nBinsX_ * (nBinsX_ - 0.5);
+      dYU_ = dYL_ + (dYH_ - dYL_) / nBinsY_ * 0.5;
+      dYO_ = dYL_ + (dYH_ - dYL_) / nBinsY_ * (nBinsY_ - 0.5);
+      dZU_ = dZL_ + (dZH_ - dZL_) / nBinsZ_ * 0.5;
+      dZO_ = dZL_ + (dZH_ - dZL_) / nBinsZ_ * (nBinsZ_ - 0.5);
+    };
+
     M &map() { return mapHist; }
     int bookND(BookingHelper &bh, K key) {
       if (!bOperating_)
         return 0;
+      SetPointUOFlow();
       if (bIsProfile_) {
         mapHist[key] = bh.bookProfile2D(
             strName_, strTitle_, nBinsX_, dXL_, dXH_, nBinsY_, dYL_, dYH_, dZL_, dZH_, strTitleX_, strTitleY_);
@@ -311,11 +329,12 @@ public:
       if (mapHist.find(key) == mapHist.end()) {
         edm::LogError(log_category_own_)
             << "WARNING: Cannot find the histogram corresponing to the given key\n";  // FIXME: It's about sending a message
+        return nullptr;
       }
       return mapHist[key];
     };
 
-    int SetLabelForChambers(K key, Int_t nAxis, Int_t nNumBin = -1) {
+    int SetLabelForChambers(K key, Int_t nAxis, Int_t nNumBin = -1, Int_t nIdxStart = 1) {
       if (!bOperating_)
         return 0;
       if (nNumBin <= 0) {
@@ -330,7 +349,7 @@ public:
       if (histCurr == nullptr)
         return -999;
       for (Int_t i = 1; i <= nNumBin; i++) {
-        histCurr->setBinLabel(i, Form("%i", i), nAxis);
+        histCurr->setBinLabel(i, Form("%i", nIdxStart + i - 1), nAxis);
       }
       return 0;
     };
@@ -351,9 +370,24 @@ public:
       dqm::impl::MonitorElement *histCurr = FindHist(key);
       if (histCurr == nullptr)
         return -999;
-      for (Int_t i = 0; i < nNumBin; i++) {
-        Int_t nIEta = pDQMBase_->getIEtaFromVFAT(std::get<1>(key), i);
-        histCurr->setBinLabel(i + 1, Form("%i (%i)", i, nIEta), nAxis);
+      if (std::get<1>(key) == 2) {
+        Int_t nNumVFATPerModule = 12;  // FIXME: A better way to get this?
+        if (nNumBin > nNumVFATPerModule) {
+          for (Int_t i = 0; i < nNumBin; i++) {
+            Int_t nIModule = i / nNumVFATPerModule + 1;
+            histCurr->setBinLabel(
+                i + 1, Form((nAxis == 1 ? "#splitline{%i}{M%i}" : "%i (M%i)"), i % nNumVFATPerModule, nIModule), nAxis);
+          }
+        } else {
+          for (Int_t i = 0; i < nNumBin; i++) {
+            histCurr->setBinLabel(i + 1, Form("%i", i), nAxis);
+          }
+        }
+      } else {
+        for (Int_t i = 0; i < nNumBin; i++) {
+          Int_t nIEta = pDQMBase_->getIEtaFromVFAT(std::get<1>(key), i);
+          histCurr->setBinLabel(i + 1, Form("%i (%i)", i, nIEta), nAxis);
+        }
       }
       return 0;
     };
@@ -364,6 +398,12 @@ public:
       dqm::impl::MonitorElement *hist = FindHist(key);
       if (hist == nullptr)
         return -999;
+      if (bIsNoUnderOverflowBin_) {
+        if (x <= dXL_)
+          x = dXU_;
+        else if (x >= dXH_)
+          x = dXO_;
+      }
       hist->Fill(x);
       return 1;
     };
@@ -374,6 +414,16 @@ public:
       dqm::impl::MonitorElement *hist = FindHist(key);
       if (hist == nullptr)
         return -999;
+      if (bIsNoUnderOverflowBin_) {
+        if (x <= dXL_)
+          x = dXU_;
+        else if (x >= dXH_)
+          x = dXO_;
+        if (y <= dYL_)
+          y = dYU_;
+        else if (y >= dYH_)
+          y = dYO_;
+      }
       hist->Fill(x, y, w);
       return 1;
     };
@@ -404,13 +454,18 @@ public:
     TString strName_, strTitle_, strTitleX_, strTitleY_;
     Bool_t bOperating_;
     Bool_t bIsProfile_;
+    Bool_t bIsNoUnderOverflowBin_;
 
     std::vector<double> x_binning_;
     Int_t nBinsX_;
     Double_t dXL_, dXH_;
     Int_t nBinsY_;
     Double_t dYL_, dYH_;
+    Int_t nBinsZ_;
     Double_t dZL_, dZH_;
+    Double_t dXU_, dXO_;
+    Double_t dYU_, dYO_;
+    Double_t dZU_, dZO_;
 
     std::string log_category_own_;
   };
@@ -418,6 +473,7 @@ public:
   typedef MEMapInfT<MEMap2Ids, ME2IdsKey> MEMap2Inf;
   typedef MEMapInfT<MEMap3Ids, ME3IdsKey> MEMap3Inf;
   typedef MEMapInfT<MEMap4Ids, ME4IdsKey> MEMap4Inf;
+  typedef MEMapInfT<MEMap5Ids, ME5IdsKey> MEMap5Inf;
 
   class MEStationInfo {
   public:
@@ -426,42 +482,73 @@ public:
                   Int_t nStation,
                   Int_t nLayer,
                   Int_t nNumChambers,
+                  Int_t nNumModules,
                   Int_t nNumEtaPartitions,
                   Int_t nMaxVFAT,
-                  Int_t nNumDigi)
+                  Int_t nFirstStrip,
+                  Int_t nNumDigi,
+                  Int_t nMinIdxChamber,
+                  Int_t nMaxIdxChamber)
         : nRegion_(nRegion),
           nStation_(nStation),
           nLayer_(nLayer),
           nNumChambers_(nNumChambers),
+          nNumModules_(nNumModules),
           nNumEtaPartitions_(nNumEtaPartitions),
           nMaxVFAT_(nMaxVFAT),
-          nNumDigi_(nNumDigi){};
+          nFirstStrip_(nFirstStrip),
+          nNumDigi_(nNumDigi),
+          nMinIdxChamber_(nMinIdxChamber),
+          nMaxIdxChamber_(nMaxIdxChamber),
+          fMinPhi_(0){};
 
     bool operator==(const MEStationInfo &other) const {
       return (nRegion_ == other.nRegion_ && nStation_ == other.nStation_ && nLayer_ == other.nLayer_ &&
-              nNumChambers_ == other.nNumChambers_ && nNumEtaPartitions_ == other.nNumEtaPartitions_ &&
-              nMaxVFAT_ == other.nMaxVFAT_ && nNumDigi_ == other.nNumDigi_);
+              nNumChambers_ == other.nNumChambers_ && nNumModules_ == other.nNumModules_ &&
+              nNumEtaPartitions_ == other.nNumEtaPartitions_ && nMaxVFAT_ == other.nMaxVFAT_ &&
+              nFirstStrip_ == other.nFirstStrip_ && nNumDigi_ == other.nNumDigi_);
     };
 
     Int_t nRegion_;            // the region index
     Int_t nStation_;           // the station index
     Int_t nLayer_;             // the layer
     Int_t nNumChambers_;       // the number of chambers in the current station
+    Int_t nNumModules_;        // the number of modules in each chamber
     Int_t nNumEtaPartitions_;  // the number of eta partitions of the chambers
-    Int_t nMaxVFAT_;  // the number of all VFATs in each chamber (= # of VFATs in eta partition * nNumEtaPartitions_)
-    Int_t nNumDigi_;  // the number of digis of each VFAT
+    Int_t nMaxVFAT_;     // the number of all VFATs in each chamber (= # of VFATs in eta partition * nNumEtaPartitions_)
+    Int_t nFirstStrip_;  // the index of the first strip
+    Int_t nNumDigi_;     // the number of digis of each VFAT
+
+    Int_t nMinIdxChamber_;
+    Int_t nMaxIdxChamber_;
+    Float_t fMinPhi_;
+
+    std::vector<Float_t> listRadiusEvenChamber_;
+    std::vector<Float_t> listRadiusOddChamber_;
   };
+
+  int readGeometryRadiusInfoChamber(const GEMStation *station, MEStationInfo &stationInfo);
+  int readGeometryPhiInfoChamber(const GEMStation *station, MEStationInfo &stationInfo);
 
 public:
   explicit GEMDQMBase(const edm::ParameterSet &cfg);
   ~GEMDQMBase() override{};
+
+  enum {
+    GEMDQM_RUNTYPE_ONLINE,
+    GEMDQM_RUNTYPE_OFFLINE,
+    GEMDQM_RUNTYPE_RELVAL,
+    GEMDQM_RUNTYPE_ALLPLOTS,
+    GEMDQM_RUNTYPE_NONE = -1
+  };
+
+  Int_t nRunType_;
 
   std::string log_category_;
 
 protected:
   int initGeometry(edm::EventSetup const &iSetup);
   int loadChambers();
-  int readRadiusEtaPartition(int nRegion, int nStation);
 
   int GenerateMEPerChamber(DQMStore::IBooker &ibooker);
   virtual int ProcessWithMEMap2(BookingHelper &bh, ME2IdsKey key) { return 0; };              // must be overrided
@@ -469,19 +556,27 @@ protected:
   virtual int ProcessWithMEMap2AbsReWithEta(BookingHelper &bh, ME3IdsKey key) { return 0; };  // must be overrided
   virtual int ProcessWithMEMap3(BookingHelper &bh, ME3IdsKey key) { return 0; };              // must be overrided
   virtual int ProcessWithMEMap4(BookingHelper &bh, ME4IdsKey key) { return 0; };              // must be overrided
-  virtual int ProcessWithMEMap3WithChamber(BookingHelper &bh, ME4IdsKey key) { return 0; };   // must be overrided
+  virtual int ProcessWithMEMap5(BookingHelper &bh, ME5IdsKey key) { return 0; };              // must be overrided
+  virtual int ProcessWithMEMap4WithChamber(BookingHelper &bh, ME4IdsKey key) { return 0; };   // must be overrided
+  virtual int ProcessWithMEMap5WithChamber(BookingHelper &bh, ME5IdsKey key) { return 0; };   // must be overrided
 
   int keyToRegion(ME2IdsKey key) { return std::get<0>(key); };
   int keyToRegion(ME3IdsKey key) { return std::get<0>(key); };
   int keyToRegion(ME4IdsKey key) { return std::get<0>(key); };
+  int keyToRegion(ME5IdsKey key) { return std::get<0>(key); };
   int keyToStation(ME2IdsKey key) { return std::get<1>(key); };
   int keyToStation(ME3IdsKey key) { return std::get<1>(key); };
   int keyToStation(ME4IdsKey key) { return std::get<1>(key); };
+  int keyToStation(ME5IdsKey key) { return std::get<1>(key); };
   int keyToLayer(ME3IdsKey key) { return std::get<2>(key); };
   int keyToLayer(ME4IdsKey key) { return std::get<2>(key); };
+  int keyToLayer(ME5IdsKey key) { return std::get<2>(key); };
+  int keyToModule(ME4IdsKey key) { return std::get<3>(key); };
+  int keyToModule(ME5IdsKey key) { return std::get<3>(key); };
   int keyToChamber(ME4IdsKey key) { return std::get<3>(key); };
-  int keyToIEta(ME3IdsKey key) { return std::get<2>(key); };
+  int keyToChamber(ME5IdsKey key) { return std::get<4>(key); };
   int keyToIEta(ME4IdsKey key) { return std::get<3>(key); };
+  int keyToIEta(ME5IdsKey key) { return std::get<4>(key); };
 
   ME2IdsKey key3Tokey2(ME3IdsKey key) {
     auto keyNew = ME2IdsKey{keyToRegion(key), keyToStation(key)};
@@ -493,7 +588,12 @@ protected:
     return keyNew;
   };
 
-  int SortingLayers(std::vector<ME3IdsKey> &listLayers);
+  ME4IdsKey key5Tokey4(ME5IdsKey key) {
+    auto keyNew = ME4IdsKey{keyToRegion(key), keyToStation(key), keyToLayer(key), keyToModule(key)};
+    return keyNew;
+  };
+
+  int SortingLayers(std::vector<ME4IdsKey> &listLayers);
   dqm::impl::MonitorElement *CreateSummaryHist(DQMStore::IBooker &ibooker, TString strName);
 
   template <typename T>
@@ -504,32 +604,38 @@ protected:
   inline int getVFATNumberGE11(const int, const int, const int);
   inline int getVFATNumberByDigi(const int, const int, const int);
   inline int getIEtaFromVFAT(const int station, const int vfat);
+  inline int getIEtaFromVFATGE0(const int vfat);
   inline int getIEtaFromVFATGE11(const int vfat);
+  inline int getIEtaFromVFATGE21(const int vfat);
   inline int getMaxVFAT(const int);
+  inline int getNumModule(const int);
+  inline int getIdxModule(const int, const int);
   inline int getDetOccXBin(const int, const int, const int);
+  inline Float_t restrictAngle(const Float_t fTheta, const Float_t fStart);
+  inline std::string getNameDirLayer(ME3IdsKey key3);
+  inline std::string getNameDirLayer(ME4IdsKey key4);
 
   const GEMGeometry *GEMGeometry_;
   edm::ESGetToken<GEMGeometry, MuonGeometryRecord> geomToken_;
 
-  std::vector<GEMChamber> gemChambers_;
+  std::vector<GEMDetId> listChamberId_;
+  std::map<GEMDetId, std::vector<const GEMEtaPartition *>> mapEtaPartition_;
 
   std::map<ME2IdsKey, bool> MEMap2Check_;
   std::map<ME3IdsKey, bool> MEMap2WithEtaCheck_;
   std::map<ME3IdsKey, bool> MEMap2AbsReWithEtaCheck_;
   std::map<ME3IdsKey, bool> MEMap3Check_;
-  std::map<ME4IdsKey, bool> MEMap3WithChCheck_;
   std::map<ME4IdsKey, bool> MEMap4Check_;
+  std::map<ME4IdsKey, bool> MEMap4WithChCheck_;
+  std::map<ME5IdsKey, bool> MEMap5WithChCheck_;
+  std::map<ME5IdsKey, bool> MEMap5Check_;
 
   int nMaxNumCh_;
-  std::map<ME3IdsKey, int> mapStationToIdx_;
   std::map<ME3IdsKey, MEStationInfo> mapStationInfo_;
-
-  Int_t nNumEtaPartitionGE0_;
-  Int_t nNumEtaPartitionGE11_;
-  Int_t nNumEtaPartitionGE21_;
+  std::map<ME4IdsKey, int> mapStationToIdx_;
 };
 
-// Borrwed from DQMOffline/Muon/interface/GEMOfflineDQMBase.h
+// Borrwed from DQM/GEM/interface/GEMOfflineDQMBase.h
 template <typename T>
 inline bool GEMDQMBase::checkRefs(const std::vector<T *> &refs) {
   if (refs.empty())
@@ -539,12 +645,36 @@ inline bool GEMDQMBase::checkRefs(const std::vector<T *> &refs) {
   return true;
 }
 
-// The 'get...' functions in the below are borrwed from DQMOffline/Muon/interface/GEMOfflineDQMBase.h
+// The 'get...' functions in the below are borrwed from DQM/GEM/interface/GEMOfflineDQMBase.h
 inline int GEMDQMBase::getMaxVFAT(const int station) {
+  if (station == 0)
+    return GEMeMap::maxVFatGE0_;
   if (station == 1)
     return GEMeMap::maxVFatGE11_;
   else if (station == 2)
-    return GEMeMap::maxVFatGE21_;
+    return GEMeMap::maxVFatGE21_ / 2;
+  else
+    return -1;
+}
+
+inline int GEMDQMBase::getNumModule(const int station) {
+  if (station == 0)
+    return 1;
+  if (station == 1)
+    return 1;
+  else if (station == 2)
+    return 4;
+  else
+    return -1;
+}
+
+inline int GEMDQMBase::getIdxModule(const int station, const int chamberType) {
+  if (station == 0)
+    return 1;
+  if (station == 1)
+    return 1;
+  else if (station == 2)
+    return chamberType - 20;
   else
     return -1;
 }
@@ -556,7 +686,7 @@ inline int GEMDQMBase::getVFATNumber(const int station, const int ieta, const in
 }
 
 inline int GEMDQMBase::getVFATNumberGE11(const int station, const int ieta, const int vfat_phi) {
-  return vfat_phi * nNumEtaPartitionGE11_ + (nNumEtaPartitionGE11_ - ieta);
+  return vfat_phi * GEMeMap::maxiEtaIdGE11_ + (GEMeMap::maxiEtaIdGE11_ - ieta);
 }
 
 inline int GEMDQMBase::getVFATNumberByDigi(const int station, const int ieta, const int digi) {
@@ -565,15 +695,53 @@ inline int GEMDQMBase::getVFATNumberByDigi(const int station, const int ieta, co
 }
 
 inline int GEMDQMBase::getIEtaFromVFAT(const int station, const int vfat) {
+  if (station == 0)
+    return getIEtaFromVFATGE0(vfat);
   if (station == 1)
     return getIEtaFromVFATGE11(vfat);
+  if (station == 2)
+    return getIEtaFromVFATGE21(vfat);
   return getIEtaFromVFATGE11(vfat);  // FIXME: What about GE21 and GE0?
 }
 
-inline int GEMDQMBase::getIEtaFromVFATGE11(const int vfat) { return 8 - (vfat % nNumEtaPartitionGE11_); }
+inline int GEMDQMBase::getIEtaFromVFATGE0(const int vfat) {
+  return GEMeMap::maxiEtaIdGE0_ - (vfat % GEMeMap::maxiEtaIdGE0_);
+}
+
+inline int GEMDQMBase::getIEtaFromVFATGE11(const int vfat) {
+  return GEMeMap::maxiEtaIdGE11_ - (vfat % GEMeMap::maxiEtaIdGE11_);
+}
+
+inline int GEMDQMBase::getIEtaFromVFATGE21(const int vfat) {
+  return GEMeMap::maxiEtaIdGE21_ - (vfat % GEMeMap::maxiEtaIdGE21_);
+}
 
 inline int GEMDQMBase::getDetOccXBin(const int chamber, const int layer, const int n_chambers) {
   return n_chambers * (chamber - 1) + layer;
+}
+
+inline Float_t GEMDQMBase::restrictAngle(const Float_t fTheta, const Float_t fStart) {
+  Float_t fLoop = (fTheta - fStart) / (2 * M_PI);
+  int nLoop = (fLoop >= 0 ? (int)fLoop : (int)fLoop - 1);
+  return fTheta - nLoop * 2 * M_PI;
+}
+
+inline std::string GEMDQMBase::getNameDirLayer(ME3IdsKey key3) {
+  auto nStation = keyToStation(key3);
+  char cRegion = (keyToRegion(key3) > 0 ? 'P' : 'M');
+  auto nLayer = keyToLayer(key3);
+  return std::string(Form("GE%i1-%c-L%i", nStation, cRegion, nLayer));
+}
+
+inline std::string GEMDQMBase::getNameDirLayer(ME4IdsKey key4) {
+  auto nStation = keyToStation(key4);
+  char cRegion = (keyToRegion(key4) > 0 ? 'P' : 'M');
+  auto nLayer = keyToLayer(key4);
+  if (nStation == 2) {
+    auto nModule = keyToModule(key4);
+    return std::string(Form("GE%i1-%c-L%i-M%i", nStation, cRegion, nLayer, nModule));
+  }
+  return std::string(Form("GE%i1-%c-L%i", nStation, cRegion, nLayer));
 }
 
 #endif  // DQM_GEM_INTERFACE_GEMDQMBase_h

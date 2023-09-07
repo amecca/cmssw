@@ -1,6 +1,7 @@
 #ifndef SeedExtensionTrajectoryFilter_H
 #define SeedExtensionTrajectoryFilter_H
 
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "TrackingTools/TrajectoryFiltering/interface/TrajectoryFilter.h"
 
 class SeedExtensionTrajectoryFilter final : public TrajectoryFilter {
@@ -11,6 +12,12 @@ public:
       : theStrict(pset.getParameter<bool>("strictSeedExtension")),
         thePixel(pset.getParameter<bool>("pixelSeedExtension")),
         theExtension(pset.getParameter<int>("seedExtension")) {}
+
+  static void fillPSetDescription(edm::ParameterSetDescription& iDesc) {
+    iDesc.add<bool>("strictSeedExtension", false);
+    iDesc.add<bool>("pixelSeedExtension", false);
+    iDesc.add<int>("seedExtension", 0);
+  }
 
   bool qualityFilter(const Trajectory& traj) const override { return QF(traj); }
   bool qualityFilter(const TempTrajectory& traj) const override { return QF(traj); }
@@ -56,7 +63,7 @@ bool SeedExtensionTrajectoryFilter::looseTBC(const T& traj) const {
   } else {
     nhits = traj.measurements().size();
   }
-  return (nhits > int(traj.seedNHits()) + theExtension) | (0 == traj.lostHits());
+  return (nhits > int(traj.seedNHits()) + theExtension) || (0 == traj.lostHits());
 }
 
 // strict case as a real seeding: do not allow even inactive

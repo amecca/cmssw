@@ -174,6 +174,41 @@ namespace dqm {
       }
 
       template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
+      MonitorElement* book1I(TString const& name,
+                             TString const& title,
+                             int const nchX,
+                             double const lowX,
+                             double const highX,
+                             FUNC onbooking = NOOP()) {
+        return bookME(name, MonitorElementData::Kind::TH1I, [=]() {
+          auto th1 = new TH1I(name, title, nchX, lowX, highX);
+          onbooking(th1);
+          return th1;
+        });
+      }
+      template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
+      MonitorElement* book1I(
+          TString const& name, TString const& title, int nchX, float const* xbinsize, FUNC onbooking = NOOP()) {
+        return bookME(name, MonitorElementData::Kind::TH1I, [=]() {
+          auto th1 = new TH1I(name, title, nchX, xbinsize);
+          onbooking(th1);
+          return th1;
+        });
+      }
+      template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
+      MonitorElement* book1I(TString const& name, TH1I* object, FUNC onbooking = NOOP()) {
+        return bookME(
+            name,
+            MonitorElementData::Kind::TH1I,
+            [=]() {
+              auto th1 = static_cast<TH1I*>(object->Clone(name));
+              onbooking(th1);
+              return th1;
+            },
+            /* forceReplace */ true);
+      }
+
+      template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
       MonitorElement* book2D(TString const& name,
                              TString const& title,
                              int nchX,
@@ -252,6 +287,48 @@ namespace dqm {
             MonitorElementData::Kind::TH2S,
             [=]() {
               auto th2 = static_cast<TH2S*>(object->Clone(name));
+              onbooking(th2);
+              return th2;
+            },
+            /* forceReplace */ true);
+      }
+      template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
+      MonitorElement* book2I(TString const& name,
+                             TString const& title,
+                             int nchX,
+                             double lowX,
+                             double highX,
+                             int nchY,
+                             double lowY,
+                             double highY,
+                             FUNC onbooking = NOOP()) {
+        return bookME(name, MonitorElementData::Kind::TH2I, [=]() {
+          auto th2 = new TH2I(name, title, nchX, lowX, highX, nchY, lowY, highY);
+          onbooking(th2);
+          return th2;
+        });
+      }
+      template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
+      MonitorElement* book2I(TString const& name,
+                             TString const& title,
+                             int nchX,
+                             float const* xbinsize,
+                             int nchY,
+                             float const* ybinsize,
+                             FUNC onbooking = NOOP()) {
+        return bookME(name, MonitorElementData::Kind::TH2I, [=]() {
+          auto th2 = new TH2I(name, title, nchX, xbinsize, nchY, ybinsize);
+          onbooking(th2);
+          return th2;
+        });
+      }
+      template <typename FUNC = NOOP, std::enable_if_t<not std::is_arithmetic<FUNC>::value, int> = 0>
+      MonitorElement* book2I(TString const& name, TH2I* object, FUNC onbooking = NOOP()) {
+        return bookME(
+            name,
+            MonitorElementData::Kind::TH2I,
+            [=]() {
+              auto th2 = static_cast<TH2I*>(object->Clone(name));
               onbooking(th2);
               return th2;
             },
@@ -674,6 +751,10 @@ namespace dqm {
       void printTrace(std::string const& message);
       // print a log message if ME matches trackME_.
       void debugTrackME(const char* message, MonitorElement* me_local, MonitorElement* me_global) const;
+      // accesor to keep MEsToSave_ private
+      const auto& getMEsToSave() const { return MEsToSave_; }
+      // accesor to keep onlineMode_ private
+      const bool& getMode() const { return onlineMode_; }
 
     private:
       // MEComparison is a name-only comparison on MEs and Paths, allowing
@@ -715,11 +796,15 @@ namespace dqm {
 
       // Book MEs by lumi by default whenever possible.
       bool doSaveByLumi_;
+      // Book MEs by lumi from list in DQMServices/Core/python/DQMStore_cfi.py
       std::vector<std::string> MEsToSave_;  //just if perLS is ON
 
       // if non-empty, debugTrackME calls will log some information whenever a
       // ME path contains this string.
       std::string trackME_;
+
+      // Online mode
+      bool onlineMode_;
     };
   }  // namespace implementation
 

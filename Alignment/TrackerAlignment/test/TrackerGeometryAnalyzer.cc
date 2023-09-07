@@ -6,7 +6,6 @@
 // for creation of TrackerGeometry
 #include "CondFormats/GeometryObjects/interface/PTrackerParameters.h"
 #include "Geometry/Records/interface/PTrackerParametersRcd.h"
-#include "Geometry/Records/interface/PTrackerAdditionalParametersPerDetRcd.h"
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeomBuilderFromGeometricDet.h"
@@ -26,10 +25,12 @@
 
 //_____________________________________________________________________________
 TrackerGeometryAnalyzer ::TrackerGeometryAnalyzer(const edm::ParameterSet& config)
-    : analyzeAlignables_(config.getParameter<bool>("analyzeAlignables")),
+    : tTopoToken_(esConsumes()),
+      geomDetToken_(esConsumes()),
+      ptpToken_(esConsumes()),
+      analyzeAlignables_(config.getParameter<bool>("analyzeAlignables")),
       printTrackerStructure_(config.getParameter<bool>("printTrackerStructure")),
       maxPrintDepth_(config.getParameter<int>("maxPrintDepth")),
-
       analyzeGeometry_(config.getParameter<bool>("analyzeGeometry")),
       analyzePXB_(config.getParameter<bool>("analyzePXB")),
       analyzePXE_(config.getParameter<bool>("analyzePXE")),
@@ -63,26 +64,16 @@ void TrackerGeometryAnalyzer ::beginRun(const edm::Run& /* run */, const edm::Ev
 
 //_____________________________________________________________________________
 void TrackerGeometryAnalyzer ::setTrackerTopology(const edm::EventSetup& setup) {
-  edm::ESHandle<TrackerTopology> trackerTopologyHandle;
-  setup.get<TrackerTopologyRcd>().get(trackerTopologyHandle);
-
-  trackerTopology = trackerTopologyHandle.product();
+  trackerTopology = &setup.getData(tTopoToken_);
 }
 
 //_____________________________________________________________________________
 void TrackerGeometryAnalyzer ::setTrackerGeometry(const edm::EventSetup& setup) {
-  edm::ESHandle<GeometricDet> geometricDet;
-  setup.get<IdealGeometryRecord>().get(geometricDet);
-
-  edm::ESHandle<PTrackerParameters> trackerParams;
-  setup.get<PTrackerParametersRcd>().get(trackerParams);
-
-  edm::ESHandle<PTrackerAdditionalParametersPerDet> trackerGeometricDetExtra;
-  setup.get<PTrackerAdditionalParametersPerDetRcd>().get(trackerGeometricDetExtra);
+  edm::ESHandle<GeometricDet> geometricDet = setup.getHandle(geomDetToken_);
+  edm::ESHandle<PTrackerParameters> trackerParams = setup.getHandle(ptpToken_);
 
   TrackerGeomBuilderFromGeometricDet trackerGeometryBuilder;
-  trackerGeometry =
-      trackerGeometryBuilder.build(&(*geometricDet), &(*trackerGeometricDetExtra), *trackerParams, trackerTopology);
+  trackerGeometry = trackerGeometryBuilder.build(&(*geometricDet), *trackerParams, trackerTopology);
   alignableObjectId_ = AlignableObjectId{trackerGeometry, nullptr, nullptr, nullptr};
 }
 

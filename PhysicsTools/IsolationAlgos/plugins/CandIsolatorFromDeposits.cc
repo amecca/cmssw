@@ -2,7 +2,6 @@
 #include "DataFormats/Candidate/interface/CandAssociation.h"
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/Common/interface/Handle.h"
-#include "DataFormats/Common/interface/OwnVector.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/RecoCandidate/interface/IsoDeposit.h"
 #include "DataFormats/RecoCandidate/interface/IsoDepositDirection.h"
@@ -10,8 +9,6 @@
 #include "DataFormats/RecoCandidate/interface/IsoDepositVetos.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
-#include "FWCore/Framework/interface/EDProducer.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
@@ -63,11 +60,13 @@ using namespace edm;
 using namespace reco;
 using namespace reco::isodeposit;
 
-bool isNumber(const std::string &str) {
-  static const std::regex re("^[+-]?(\\d+\\.?|\\d*\\.\\d*)$");
-  return regex_match(str.c_str(), re);
-}
-double toNumber(const std::string &str) { return atof(str.c_str()); }
+namespace {
+  bool isNumber(const std::string &str) {
+    static const std::regex re("^[+-]?(\\d+\\.?|\\d*\\.\\d*)$");
+    return regex_match(str.c_str(), re);
+  }
+  double toNumber(const std::string &str) { return atof(str.c_str()); }
+}  // namespace
 
 CandIsolatorFromDeposits::SingleDeposit::SingleDeposit(const edm::ParameterSet &iConfig, edm::ConsumesCollector &&iC)
     : srcToken_(iC.consumes<reco::IsoDepositMap>(iConfig.getParameter<edm::InputTag>("src"))),

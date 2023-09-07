@@ -19,6 +19,7 @@
 #include "TStyle.h"
 
 // STL includes
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -76,7 +77,7 @@ void SiStripTkMaps::drawMap(TCanvas& canvas, std::string option) {
 
   // window size
   static constexpr int wH_ = 3000;
-  static constexpr int hH_ = 850;
+  static constexpr int hH_ = 700;
 
   canvas.cd();
   adjustCanvasMargins(canvas.cd(), tmargin_, bmargin_, lmargin_, rmargin_);

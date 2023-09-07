@@ -2,6 +2,7 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/global/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 
@@ -23,26 +24,24 @@ private:
   void endJob() override {}
 
   // ----------member data ---------------------------
-  bool getEcal_;
-  bool getHcal_;
-  bool getStrip_;
-  bool getPixel_;
-  bool getMuon_;
-  bool getTrigger_;
+  const bool getEcal_;
+  const bool getHcal_;
+  const bool getStrip_;
+  const bool getPixel_;
+  const bool getMuon_;
+  const bool getTrigger_;
 
-  edm::EDGetTokenT<FEDRawDataCollection> tok_raw_;
+  const edm::EDGetTokenT<FEDRawDataCollection> tok_raw_;
 };
 
-SubdetFEDSelector::SubdetFEDSelector(const edm::ParameterSet& iConfig) {
-  getEcal_ = iConfig.getParameter<bool>("getECAL");
-  getStrip_ = iConfig.getParameter<bool>("getSiStrip");
-  getPixel_ = iConfig.getParameter<bool>("getSiPixel");
-  getHcal_ = iConfig.getParameter<bool>("getHCAL");
-  getMuon_ = iConfig.getParameter<bool>("getMuon");
-  getTrigger_ = iConfig.getParameter<bool>("getTrigger");
-
-  tok_raw_ = consumes<FEDRawDataCollection>(iConfig.getParameter<edm::InputTag>("rawInputLabel"));
-
+SubdetFEDSelector::SubdetFEDSelector(const edm::ParameterSet& iConfig)
+    : getEcal_(iConfig.getParameter<bool>("getECAL")),
+      getHcal_(iConfig.getParameter<bool>("getHCAL")),
+      getStrip_(iConfig.getParameter<bool>("getSiStrip")),
+      getPixel_(iConfig.getParameter<bool>("getSiPixel")),
+      getMuon_(iConfig.getParameter<bool>("getMuon")),
+      getTrigger_(iConfig.getParameter<bool>("getTrigger")),
+      tok_raw_(consumes<FEDRawDataCollection>(iConfig.getParameter<edm::InputTag>("rawInputLabel"))) {
   produces<FEDRawDataCollection>();
 }
 
@@ -51,8 +50,7 @@ SubdetFEDSelector::~SubdetFEDSelector() {}
 void SubdetFEDSelector::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   auto producedData = std::make_unique<FEDRawDataCollection>();
 
-  edm::Handle<FEDRawDataCollection> rawIn;
-  iEvent.getByToken(tok_raw_, rawIn);
+  const edm::Handle<FEDRawDataCollection>& rawIn = iEvent.getHandle(tok_raw_);
 
   std::vector<int> selFEDs;
 
@@ -171,7 +169,7 @@ void SubdetFEDSelector::produce(edm::StreamID, edm::Event& iEvent, const edm::Ev
   //   if ( ( rawData[i].provenance()->processName() != e.processHistory().rbegin()->processName() ) )
   //       continue ; // skip all raw collections not produced by the current process
 
-  for (int j = 0; j < FEDNumbering::MAXFEDID; ++j) {
+  for (int j = 0; j <= FEDNumbering::MAXFEDID; ++j) {
     bool rightFED = false;
     for (uint32_t k = 0; k < selFEDs.size(); k++) {
       if (j == selFEDs[k]) {
@@ -187,8 +185,8 @@ void SubdetFEDSelector::produce(edm::StreamID, edm::Event& iEvent, const edm::Ev
       // this fed has data -- lets copy it
       FEDRawData& fedDataProd = producedData->FEDData(j);
       if (fedDataProd.size() != 0) {
-        //	   std::cout << " More than one FEDRawDataCollection with data in FED ";
-        //	   std::cout << j << " Skipping the 2nd\n";
+        edm::LogVerbatim("HcalCalib") << " More than one FEDRawDataCollection with data in FED " << j
+                                      << " Skipping the 2nd";
         continue;
       }
       fedDataProd.resize(size);

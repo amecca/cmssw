@@ -49,10 +49,12 @@ _hgcalTracksterMapper_HGCal = cms.PSet(
     thresholdsByDetector = cms.VPSet(
     ),
     tracksterSrc = cms.InputTag("ticlTrackstersMerge"),
-    clusterSrc = cms.InputTag("hgcalLayerClusters"),
-    filterByTracksterPID = cms.bool(False),
+    clusterSrc = cms.InputTag("hgcalMergeLayerClusters"),
+    filterByTracksterPID = cms.bool(True),
     pid_threshold = cms.double(0.8),
     filter_on_categories = cms.vint32([0, 1]),
+    filterByTracksterIteration = cms.bool(False),
+    filter_on_iterations = cms.vint32([0, 1]),
 )
 
 particleFlowClusterHGCal = cms.EDProducer(

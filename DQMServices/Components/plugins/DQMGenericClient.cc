@@ -656,6 +656,11 @@ void DQMGenericClient::makeAllPlots(DQMStore::IBooker& ibooker, DQMStore::IGette
                         efficOption->type,
                         efficOption->isProfile);
     }
+    if (makeGlobalEffPlot_) {
+      ME* globalEfficME = igetter.get(dirName + "/globalEfficiencies");
+      if (globalEfficME)
+        globalEfficME->getTH1F()->LabelsDeflate("X");
+    }
 
     for (vector<ResolOption>::const_iterator resolOption = resolOptions_.begin(); resolOption != resolOptions_.end();
          ++resolOption) {
@@ -1137,9 +1142,6 @@ void DQMGenericClient::makeNoFlowDist(DQMStore::IBooker& ibooker,
 
 void DQMGenericClient::limitedFit(MonitorElement* srcME, MonitorElement* meanME, MonitorElement* sigmaME) {
   TH2F* histo = srcME->getTH2F();
-
-  static int i = 0;
-  i++;
 
   // Fit slices projected along Y from bins in X
   double cont_min = 100;  //Minimum number of entries

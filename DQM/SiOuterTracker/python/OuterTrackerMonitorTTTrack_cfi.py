@@ -3,7 +3,7 @@ import FWCore.ParameterSet.Config as cms
 from DQMServices.Core.DQMEDAnalyzer import DQMEDAnalyzer
 OuterTrackerMonitorTTTrack = DQMEDAnalyzer('OuterTrackerMonitorTTTrack',
     TopFolderName  = cms.string('SiOuterTracker'),
-    TTTracksTag    = cms.InputTag("TTTracksFromTrackletEmulation", "Level1TTTracks"), #tracks (currently from tracklet)
+    TTTracksTag    = cms.InputTag("l1tTTTracksFromTrackletEmulation", "Level1TTTracks"), #tracks (currently from tracklet)
     HQNStubs       = cms.int32(4),  #cut for "high quality" tracks
     HQChi2dof      = cms.double(10.0), #cut for "high quality" tracks
     HQBendChi2     = cms.double(2.2), #cut for "high quality" tracks
@@ -73,6 +73,13 @@ OuterTrackerMonitorTTTrack = DQMEDAnalyzer('OuterTrackerMonitorTTTrack',
 
 #Chi probability of the track
     TH1_Track_Chi2_Probability = cms.PSet(
+        Nbinsx = cms.int32(100),
+        xmax = cms.double(1),
+        xmin = cms.double(0)
+        ),
+
+#MVA1 (prompt quality) of the track
+    TH1_Track_MVA1 = cms.PSet(
         Nbinsx = cms.int32(100),
         xmax = cms.double(1),
         xmin = cms.double(0)

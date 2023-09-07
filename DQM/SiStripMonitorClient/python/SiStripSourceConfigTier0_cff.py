@@ -70,13 +70,24 @@ SiStripMonitorClusterBPTX = SiStripMonitorCluster.clone(
 
 from Configuration.Eras.Modifier_stage2L1Trigger_cff import stage2L1Trigger
 stage2L1Trigger.toModify(SiStripMonitorClusterBPTX, 
-    BPTXfilter = dict(
-        stage2 = cms.bool(True),
-        l1tAlgBlkInputTag = cms.InputTag("gtStage2Digis"),
-        l1tExtBlkInputTag = cms.InputTag("gtStage2Digis"),
-        ReadPrescalesFromFile = cms.bool(True)
-    )
-)
+                         BPTXfilter = dict(
+                             stage2 = cms.bool(True),
+                             l1tAlgBlkInputTag = cms.InputTag("gtStage2Digis"),
+                             l1tExtBlkInputTag = cms.InputTag("gtStage2Digis"),
+                             ReadPrescalesFromFile = cms.bool(True)
+                         ),
+                         PixelDCSfilter = dict(
+                             stage2 = cms.bool(True),
+                             l1tAlgBlkInputTag = cms.InputTag("gtStage2Digis"),
+                             l1tExtBlkInputTag = cms.InputTag("gtStage2Digis"),
+                             ReadPrescalesFromFile = cms.bool(True)),
+                         StripDCSfilter = dict(
+                             stage2 = cms.bool(True),
+                             l1tAlgBlkInputTag = cms.InputTag("gtStage2Digis"),
+                             l1tExtBlkInputTag = cms.InputTag("gtStage2Digis"),
+                             ReadPrescalesFromFile = cms.bool(True)
+                         )
+                        )
 
 # refitter ### (FIXME rename, move)
 from DQM.SiPixelMonitorTrack.RefitterForPixelDQM import *
@@ -178,18 +189,32 @@ from RecoLuminosity.LumiProducer.lumiProducer_cff import *
 #    *SiStripMonitorTrackMB*MonitorTrackResiduals
 #    *dqmInfoSiStrip)
 
+from Configuration.ProcessModifiers.approxSiStripClusters_cff import approxSiStripClusters
+
 SiStripDQMTier0 = cms.Sequence(
     APVPhases*consecutiveHEs*siStripFEDCheck*siStripFEDMonitor*SiStripMonitorDigi*SiStripMonitorClusterBPTX
     *SiStripMonitorTrackCommon*SiStripMonitorTrackIB*refittedForPixelDQM*MonitorTrackResiduals
     *dqmInfoSiStrip)
-from Configuration.Eras.Modifier_phase1Pixel_cff import phase1Pixel
+
+from DQM.SiStripMonitorApproximateCluster.SiStripMonitorApproximateCluster_cfi import SiStripMonitorApproximateCluster
+SiStripDQMTier0_approx = SiStripDQMTier0.copy()
+SiStripDQMTier0_approx += cms.Sequence(SiStripMonitorApproximateCluster)
+approxSiStripClusters.toReplaceWith(SiStripDQMTier0, SiStripDQMTier0_approx)
 
 SiStripDQMTier0Common = cms.Sequence(
     APVPhases*consecutiveHEs*siStripFEDCheck*siStripFEDMonitor*SiStripMonitorDigi*SiStripMonitorClusterBPTX        
     *SiStripMonitorTrackCommon*SiStripMonitorTrackIB
     *dqmInfoSiStrip)
 
+SiStripDQMTier0Common_approx = SiStripDQMTier0Common.copy()
+SiStripDQMTier0Common_approx += cms.Sequence(SiStripMonitorApproximateCluster)
+approxSiStripClusters.toReplaceWith(SiStripDQMTier0Common, SiStripDQMTier0Common_approx)
+
 SiStripDQMTier0MinBias = cms.Sequence(
     APVPhases*consecutiveHEs*siStripFEDCheck*siStripFEDMonitor*SiStripMonitorDigi*SiStripMonitorClusterBPTX
     *SiStripMonitorTrackMB*SiStripMonitorTrackIB*refittedForPixelDQM*MonitorTrackResiduals
     *dqmInfoSiStrip)
+
+SiStripDQMTier0MinBias_approx = SiStripDQMTier0MinBias.copy()
+SiStripDQMTier0MinBias_approx += cms.Sequence(SiStripMonitorApproximateCluster)
+approxSiStripClusters.toReplaceWith(SiStripDQMTier0MinBias, SiStripDQMTier0MinBias_approx)

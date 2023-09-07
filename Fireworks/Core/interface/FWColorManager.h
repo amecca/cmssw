@@ -39,6 +39,8 @@ enum FWGeomColorIndex {
   kFwHGCalEEColorIndex,
   kFwHGCalHSiColorIndex,
   kFwHGCalHScColorIndex,
+  kFWMtdBarrelColorIndex,
+  kFWMtdEndcapColorIndex,
   kFWGeomColorSize
 };
 
@@ -98,12 +100,12 @@ public:
 
   void setDefaultGeomColors();
   void propagatePaletteChanges() const;
-  mutable sigc::signal<void> colorsHaveChanged_;
-  mutable sigc::signal<void> geomColorsHaveChanged_;
-  mutable sigc::signal<void, bool> geomTransparencyHaveChanged_;
+  mutable sigc::signal<void()> colorsHaveChanged_;
+  mutable sigc::signal<void()> geomColorsHaveChanged_;
+  mutable sigc::signal<void(bool)> geomTransparencyHaveChanged_;
 
   //called after all the slots attached to colorsHaveChanged_ are done
-  mutable sigc::signal<void> colorsHaveChangedFinished_;
+  mutable sigc::signal<void()> colorsHaveChangedFinished_;
 
   FWColorManager(const FWColorManager&) = delete;  // stop default
 

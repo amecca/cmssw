@@ -12,7 +12,9 @@
 #include "Geometry/CommonDetUnit/interface/GlobalTrackingGeometry.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/HGCalGeometry/interface/HGCalGeometry.h"
-#include "Geometry/HGCalGeometry/interface/FastTimeGeometry.h"
+#include "Geometry/MTDGeometryBuilder/interface/MTDGeometry.h"
+#include "Geometry/MTDGeometryBuilder/interface/ProxyMTDTopology.h"
+#include "Geometry/MTDGeometryBuilder/interface/RectangularMTDTopology.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "Geometry/CaloGeometry/interface/CaloCellGeometry.h"
 #include "Geometry/CSCGeometry/interface/CSCGeometry.h"
@@ -96,6 +98,24 @@ using Phase2TrackerTopology = PixelTopology;
     }                                                                                                          \
   }
 
+void FWRecoGeometryESProducer::ADD_MTD_TOPOLOGY(unsigned int rawid,
+                                                const GeomDet* detUnit,
+                                                FWRecoGeometry& fwRecoGeometry) {
+  const MTDGeomDet* det = dynamic_cast<const MTDGeomDet*>(detUnit);
+
+  if (det) {
+    const ProxyMTDTopology& topoproxy = static_cast<const ProxyMTDTopology&>(det->topology());
+    const RectangularMTDTopology& topo = static_cast<const RectangularMTDTopology&>(topoproxy.specificTopology());
+
+    std::pair<float, float> pitch = topo.pitch();
+    fwRecoGeometry.idToName[rawid].topology[0] = pitch.first;
+    fwRecoGeometry.idToName[rawid].topology[1] = pitch.second;
+
+    fwRecoGeometry.idToName[rawid].topology[2] = topo.xoffset();
+    fwRecoGeometry.idToName[rawid].topology[3] = topo.yoffset();
+  }
+}
+
 namespace {
   const std::array<std::string, 3> hgcal_geom_names = {
       {"HGCalEESensitive", "HGCalHESiliconSensitive", "HGCalHEScintillatorSensitive"}};
@@ -104,18 +124,21 @@ namespace {
 FWRecoGeometryESProducer::FWRecoGeometryESProducer(const edm::ParameterSet& pset) : m_current(-1) {
   m_tracker = pset.getUntrackedParameter<bool>("Tracker", true);
   m_muon = pset.getUntrackedParameter<bool>("Muon", true);
+  m_gem = pset.getUntrackedParameter<bool>("GEM", false);
   m_calo = pset.getUntrackedParameter<bool>("Calo", true);
   m_timing = pset.getUntrackedParameter<bool>("Timing", false);
   auto cc = setWhatProduced(this);
-  if (m_tracker or m_muon) {
+
+  if (m_muon)
+    m_gem = true;
+  if (m_tracker or m_muon or m_gem) {
     m_trackingGeomToken = cc.consumes();
-  }
-  if (m_timing) {
-    m_ftlBarrelGeomToken = cc.consumes(edm::ESInputTag{"", "FastTimeBarrel"});
-    m_ftlEndcapGeomToken = cc.consumes(edm::ESInputTag{"", "SFBX"});
   }
   if (m_calo) {
     m_caloGeomToken = cc.consumes();
+  }
+  if (m_timing) {
+    m_mtdGeomToken = cc.consumes();
   }
 }
 
@@ -126,13 +149,13 @@ std::unique_ptr<FWRecoGeometry> FWRecoGeometryESProducer::produce(const FWRecoGe
 
   auto fwRecoGeometry = std::make_unique<FWRecoGeometry>();
 
-  if (m_tracker || m_muon) {
+  if (m_tracker || m_muon || m_gem) {
     m_trackingGeom = &record.get(m_trackingGeomToken);
-    DetId detId(DetId::Tracker, 0);
-    m_trackerGeom = static_cast<const TrackerGeometry*>(m_trackingGeom->slaveGeometry(detId));
   }
 
   if (m_tracker) {
+    DetId detId(DetId::Tracker, 0);
+    m_trackerGeom = static_cast<const TrackerGeometry*>(m_trackingGeom->slaveGeometry(detId));
     addPixelBarrelGeometry(*fwRecoGeometry);
     addPixelForwardGeometry(*fwRecoGeometry);
     addTIBGeometry(*fwRecoGeometry);
@@ -145,18 +168,18 @@ std::unique_ptr<FWRecoGeometry> FWRecoGeometryESProducer::produce(const FWRecoGe
     addDTGeometry(*fwRecoGeometry);
     addCSCGeometry(*fwRecoGeometry);
     addRPCGeometry(*fwRecoGeometry);
-    addGEMGeometry(*fwRecoGeometry);
     addME0Geometry(*fwRecoGeometry);
+  }
+  if (m_gem) {
+    addGEMGeometry(*fwRecoGeometry);
   }
   if (m_calo) {
     m_caloGeom = &record.get(m_caloGeomToken);
     addCaloGeometry(*fwRecoGeometry);
   }
-
   if (m_timing) {
-    m_ftlBarrelGeom = &record.getRecord<CaloGeometryRecord>().get(m_ftlBarrelGeomToken);
-    m_ftlEndcapGeom = &record.getRecord<CaloGeometryRecord>().get(m_ftlEndcapGeomToken);
-    addFTLGeometry(*fwRecoGeometry);
+    m_mtdGeom = &record.get(m_mtdGeomToken);
+    addMTDGeometry(*fwRecoGeometry);
   }
 
   fwRecoGeometry->idToName.resize(m_current + 1);
@@ -482,6 +505,7 @@ void FWRecoGeometryESProducer::addTECGeometry(FWRecoGeometry& fwRecoGeometry) {
 
 void FWRecoGeometryESProducer::addCaloGeometry(FWRecoGeometry& fwRecoGeometry) {
   std::vector<DetId> vid = m_caloGeom->getValidDetIds();  // Calo
+  std::set<DetId> cache;
   for (std::vector<DetId>::const_iterator it = vid.begin(), end = vid.end(); it != end; ++it) {
     unsigned int id = insert_id(it->rawId(), fwRecoGeometry);
     if (!((DetId::Forward == it->det()) || (DetId::HGCalEE == it->det()) || (DetId::HGCalHSi == it->det()) ||
@@ -515,7 +539,10 @@ void FWRecoGeometryESProducer::addCaloGeometry(FWRecoGeometry& fwRecoGeometry) {
       fwRecoGeometry.idToName[id].points[(cor.size() - 1) * 3 + 1] = center.y();
       fwRecoGeometry.idToName[id].points[(cor.size() - 1) * 3 + 2] = center.z();
 
-      // thickness
+      // Cells rotation (read few lines below)
+      fwRecoGeometry.idToName[id].shape[2] = 0.;
+
+      // Thickness
       fwRecoGeometry.idToName[id].shape[3] = cor[cor.size() - 1].z();
 
       // total points
@@ -536,22 +563,107 @@ void FWRecoGeometryESProducer::addCaloGeometry(FWRecoGeometry& fwRecoGeometry) {
 
       // Last EE layer
       fwRecoGeometry.idToName[id].topology[5] = rhtools.lastLayerEE();
+
+      // Compute the orientation of each cell. The orientation here is simply
+      // addressing the corner or side bottom layout of the cell and should not
+      // be confused with the concept of orientation embedded in the flat-file
+      // description. The default orientation of the cells within a wafer is
+      // with the side at the bottom. The points returned by the HGCal query
+      // will be ordered counter-clockwise, with the first corner in the
+      // uppermost-right position. The corners used to calculate the angle wrt
+      // the Y scale are corner 0 and corner 3, that are opposite in the cells.
+      // The angle should be 30 degrees wrt the Y axis for all cells in the
+      // default position. For the rotated layers in CE-H, the situation is
+      // such that the cells are oriented with a vertex down (assuming those
+      // layers will have a 30 degrees rotation): this will establish an angle
+      // of 60 degrees wrt the Y axis. The default way in which an hexagon is
+      // rendered inside Fireworks is with the vertex down.
+      if (rhtools.isSilicon(it->rawId())) {
+        auto val_x = (cor[0].x() - cor[3].x());
+        auto val_y = (cor[0].y() - cor[3].y());
+        auto val = round(std::acos(val_y / std::sqrt(val_x * val_x + val_y * val_y)) / M_PI * 180.);
+        // Pass down the chain the vaue of the rotation of the cell wrt the Y axis.
+        fwRecoGeometry.idToName[id].shape[2] = val;
+      }
+
+      // For each and every wafer in HGCal, add a "fake" DetId with cells'
+      // (u,v) bits set to 1 . Those DetIds will be used inside Fireworks to
+      // render the HGCal Geometry. Due to the huge number of cells involved,
+      // the HGCal geometry for the Silicon Sensor is wafer-based, not cells
+      // based. The representation of the single RecHits and of all quantities
+      // derived from those, is instead fully cells based. The geometry
+      // representation of the Scintillator is directly based on tiles,
+      // therefore no fake DetId creations is needed.
+      if ((det == DetId::HGCalEE) || (det == DetId::HGCalHSi)) {
+        // Avoid hard coding masks by using static data members from HGCSiliconDetId
+        auto maskZeroUV = (HGCSiliconDetId::kHGCalCellVMask << HGCSiliconDetId::kHGCalCellVOffset) |
+                          (HGCSiliconDetId::kHGCalCellUMask << HGCSiliconDetId::kHGCalCellUOffset);
+        DetId wafer_detid = it->rawId() | maskZeroUV;
+        // Just be damn sure that's a fake id.
+        assert(wafer_detid != it->rawId());
+        auto [iter, is_new] = cache.insert(wafer_detid);
+        if (is_new) {
+          unsigned int local_id = insert_id(wafer_detid, fwRecoGeometry);
+          auto const& dddConstants = geom->topology().dddConstants();
+          auto wafer_size = static_cast<float>(dddConstants.waferSize(true));
+          auto R = wafer_size / std::sqrt(3.f);
+          auto r = wafer_size / 2.f;
+          float x[6] = {-r, -r, 0.f, r, r, 0.f};
+          float y[6] = {R / 2.f, -R / 2.f, -R, -R / 2.f, R / 2.f, R};
+          float z[6] = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
+          for (unsigned int i = 0; i < 6; ++i) {
+            HepGeom::Point3D<float> wafer_corner(x[i], y[i], z[i]);
+            auto point =
+                geom->topology().dddConstants().waferLocal2Global(wafer_corner, wafer_detid, true, true, false);
+            fwRecoGeometry.idToName[local_id].points[i * 3 + 0] = point.x();
+            fwRecoGeometry.idToName[local_id].points[i * 3 + 1] = point.y();
+            fwRecoGeometry.idToName[local_id].points[i * 3 + 2] = point.z();
+          }
+          // Nota Bene: rotations of full layers (and wafers therein) is taken
+          // care of internally by the call to the waferLocal2Global method.
+          // Therefore we set up the unit matrix for the rotation.
+          // roll = yaw = pitch = 0
+          fwRecoGeometry.idToName[local_id].matrix[0] = 1.0;
+          fwRecoGeometry.idToName[local_id].matrix[4] = 1.0;
+          fwRecoGeometry.idToName[local_id].matrix[8] = 1.0;
+
+          // thickness
+          fwRecoGeometry.idToName[local_id].shape[3] = cor[cor.size() - 1].z();
+
+          // total points
+          fwRecoGeometry.idToName[local_id].topology[0] = 6;
+
+          // Layer with Offset
+          fwRecoGeometry.idToName[local_id].topology[1] = rhtools.getLayerWithOffset(it->rawId());
+
+          // Zside, +/- 1
+          fwRecoGeometry.idToName[local_id].topology[2] = rhtools.zside(it->rawId());
+
+          // Is Silicon
+          fwRecoGeometry.idToName[local_id].topology[3] = rhtools.isSilicon(it->rawId());
+
+          // Silicon index
+          fwRecoGeometry.idToName[local_id].topology[4] =
+              rhtools.isSilicon(it->rawId()) ? rhtools.getSiThickIndex(it->rawId()) : -1.;
+
+          // Last EE layer
+          fwRecoGeometry.idToName[local_id].topology[5] = rhtools.lastLayerEE();
+        }
+      }
     }
   }
 }
 
-void FWRecoGeometryESProducer::addFTLGeometry(FWRecoGeometry& fwRecoGeometry) {
-  // do the barrel
-  for (const auto& detid : m_ftlBarrelGeom->getValidDetIds()) {
-    unsigned int id = insert_id(detid.rawId(), fwRecoGeometry);
-    const auto& cor = m_ftlBarrelGeom->getCorners(detid);
-    fillPoints(id, cor.begin(), cor.end(), fwRecoGeometry);
-  }
-  // do the endcap
-  for (const auto& detid : m_ftlEndcapGeom->getValidDetIds()) {
-    unsigned int id = insert_id(detid.rawId(), fwRecoGeometry);
-    const auto& cor = m_ftlEndcapGeom->getCorners(detid);
-    fillPoints(id, cor.begin(), cor.end(), fwRecoGeometry);
+void FWRecoGeometryESProducer::addMTDGeometry(FWRecoGeometry& fwRecoGeometry) {
+  for (auto const& det : m_mtdGeom->detUnits()) {
+    if (det) {
+      DetId detid = det->geographicalId();
+      unsigned int rawid = detid.rawId();
+      unsigned int current = insert_id(rawid, fwRecoGeometry);
+      fillShapeAndPlacement(current, det, fwRecoGeometry);
+
+      ADD_MTD_TOPOLOGY(current, m_mtdGeom->idToDetUnit(detid), fwRecoGeometry);
+    }
   }
 }
 

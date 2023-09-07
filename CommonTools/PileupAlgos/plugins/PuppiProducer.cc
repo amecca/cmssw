@@ -12,8 +12,6 @@
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 #include "DataFormats/PatCandidates/interface/PackedCandidate.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
-#include "FWCore/Framework/interface/EDProducer.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -72,6 +70,7 @@ private:
   bool fPuppiNoLep;
   bool fUseFromPVLooseTight;
   bool fUseDZ;
+  bool fUseDZforPileup;
   double fDZCut;
   double fEtaMinUseDZ;
   double fPtMaxCharged;
@@ -81,6 +80,7 @@ private:
   uint fNumOfPUVtxsForCharged;
   double fDZCutForChargedFromPUVtxs;
   bool fUseExistingWeights;
+  bool fApplyPhotonProtectionForExistingWeights;
   bool fClonePackedCands;
   int fVtxNdofCut;
   double fVtxZCut;
@@ -95,6 +95,7 @@ PuppiProducer::PuppiProducer(const edm::ParameterSet& iConfig) {
   fPuppiNoLep = iConfig.getParameter<bool>("puppiNoLep");
   fUseFromPVLooseTight = iConfig.getParameter<bool>("UseFromPVLooseTight");
   fUseDZ = iConfig.getParameter<bool>("UseDeltaZCut");
+  fUseDZforPileup = iConfig.getParameter<bool>("UseDeltaZCutForPileup");
   fDZCut = iConfig.getParameter<double>("DeltaZCut");
   fEtaMinUseDZ = iConfig.getParameter<double>("EtaMinUseDeltaZ");
   fPtMaxCharged = iConfig.getParameter<double>("PtMaxCharged");
@@ -104,6 +105,7 @@ PuppiProducer::PuppiProducer(const edm::ParameterSet& iConfig) {
   fNumOfPUVtxsForCharged = iConfig.getParameter<uint>("NumOfPUVtxsForCharged");
   fDZCutForChargedFromPUVtxs = iConfig.getParameter<double>("DeltaZCutForChargedFromPUVtxs");
   fUseExistingWeights = iConfig.getParameter<bool>("useExistingWeights");
+  fApplyPhotonProtectionForExistingWeights = iConfig.getParameter<bool>("applyPhotonProtectionForExistingWeights");
   fClonePackedCands = iConfig.getParameter<bool>("clonePackedCands");
   fVtxNdofCut = iConfig.getParameter<int>("vtxNdofCut");
   fVtxZCut = iConfig.getParameter<double>("vtxZCut");
@@ -281,8 +283,10 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
               pReco.id = 1;
             else if (std::abs(pReco.eta) > fEtaMaxCharged)
               pReco.id = 1;
-            else if ((fUseDZ) && (std::abs(pReco.eta) >= fEtaMinUseDZ))
-              pReco.id = (std::abs(pDZ) < fDZCut) ? 1 : 2;
+            else if ((fUseDZ) && (std::abs(pReco.eta) >= fEtaMinUseDZ) && (std::abs(pDZ) < fDZCut))
+              pReco.id = 1;
+            else if ((fUseDZforPileup) && (std::abs(pReco.eta) >= fEtaMinUseDZ) && (std::abs(pDZ) >= fDZCut))
+              pReco.id = 2;
             else if (fUseFromPVLooseTight && tmpFromPV == 1)
               pReco.id = 2;
             else if (fUseFromPVLooseTight && tmpFromPV == 2)
@@ -322,8 +326,10 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
               pReco.id = 1;
             else if (std::abs(pReco.eta) > fEtaMaxCharged)
               pReco.id = 1;
-            else if ((fUseDZ) && (std::abs(pReco.eta) >= fEtaMinUseDZ))
-              pReco.id = (std::abs(pDZ) < fDZCut) ? 1 : 2;
+            else if ((fUseDZ) && (std::abs(pReco.eta) >= fEtaMinUseDZ) && (std::abs(pDZ) < fDZCut))
+              pReco.id = 1;
+            else if ((fUseDZforPileup) && (std::abs(pReco.eta) >= fEtaMinUseDZ) && (std::abs(pDZ) >= fDZCut))
+              pReco.id = 2;
             else if (fUseFromPVLooseTight && lPack->fromPV() == (pat::PackedCandidate::PVLoose))
               pReco.id = 2;
             else if (fUseFromPVLooseTight && lPack->fromPV() == (pat::PackedCandidate::PVTight))
@@ -343,7 +349,7 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     lWeights = fPuppiContainer->puppiWeights();
   } else {
     //Use the existing weights
-    int lPackCtr = 0;
+    lWeights.reserve(pfCol->size());
     for (auto const& aPF : *pfCol) {
       const pat::PackedCandidate* lPack = dynamic_cast<const pat::PackedCandidate*>(&aPF);
       float curpupweight = -1.;
@@ -358,12 +364,11 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
           curpupweight = lPack->puppiWeight();
         }
       }
-      // Protect high pT photons (important for gamma to hadronic recoil balance)
-      if ((fPtMaxPhotons > 0) && (lPack->pdgId() == 22) && (std::abs(lPack->eta()) < fEtaMaxPhotons) &&
-          (lPack->pt() > fPtMaxPhotons))
+      // Optional: Protect high pT photons (important for gamma to hadronic recoil balance) for existing weights.
+      if (fApplyPhotonProtectionForExistingWeights && (fPtMaxPhotons > 0) && (lPack->pdgId() == 22) &&
+          (std::abs(lPack->eta()) < fEtaMaxPhotons) && (lPack->pt() > fPtMaxPhotons))
         curpupweight = 1;
       lWeights.push_back(curpupweight);
-      lPackCtr++;
     }
   }
 
@@ -390,6 +395,11 @@ void PuppiProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   std::vector<reco::CandidatePtr> values(hPFProduct->size());
 
   int iCand = -1;
+  puppiP4s.reserve(hPFProduct->size());
+  if (fUseExistingWeights || fClonePackedCands)
+    fPackedPuppiCandidates.reserve(hPFProduct->size());
+  else
+    fPuppiCandidates.reserve(hPFProduct->size());
   for (auto const& aCand : *hPFProduct) {
     ++iCand;
     std::unique_ptr<pat::PackedCandidate> pCand;
@@ -489,6 +499,7 @@ void PuppiProducer::fillDescriptions(edm::ConfigurationDescriptions& description
   desc.add<bool>("puppiNoLep", false);
   desc.add<bool>("UseFromPVLooseTight", false);
   desc.add<bool>("UseDeltaZCut", true);
+  desc.add<bool>("UseDeltaZCutForPileup", true);
   desc.add<double>("DeltaZCut", 0.3);
   desc.add<double>("EtaMinUseDeltaZ", 0.);
   desc.add<double>("PtMaxCharged", -1.);
@@ -500,6 +511,7 @@ void PuppiProducer::fillDescriptions(edm::ConfigurationDescriptions& description
   desc.add<uint>("NumOfPUVtxsForCharged", 0);
   desc.add<double>("DeltaZCutForChargedFromPUVtxs", 0.2);
   desc.add<bool>("useExistingWeights", false);
+  desc.add<bool>("applyPhotonProtectionForExistingWeights", false);
   desc.add<bool>("clonePackedCands", false);
   desc.add<int>("vtxNdofCut", 4);
   desc.add<double>("vtxZCut", 24);

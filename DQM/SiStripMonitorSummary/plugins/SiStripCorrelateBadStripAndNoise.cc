@@ -1,10 +1,9 @@
-#include "DQM/SiStripMonitorSummary/plugins/SiStripCorrelateBadStripAndNoise.h"
-
+#include "SiStripCorrelateBadStripAndNoise.h"
+#include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
-#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
-#include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
+#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 
 SiStripCorrelateBadStripAndNoise::SiStripCorrelateBadStripAndNoise(const edm::ParameterSet &iConfig)
     : qualityToken_{esConsumes<edm::Transition::BeginRun>()},
@@ -16,12 +15,10 @@ SiStripCorrelateBadStripAndNoise::SiStripCorrelateBadStripAndNoise(const edm::Pa
   tkmap = new TrackerMap();
 }
 
-SiStripCorrelateBadStripAndNoise::~SiStripCorrelateBadStripAndNoise() {}
-
-//
-
 void SiStripCorrelateBadStripAndNoise::beginRun(const edm::Run &run, const edm::EventSetup &es) {
-  if (noiseWatcher_.check(es) || qualityWatcher_.check(es)) {
+  auto newNoise = noiseWatcher_.check(es);
+  auto newQuality = qualityWatcher_.check(es);
+  if (newNoise || newQuality) {
     edm::LogInfo("") << "[SiStripCorrelateBadStripAndNoise::beginRun]" << std::endl;
 
     quality_ = &es.getData(qualityToken_);

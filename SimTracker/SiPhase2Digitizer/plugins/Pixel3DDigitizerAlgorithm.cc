@@ -1,20 +1,13 @@
-#include "SimTracker/SiPhase2Digitizer/plugins/Pixel3DDigitizerAlgorithm.h"
-
-// Framework infrastructure
-#include "FWCore/Framework/interface/ConsumesCollector.h"
-#include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "FWCore/ParameterSet/interface/ParameterSet.h"
-
-// Calibration & Conditions
-#include "CalibTracker/SiPixelESProducers/interface/SiPixelGainCalibrationOfflineSimService.h"
-
-// Geometry
-#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
-
-//#include <iostream>
 #include <cmath>
 #include <vector>
 #include <algorithm>
+
+#include "CalibTracker/SiPixelESProducers/interface/SiPixelGainCalibrationOfflineSimService.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
+#include "SimTracker/SiPhase2Digitizer/plugins/Pixel3DDigitizerAlgorithm.h"
 
 using namespace sipixelobjects;
 
@@ -24,33 +17,8 @@ namespace {
   constexpr double operator""_um_inv(long double length) { return length * 1e4; }
 }  // namespace
 
-void Pixel3DDigitizerAlgorithm::init(const edm::EventSetup& es) {
-  // XXX: Just copied from PixelDigitizer Algorithm
-  //      CHECK if all these is needed
-
-  if (use_ineff_from_db_) {
-    // load gain calibration service fromdb...
-    theSiPixelGainCalibrationService_->setESObjects(es);
-  }
-
-  if (use_deadmodule_DB_) {
-    siPixelBadModule_ = &es.getData(siPixelBadModuleToken_);
-  }
-
-  if (use_LorentzAngle_DB_) {
-    // Get Lorentz angle from DB record
-    siPixelLorentzAngle_ = &es.getData(siPixelLorentzAngleToken_);
-  }
-
-  // gets the map and geometry from the DB (to kill ROCs)
-  fedCablingMap_ = &es.getData(fedCablingMapToken_);
-  geom_ = &es.getData(geomToken_);
-}
-
 Pixel3DDigitizerAlgorithm::Pixel3DDigitizerAlgorithm(const edm::ParameterSet& conf, edm::ConsumesCollector iC)
-    : Phase2TrackerDigitizerAlgorithm(conf.getParameter<edm::ParameterSet>("AlgorithmCommon"),
-                                      conf.getParameter<edm::ParameterSet>("Pixel3DDigitizerAlgorithm"),
-                                      iC),
+    : PixelDigitizerAlgorithm(conf, iC),
       np_column_radius_(
           (conf.getParameter<edm::ParameterSet>("Pixel3DDigitizerAlgorithm").getParameter<double>("NPColumnRadius")) *
           1.0_um),
@@ -59,16 +27,9 @@ Pixel3DDigitizerAlgorithm::Pixel3DDigitizerAlgorithm(const edm::ParameterSet& co
           1.0_um),
       np_column_gap_(
           (conf.getParameter<edm::ParameterSet>("Pixel3DDigitizerAlgorithm").getParameter<double>("NPColumnGap")) *
-          1.0_um),
-      fedCablingMapToken_(iC.esConsumes()),
-      geomToken_(iC.esConsumes()) {
+          1.0_um) {
   // XXX - NEEDED?
   pixelFlag_ = true;
-
-  if (use_deadmodule_DB_)
-    siPixelBadModuleToken_ = iC.esConsumes();
-  if (use_LorentzAngle_DB_)
-    siPixelLorentzAngleToken_ = iC.esConsumes();
 
   edm::LogInfo("Pixel3DDigitizerAlgorithm")
       << "Algorithm constructed \n"
@@ -82,14 +43,6 @@ Pixel3DDigitizerAlgorithm::Pixel3DDigitizerAlgorithm(const edm::ParameterSet& co
 }
 
 Pixel3DDigitizerAlgorithm::~Pixel3DDigitizerAlgorithm() {}
-
-//
-// -- Select the Hit for Digitization
-//
-bool Pixel3DDigitizerAlgorithm::select_hit(const PSimHit& hit, double tCorr, double& sigScale) const {
-  double time = hit.tof() - tCorr;
-  return (time >= theTofLowerCut_ && time < theTofUpperCut_);
-}
 
 const bool Pixel3DDigitizerAlgorithm::is_inside_n_column_(const LocalPoint& p, const float& sensor_thickness) const {
   // The insensitive volume of the column: sensor thickness - column gap distance
@@ -114,7 +67,7 @@ const bool Pixel3DDigitizerAlgorithm::is_inside_ohmic_column_(const LocalPoint& 
 // The output is vector of newly created charge in the neighbour pixel i+1 or i-1,
 // defined by its position higher than abs(half_pitch) and the the sign providing
 // the addition or subtraction in the pixel  (i+-1)
-std::vector<DigitizerUtility::EnergyDepositUnit> Pixel3DDigitizerAlgorithm::diffusion(
+std::vector<digitizerUtility::EnergyDepositUnit> Pixel3DDigitizerAlgorithm::diffusion(
     const LocalPoint& pos,
     const float& ncarriers,
     const std::function<LocalVector(float, float)>& u_drift,
@@ -139,12 +92,12 @@ std::vector<DigitizerUtility::EnergyDepositUnit> Pixel3DDigitizerAlgorithm::diff
     pitch = hpitches.second;
   } else {
     // Nothing to do, too far away
-    return std::vector<DigitizerUtility::EnergyDepositUnit>();
+    return std::vector<digitizerUtility::EnergyDepositUnit>();
   }
 
   // The new EnergyDeposits in the neighbour pixels
   // (defined by +1 to the right (first axis) and +1 to the up (second axis)) <-- XXX
-  std::vector<DigitizerUtility::EnergyDepositUnit> migrated_charge;
+  std::vector<digitizerUtility::EnergyDepositUnit> migrated_charge;
 
   // FIXME -- DM
   const float diffusion_step = 0.1_um;
@@ -200,7 +153,7 @@ std::vector<DigitizerUtility::EnergyDepositUnit> Pixel3DDigitizerAlgorithm::diff
     std::vector<float> newpos(pos_moving);
     // Let's create the new charge carriers around 3 sigmas away
     newpos[displ_ind] += std::copysign(N_SIGMA * sigma, newpos[displ_ind]);
-    migrated_charge.push_back(DigitizerUtility::EnergyDepositUnit(migrated_e, newpos[0], newpos[1], newpos[2]));
+    migrated_charge.push_back(digitizerUtility::EnergyDepositUnit(migrated_e, newpos[0], newpos[1], newpos[2]));
   }
   return migrated_charge;
 }
@@ -211,18 +164,18 @@ std::vector<DigitizerUtility::EnergyDepositUnit> Pixel3DDigitizerAlgorithm::diff
 // Include the effect of E-field and B-field
 //
 // =====================================================================
-std::vector<DigitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
+std::vector<digitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
     const PSimHit& hit,
     const Phase2TrackerGeomDetUnit* pixdet,
     const GlobalVector& bfield,
-    const std::vector<DigitizerUtility::EnergyDepositUnit>& ionization_points) const {
-  return drift(hit, pixdet, bfield, ionization_points, true);
+    const std::vector<digitizerUtility::EnergyDepositUnit>& ionization_points) const {
+  return driftFor3DSensors(hit, pixdet, bfield, ionization_points, true);
 }
-std::vector<DigitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
+std::vector<digitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::driftFor3DSensors(
     const PSimHit& hit,
     const Phase2TrackerGeomDetUnit* pixdet,
     const GlobalVector& bfield,
-    const std::vector<DigitizerUtility::EnergyDepositUnit>& ionization_points,
+    const std::vector<digitizerUtility::EnergyDepositUnit>& ionization_points,
     bool diffusion_activated) const {
   // -- Current reference system is placed in the center of the module
   // -- The natural reference frame should be discribed taking advantatge of
@@ -260,7 +213,7 @@ std::vector<DigitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
     return LocalVector(-std::cos(theta), -std::sin(theta), 0.0);
   };
   // The output
-  std::vector<DigitizerUtility::SignalPoint> collection_points;
+  std::vector<digitizerUtility::SignalPoint> collection_points;
   //collection_points.resize(ionization_points.size());
   collection_points.reserve(ionization_points.size());
 
@@ -333,7 +286,7 @@ std::vector<DigitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
                                                      << "MIGRATING (super-)charges"
                                                      << "****************";
         // Drift this charges on the other pixel
-        auto mig_colpoints = drift(hit, pixdet, bfield, migrated_charges, false);
+        auto mig_colpoints = driftFor3DSensors(hit, pixdet, bfield, migrated_charges, false);
         collection_points.insert(std::end(collection_points), mig_colpoints.begin(), mig_colpoints.end());
         LogDebug("Pixel3DDigitizerAlgorithm::drift") << "*****************"
                                                      << "DOME MIGRATION"
@@ -364,7 +317,7 @@ std::vector<DigitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
         << " [electrons], Electrons after loss/diff= " << energyOnCollector << " [electrons] ";
     // Load the Charge distribution parameters
     // XXX -- probably makes no sense the SignalPoint anymore...
-    collection_points.push_back(DigitizerUtility::SignalPoint(
+    collection_points.push_back(digitizerUtility::SignalPoint(
         current_pixel_int.first, current_pixel_int.second, 0.0, 0.0, hit.tof(), energyOnCollector));
   }
 
@@ -375,11 +328,13 @@ std::vector<DigitizerUtility::SignalPoint> Pixel3DDigitizerAlgorithm::drift(
 // Signal is already "induced" (actually electrons transported to the
 // n-column) at the electrode. Just collecting and adding-up all pixel
 // signal and linking it to the simulated energy deposit (hit)
-void Pixel3DDigitizerAlgorithm::induce_signal(const PSimHit& hit,
+void Pixel3DDigitizerAlgorithm::induce_signal(std::vector<PSimHit>::const_iterator inputBegin,
+                                              const PSimHit& hit,
                                               const size_t hitIndex,
+                                              const size_t firstHitIndex,
                                               const uint32_t tofBin,
                                               const Phase2TrackerGeomDetUnit* pixdet,
-                                              const std::vector<DigitizerUtility::SignalPoint>& collection_points) {
+                                              const std::vector<digitizerUtility::SignalPoint>& collection_points) {
   // X  - Rows, Left-Right
   // Y  - Columns, Down-Up
   const uint32_t detId = pixdet->geographicalId().rawId();
@@ -399,12 +354,12 @@ void Pixel3DDigitizerAlgorithm::induce_signal(const PSimHit& hit,
     float corr_time = hit.tof() - pixdet->surface().toGlobal(hit.localPosition()).mag() * c_inv;
     if (makeDigiSimLinks_) {
       the_signal[channel] +=
-          DigitizerUtility::Amplitude(pt.amplitude(), &hit, pt.amplitude(), corr_time, hitIndex, tofBin);
+          digitizerUtility::Ph2Amplitude(pt.amplitude(), &hit, pt.amplitude(), corr_time, hitIndex, tofBin);
     } else {
-      the_signal[channel] += DigitizerUtility::Amplitude(pt.amplitude(), nullptr, pt.amplitude());
+      the_signal[channel] += digitizerUtility::Ph2Amplitude(pt.amplitude(), nullptr, pt.amplitude());
     }
 
-    LogDebug("Pixel3DDigitizerAlgorithm::induce_signal")
+    LogDebug("Pixel3DDigitizerAlgorithm")
         << " Induce charge at row,col:" << pt.position() << " N_electrons:" << pt.amplitude() << " [Channel:" << channel
         << "]\n   [Accumulated signal in this channel:" << the_signal[channel].ampl() << "] "
         << " Global index linked PSimHit:" << hitIndex;

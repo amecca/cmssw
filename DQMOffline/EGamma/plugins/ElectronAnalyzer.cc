@@ -11,7 +11,6 @@
 
 #include "FWCore/Common/interface/TriggerNames.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
@@ -701,11 +700,9 @@ void ElectronAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
   }
 
   // association matching object-reco electrons
-  int matchingObjectNum = 0;
   reco::SuperClusterCollection::const_iterator moIter;
   for (moIter = recoClusters->begin(); moIter != recoClusters->end(); moIter++) {
     //    // number of matching objects
-    matchingObjectNum++;
 
     if (moIter->energy() / cosh(moIter->eta()) > maxPtMatchingObject_ ||
         std::abs(moIter->eta()) > maxAbsEtaMatchingObject_) {

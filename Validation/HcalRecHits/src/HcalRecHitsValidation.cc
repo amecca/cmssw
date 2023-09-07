@@ -3,41 +3,39 @@
 #include "Geometry/HcalTowerAlgo/interface/HcalGeometry.h"
 #include "Validation/HcalRecHits/interface/HcalRecHitsValidation.h"
 
-HcalRecHitsValidation::HcalRecHitsValidation(edm::ParameterSet const &conf)
-    : topFolderName_(conf.getParameter<std::string>("TopFolderName")) {
-  // DQM ROOT output
-  outputFile_ = conf.getUntrackedParameter<std::string>("outputFile", "myfile.root");
+//#define EDM_ML_DEBUG
 
+HcalRecHitsValidation::HcalRecHitsValidation(edm::ParameterSet const &conf)
+    : topFolderName_(conf.getParameter<std::string>("TopFolderName")),
+      outputFile_(conf.getUntrackedParameter<std::string>("outputFile", "myfile.root")),
+      hcalselector_(conf.getUntrackedParameter<std::string>("hcalselector", "all")),
+      ecalselector_(conf.getUntrackedParameter<std::string>("ecalselector", "yes")),
+      sign_(conf.getUntrackedParameter<std::string>("sign", "*")),
+      mc_(conf.getUntrackedParameter<std::string>("mc", "yes")),
+      testNumber_(conf.getParameter<bool>("TestNumber")),
+      EBRecHitCollectionLabel_(conf.getParameter<edm::InputTag>("EBRecHitCollectionLabel")),
+      EERecHitCollectionLabel_(conf.getParameter<edm::InputTag>("EERecHitCollectionLabel")),
+      tok_evt_(consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"))),
+      tok_EB_(consumes<EBRecHitCollection>(EBRecHitCollectionLabel_)),
+      tok_EE_(consumes<EERecHitCollection>(EERecHitCollectionLabel_)),
+      tok_hh_(consumes<edm::PCaloHitContainer>(conf.getUntrackedParameter<edm::InputTag>("SimHitCollectionLabel"))),
+      tok_hbhe_(consumes<HBHERecHitCollection>(conf.getUntrackedParameter<edm::InputTag>("HBHERecHitCollectionLabel"))),
+      tok_hf_(consumes<HFRecHitCollection>(conf.getUntrackedParameter<edm::InputTag>("HFRecHitCollectionLabel"))),
+      tok_ho_(consumes<HORecHitCollection>(conf.getUntrackedParameter<edm::InputTag>("HORecHitCollectionLabel"))),
+      tok_HRNDC_(esConsumes<HcalDDDRecConstants, HcalRecNumberingRecord>()),
+      tok_Geom_(esConsumes<CaloGeometry, CaloGeometryRecord>()) {
+  // DQM ROOT output
   if (!outputFile_.empty()) {
-    edm::LogInfo("OutputInfo") << " Hcal RecHit Task histograms will be saved to '" << outputFile_.c_str() << "'";
+    edm::LogVerbatim("OutputInfo") << " Hcal RecHit Task histograms will be saved to '" << outputFile_.c_str() << "'";
   } else {
-    edm::LogInfo("OutputInfo") << " Hcal RecHit Task histograms will NOT be saved";
+    edm::LogVerbatim("OutputInfo") << " Hcal RecHit Task histograms will NOT be saved";
   }
 
   nevtot = 0;
 
-  hcalselector_ = conf.getUntrackedParameter<std::string>("hcalselector", "all");
-  ecalselector_ = conf.getUntrackedParameter<std::string>("ecalselector", "yes");
-  sign_ = conf.getUntrackedParameter<std::string>("sign", "*");
-  mc_ = conf.getUntrackedParameter<std::string>("mc", "yes");
-  testNumber_ = conf.getParameter<bool>("TestNumber");
-
   // Collections
-  tok_hbhe_ = consumes<HBHERecHitCollection>(conf.getUntrackedParameter<edm::InputTag>("HBHERecHitCollectionLabel"));
-  tok_hf_ = consumes<HFRecHitCollection>(conf.getUntrackedParameter<edm::InputTag>("HFRecHitCollectionLabel"));
-  tok_ho_ = consumes<HORecHitCollection>(conf.getUntrackedParameter<edm::InputTag>("HORecHitCollectionLabel"));
 
   // register for data access
-  tok_evt_ = consumes<edm::HepMCProduct>(edm::InputTag("generatorSmeared"));
-  edm::InputTag EBRecHitCollectionLabel = conf.getParameter<edm::InputTag>("EBRecHitCollectionLabel");
-  tok_EB_ = consumes<EBRecHitCollection>(EBRecHitCollectionLabel);
-  edm::InputTag EERecHitCollectionLabel = conf.getParameter<edm::InputTag>("EERecHitCollectionLabel");
-  tok_EE_ = consumes<EERecHitCollection>(EERecHitCollectionLabel);
-
-  tok_hh_ = consumes<edm::PCaloHitContainer>(conf.getUntrackedParameter<edm::InputTag>("SimHitCollectionLabel"));
-
-  tok_HRNDC_ = esConsumes<HcalDDDRecConstants, HcalRecNumberingRecord>();
-  tok_Geom_ = esConsumes<CaloGeometry, CaloGeometryRecord>();
 
   subdet_ = 5;
   if (hcalselector_ == "noise")
@@ -65,8 +63,6 @@ HcalRecHitsValidation::HcalRecHitsValidation(edm::ParameterSet const &conf)
   if (mc_ == "no")
     imc = 0;
 }
-
-HcalRecHitsValidation::~HcalRecHitsValidation() {}
 
 void HcalRecHitsValidation::bookHistograms(DQMStore::IBooker &ib, edm::Run const &run, edm::EventSetup const &es) {
   Char_t histo[200];
@@ -196,8 +192,6 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
   //  double cutHB = 0.9, cutHE = 1.4, cutHO = 1.1, cutHFL = 1.2, cutHFS = 1.8;
 
   // energy in HCAL
-  double eHcal = 0.;
-  double eHcalCone = 0.;
   double eHcalConeHB = 0.;
   double eHcalConeHE = 0.;
   double eHcalConeHO = 0.;
@@ -205,17 +199,8 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
   double eHcalConeHFL = 0.;
   double eHcalConeHFS = 0.;
 
-  // Total numbet of RecHits in HCAL, in the cone, above 1 GeV theshold
-  int nrechits = 0;
-  int nrechitsCone = 0;
-  int nrechitsThresh = 0;
-
   // energy in ECAL
-  double eEcal = 0.;
-  double eEcalB = 0.;
-  double eEcalE = 0.;
   double eEcalCone = 0.;
-  int numrechitsEcal = 0;
 
   // MC info
   double phi_MC = -999999.;  // phi of initial particle from HepMC
@@ -225,17 +210,17 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
   double partR = 0.3;
 
   if (imc != 0) {
-    edm::Handle<edm::HepMCProduct> evtMC;
-    ev.getByToken(tok_evt_, evtMC);  // generator in late 310_preX
+    const edm::Handle<edm::HepMCProduct> &evtMC = ev.getHandle(tok_evt_);  // generator in late 310_preX
     if (!evtMC.isValid()) {
-      edm::LogInfo("HcalRecHitsValidation") << "no HepMCProduct found";
+      edm::LogVerbatim("HcalRecHitsValidation") << "no HepMCProduct found";
     } else {
-      //    std::cout << "*** source HepMCProduct found"<< std::endl;
+#ifdef EDM_ML_DEBUG
+      edm::LogVerbatim("HcalRecHitsValidation") << "*** source HepMCProduct found";
+#endif
     }
 
     // MC particle with highest pt is taken as a direction reference
     double maxPt = -99999.;
-    int npart = 0;
     const HepMC::GenEvent *myGenEvent = evtMC->GetEvent();
     for (HepMC::GenEvent::particle_const_iterator p = myGenEvent->particles_begin(); p != myGenEvent->particles_end();
          ++p) {
@@ -245,24 +230,28 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
       //    eta_MC = etap;
       double pt = (*p)->momentum().perp();
       if (pt > maxPt) {
-        npart++;
         maxPt = pt;
         phi_MC = phip;
         eta_MC = etap;
       }
     }
-    //  std::cout << "*** Max pT = " << maxPt <<  std::endl;
+#ifdef EDM_ML_DEBUG
+    edm::LogVerbatim("HcalRecHitsValidation") << "*** Max pT = " << maxPt;
+#endif
   }
 
-  //   std::cout << "*** 2" << std::endl;
+#ifdef EDM_ML_DEBUG
+  edm::LogVerbatim("HcalRecHitsValidation") << "*** 2";
+#endif
 
   geometry_ = &c.getData(tok_Geom_);
-  ;
 
   // Fill working vectors of HCAL RecHits quantities (all of these are drawn)
   fillRecHitsTmp(subdet_, ev);
 
-  //  std::cout << "*** 3" << std::endl;
+#ifdef EDM_ML_DEBUG
+  edm::LogVerbatim("HcalRecHitsValidation") << "*** 3";
+#endif
 
   //===========================================================================
   // IN ALL other CASES : ieta-iphi maps
@@ -270,12 +259,12 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
 
   // ECAL
   if (ecalselector_ == "yes" && (subdet_ == 1 || subdet_ == 2 || subdet_ == 5)) {
-    Handle<EBRecHitCollection> rhitEB;
+    const edm::Handle<EBRecHitCollection> &rhitEB = ev.getHandle(tok_EB_);
 
     EcalRecHitCollection::const_iterator RecHit;
     EcalRecHitCollection::const_iterator RecHitEnd;
 
-    if (ev.getByToken(tok_EB_, rhitEB)) {
+    if (rhitEB.isValid()) {
       RecHit = rhitEB.product()->begin();
       RecHitEnd = rhitEB.product()->end();
 
@@ -286,20 +275,17 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
         double eta = cellGeometry->getPosition().eta();
         double phi = cellGeometry->getPosition().phi();
         double en = RecHit->energy();
-        eEcal += en;
-        eEcalB += en;
 
         double r = dR(eta_MC, phi_MC, eta, phi);
         if (r < partR) {
           eEcalCone += en;
-          numrechitsEcal++;
         }
       }
     }
 
-    Handle<EERecHitCollection> rhitEE;
+    const edm::Handle<EERecHitCollection> &rhitEE = ev.getHandle(tok_EE_);
 
-    if (ev.getByToken(tok_EE_, rhitEE)) {
+    if (rhitEE.isValid()) {
       RecHit = rhitEE.product()->begin();
       RecHitEnd = rhitEE.product()->end();
 
@@ -310,26 +296,27 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
         double eta = cellGeometry->getPosition().eta();
         double phi = cellGeometry->getPosition().phi();
         double en = RecHit->energy();
-        eEcal += en;
-        eEcalE += en;
 
         double r = dR(eta_MC, phi_MC, eta, phi);
         if (r < partR) {
           eEcalCone += en;
-          numrechitsEcal++;
         }
       }
     }
   }  // end of ECAL selection
 
-  //     std::cout << "*** 4" << std::endl;
+#ifdef EDM_ML_DEBUG
+  edm::LogVerbatim("HcalRecHitsValidation") << "*** 4";
+#endif
 
   //===========================================================================
   // SUBSYSTEMS,
   //===========================================================================
 
   if ((subdet_ != 6) && (subdet_ != 0)) {
-    //       std::cout << "*** 6" << std::endl;
+#ifdef EDM_ML_DEBUG
+    edm::LogVerbatim("HcalRecHitsValidation") << "*** 6";
+#endif
 
     double HcalCone = 0.;
 
@@ -352,11 +339,6 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
       if (chi2 > 0.)
         chi2_log10 = log10(chi2);
 
-      nrechits++;
-      eHcal += en;
-      if (en > 1.)
-        nrechitsThresh++;
-
       double r = dR(eta_MC, phi_MC, eta, phi);
       if (r < partR) {
         if (sub == 1)
@@ -372,11 +354,8 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
           else
             eHcalConeHFS += en;
         }
-        eHcalCone += en;
-        nrechitsCone++;
 
         HcalCone += en;
-
         // alternative: ietamax -> closest to MC eta  !!!
         float eta_diff = fabs(eta_MC - eta);
         if (eta_diff < etaMax) {
@@ -426,17 +405,18 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
       meEnConeEtaProfile_EH->Fill(double(ietaMax), HcalCone + eEcalCone);
     }
 
-    //     std::cout << "*** 7" << std::endl;
+#ifdef EDM_ML_DEBUG
+    edm::LogVerbatim("HcalRecHitsValidation") << "*** 7";
+#endif
   }
 
   // SimHits vs. RecHits
   if (subdet_ > 0 && subdet_ < 6 && imc != 0) {  // not noise
 
-    edm::Handle<PCaloHitContainer> hcalHits;
-    if (ev.getByToken(tok_hh_, hcalHits)) {
+    const edm::Handle<PCaloHitContainer> &hcalHits = ev.getHandle(tok_hh_);
+    if (hcalHits.isValid()) {
       const PCaloHitContainer *SimHitResult = hcalHits.product();
 
-      double enSimHits = 0.;
       double enSimHitsHB = 0.;
       double enSimHitsHE = 0.;
       double enSimHitsHO = 0.;
@@ -473,7 +453,6 @@ void HcalRecHitsValidation::analyze(edm::Event const &ev, edm::EventSetup const 
 
         if (r < partR) {  // just energy in the small cone
 
-          enSimHits += en;
           if (sub == static_cast<int>(HcalBarrel))
             enSimHitsHB += en;
           if (sub == static_cast<int>(HcalEndcap))
@@ -537,8 +516,8 @@ void HcalRecHitsValidation::fillRecHitsTmp(int subdet_, edm::Event const &ev) {
 
   if (subdet_ == 1 || subdet_ == 2 || subdet_ == 5 || subdet_ == 6 || subdet_ == 0) {
     // HBHE
-    edm::Handle<HBHERecHitCollection> hbhecoll;
-    if (ev.getByToken(tok_hbhe_, hbhecoll)) {
+    const edm::Handle<HBHERecHitCollection> &hbhecoll = ev.getHandle(tok_hbhe_);
+    if (hbhecoll.isValid()) {
       for (HBHERecHitCollection::const_iterator j = hbhecoll->begin(); j != hbhecoll->end(); j++) {
         HcalDetId cell(j->id());
         const HcalGeometry *cellGeometry =
@@ -572,8 +551,8 @@ void HcalRecHitsValidation::fillRecHitsTmp(int subdet_, edm::Event const &ev) {
 
   if (subdet_ == 4 || subdet_ == 5 || subdet_ == 6 || subdet_ == 0) {
     // HF
-    edm::Handle<HFRecHitCollection> hfcoll;
-    if (ev.getByToken(tok_hf_, hfcoll)) {
+    const edm::Handle<HFRecHitCollection> &hfcoll = ev.getHandle(tok_hf_);
+    if (hfcoll.isValid()) {
       for (HFRecHitCollection::const_iterator j = hfcoll->begin(); j != hfcoll->end(); j++) {
         HcalDetId cell(j->id());
         auto cellGeometry = geometry_->getSubdetectorGeometry(cell)->getGeometry(cell);
@@ -606,8 +585,8 @@ void HcalRecHitsValidation::fillRecHitsTmp(int subdet_, edm::Event const &ev) {
 
   // HO
   if (subdet_ == 3 || subdet_ == 5 || subdet_ == 6 || subdet_ == 0) {
-    edm::Handle<HORecHitCollection> hocoll;
-    if (ev.getByToken(tok_ho_, hocoll)) {
+    const edm::Handle<HORecHitCollection> &hocoll = ev.getHandle(tok_ho_);
+    if (hocoll.isValid()) {
       for (HORecHitCollection::const_iterator j = hocoll->begin(); j != hocoll->end(); j++) {
         HcalDetId cell(j->id());
         auto cellGeometry = geometry_->getSubdetectorGeometry(cell)->getGeometry(cell);

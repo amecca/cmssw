@@ -1,7 +1,6 @@
-<architecture name="(slc|cc).*_amd64_.*">
-  <ifcxx11_abi value="1">
-    <flags SETENV="LD_PRELOAD=$(CMS_ORACLEOCCI_LIB)"/>
-  </ifcxx11_abi>
+<ifarch value="x86_64">
   <test name="SiStripDCS_O2O_test" command="testSiStripDCSO2O.sh"/>
   <test name="SiStripDAQ_O2O_test" command="testSiStripDAQO2O.sh"/>
-</architecture>
+</ifarch>
+
+<test name="testCondToolsSiStripBuildersReaders" command="testBuildersReaders.sh"/>

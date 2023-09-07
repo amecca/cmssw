@@ -31,8 +31,7 @@ using namespace edm;
 using namespace std;
 using namespace reco;
 
-NuclearTrackCorrector::NuclearTrackCorrector(const edm::ParameterSet& iConfig)
-    : conf_(iConfig), theInitialState(nullptr) {
+NuclearTrackCorrector::NuclearTrackCorrector(const edm::ParameterSet& iConfig) : theInitialState(nullptr) {
   str_Input_Trajectory = iConfig.getParameter<std::string>("InputTrajectory");
   str_Input_NuclearInteraction = iConfig.getParameter<std::string>("InputNuclearInteraction");
   verbosity = iConfig.getParameter<int>("Verbosity");
@@ -48,6 +47,13 @@ NuclearTrackCorrector::NuclearTrackCorrector(const edm::ParameterSet& iConfig)
   produces<TrackToTrajectoryMap>();
 
   produces<TrackToTrackMap>();
+
+  theGToken = esConsumes();
+  theMFToken = esConsumes();
+  std::string fitterName = iConfig.getParameter<std::string>("Fitter");
+  theFitterToken = esConsumes(edm::ESInputTag("", fitterName));
+  std::string propagatorName = iConfig.getParameter<std::string>("Propagator");
+  thePropagatorToken = esConsumes(edm::ESInputTag("", propagatorName));
 }
 
 NuclearTrackCorrector::~NuclearTrackCorrector() {}
@@ -64,17 +70,14 @@ void NuclearTrackCorrector::produce(edm::Event& iEvent, const edm::EventSetup& i
 
   // Load Reccord
   // --------------------------------------------------------------------------------------------------
-  std::string fitterName = conf_.getParameter<std::string>("Fitter");
-  iSetup.get<TrajectoryFitter::Record>().get(fitterName, theFitter);
+  theFitter = iSetup.getHandle(theFitterToken);
 
-  std::string propagatorName = conf_.getParameter<std::string>("Propagator");
-  iSetup.get<TrackingComponentsRecord>().get(propagatorName, thePropagator);
-
-  iSetup.get<TrackerDigiGeometryRecord>().get(theG);
+  thePropagator = iSetup.getHandle(thePropagatorToken);
+  theG = iSetup.getHandle(theGToken);
 
   reco::TrackExtraRefProd rTrackExtras = iEvent.getRefBeforePut<reco::TrackExtraCollection>();
 
-  iSetup.get<IdealMagneticFieldRecord>().get(theMF);
+  theMF = iSetup.getHandle(theMFToken);
 
   // Load Inputs
   // --------------------------------------------------------------------------------------------------
@@ -103,7 +106,7 @@ void NuclearTrackCorrector::produce(edm::Event& iEvent, const edm::EventSetup& i
   swap_map(temp_m_TrajectoryCollection, m_TrackToTrajMap);
 
   for (unsigned int i = 0; i < m_NuclearInteractionCollection.size(); i++) {
-    reco::NuclearInteraction ni = m_NuclearInteractionCollection[i];
+    const reco::NuclearInteraction& ni = m_NuclearInteractionCollection[i];
     if (ni.likelihood() < 0.4)
       continue;
 
@@ -173,8 +176,6 @@ void NuclearTrackCorrector::produce(edm::Event& iEvent, const edm::EventSetup& i
     printf("-----------------------\n");
 }
 
-// ------------ method called once each job just after ending the event loop  ------------
-void NuclearTrackCorrector::endJob() {}
 //----------------------------------------------------------------------------------------
 bool NuclearTrackCorrector::newTrajNeeded(Trajectory& newtrajectory,
                                           const TrajectoryRef& trajRef,

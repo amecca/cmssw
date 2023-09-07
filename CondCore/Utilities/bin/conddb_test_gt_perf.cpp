@@ -11,8 +11,8 @@
 #include <memory>
 
 #include <boost/thread/mutex.hpp>
-#include "tbb/parallel_for_each.h"
-#include "tbb/global_control.h"
+#include "oneapi/tbb/parallel_for_each.h"
+#include "oneapi/tbb/global_control.h"
 
 namespace cond {
 
@@ -471,9 +471,7 @@ int cond::TestGTPerf::execute() {
   std::cout << "Loading " << gt.size() << " tags..." << std::endl;
   std::vector<UntypedPayloadProxy*> proxies;
   std::map<std::string, size_t> requests;
-  size_t nt = 0;
   for (const auto& t : gt) {
-    nt++;
     UntypedPayloadProxy* p = new UntypedPayloadProxy;
     p->init(session);
     try {

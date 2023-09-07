@@ -23,6 +23,7 @@
 #include "EDMPluginDumper.h"
 #include "ThrUnsafeFCallChecker.h"
 #include "ESRecordGetChecker.h"
+#include "PsetExistsFCallChecker.h"
 
 #include <clang/StaticAnalyzer/Frontend/CheckerRegistry.h>
 
@@ -76,6 +77,10 @@ extern "C" void clang_registerCheckers(clang::ento::CheckerRegistry &registry) {
       "optional.getByChecker",
       "Checks for calls to edm::getByLabel or edm::getManyByType and reports edm::Handle type passed",
       "no docs");
+  registry.addChecker<clangcms::PsetExistsFCallChecker>(
+      "cms.CodeRules.psetExistsChecker",
+      "Checks for calls to edm::ParameterSet::exists() or edm::ParameterSet::existsAs<>()",
+      "no docs");
   registry.addChecker<clangcms::ArgSizeChecker>(
       "optional.ArgSize", "Reports args passed by value with size>4k.", "no docs");
   registry.addChecker<clangcms::FunctionChecker>(
@@ -86,8 +91,6 @@ extern "C" void clang_registerCheckers(clang::ento::CheckerRegistry &registry) {
       "optional.EDMPluginDumper", "Dumps macro DEFINE_EDM_PLUGIN types", "no docs");
   registry.addChecker<clangcms::ThrUnsafeFCallChecker>(
       "threadsafety.ThrUnsafeFCallChecker", "Reports calls of known thread unsafe functions", "no docs");
-  registry.addChecker<clangcms::ESRGetChecker>(
-      "deprecated.ESRecordGetChecker", "Checks for calls to EventSetupRecord::get", "no docs");
 }
 
 extern "C" const char clang_analyzerAPIVersionString[] = CLANG_ANALYZER_API_VERSION_STRING;

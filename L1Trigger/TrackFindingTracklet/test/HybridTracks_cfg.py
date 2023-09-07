@@ -15,8 +15,8 @@ process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
 process.load('Configuration.StandardSequences.MagneticField_cff')
 
-process.load('Configuration.Geometry.GeometryExtended2026D76Reco_cff') 
-process.load('Configuration.Geometry.GeometryExtended2026D76_cff')
+process.load('Configuration.Geometry.GeometryExtended2026D88Reco_cff') 
+process.load('Configuration.Geometry.GeometryExtended2026D88_cff')
 
 process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
@@ -32,7 +32,7 @@ process.load('L1Trigger.TrackTrigger.TrackTrigger_cff')
 
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(10))
 Source_Files = cms.untracked.vstring(
-    "/store/relval/CMSSW_11_3_0_pre6/RelValTTbar_14TeV/GEN-SIM-DIGI-RAW/PU_113X_mcRun4_realistic_v6_2026D76PU200-v1/00000/00026541-6200-4eed-b6f8-d3a1fd720e9c.root"
+"/store/mc/CMSSW_12_6_0/RelValTTbar_14TeV/GEN-SIM-DIGI-RAW/PU_125X_mcRun4_realistic_v5_2026D88PU200RV183v2-v1/30000/0959f326-3f52-48d8-9fcf-65fc41de4e27.root"
 )
 process.source = cms.Source("PoolSource", fileNames = Source_Files)
 
@@ -41,7 +41,6 @@ process.source = cms.Source("PoolSource", fileNames = Source_Files)
 # ----------------------------------------------------------------------------------
 
 process.load( 'L1Trigger.TrackerDTC.ProducerED_cff' )
-process.load( 'L1Trigger.TrackerDTC.ProducerES_cff' )
 process.dtc = cms.Path( process.TrackerDTCProducer )
 
 # ----------------------------------------------------------------------------------
@@ -51,16 +50,16 @@ process.dtc = cms.Path( process.TrackerDTCProducer )
 process.load("L1Trigger.TrackFindingTracklet.L1HybridEmulationTracks_cff")
 
 # prompt tracking only
-process.TTTracksEmulation = cms.Path(process.L1HybridTracks)
-process.TTTracksEmulationWithTruth = cms.Path(process.L1HybridTracksWithAssociators)
+process.TTTracksEmulation = cms.Path(process.L1THybridTracks)
+process.TTTracksEmulationWithTruth = cms.Path(process.L1THybridTracksWithAssociators)
 
 # extended tracking only
-#process.TTTracksEmulation = cms.Path(process.L1ExtendedHybridTracks)
-#process.TTTracksEmulationWithTruth = cms.Path(process.L1ExtendedHybridTracksWithAssociators)
+#process.TTTracksEmulation = cms.Path(process.L1TExtendedHybridTracks)
+#process.TTTracksEmulationWithTruth = cms.Path(process.L1TExtendedHybridTracksWithAssociators)
 
 # both prompt+extended hybrid tracking
-#process.TTTracksEmulation = cms.Path(process.L1PromptExtendedHybridTracks)
-#process.TTTracksEmulationWithTruth = cms.Path(process.L1PromptExtendedHybridTracksWithAssociators)
+#process.TTTracksEmulation = cms.Path(process.L1TPromptExtendedHybridTracks)
+#process.TTTracksEmulationWithTruth = cms.Path(process.L1TPromptExtendedHybridTracksWithAssociators)
 
 # ----------------------------------------------------------------------------------
 # output module

@@ -2,7 +2,7 @@ import FWCore.ParameterSet.Config as cms
 import RecoTracker.IterativeTracking.iterativeTkConfig as _cfg
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
 
-#for dnn classifier
+# for dnn classifier
 from Configuration.ProcessModifiers.trackdnn_cff import trackdnn
 from RecoTracker.IterativeTracking.dnnQualityCuts import qualityCutDictionary
 
@@ -64,9 +64,9 @@ detachedQuadStepHitDoublets = _hitPairEDProducer.clone(
     maxElement      = 50000000,
     produceIntermediateHitDoublets = True,
 )
-from RecoPixelVertexing.PixelTriplets.caHitQuadrupletEDProducer_cfi import caHitQuadrupletEDProducer as _caHitQuadrupletEDProducer
-from RecoPixelVertexing.PixelTriplets.pixelTripletLargeTipEDProducer_cfi import pixelTripletLargeTipEDProducer as _pixelTripletLargeTipEDProducer
-from RecoPixelVertexing.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
+from RecoTracker.PixelSeeding.caHitQuadrupletEDProducer_cfi import caHitQuadrupletEDProducer as _caHitQuadrupletEDProducer
+from RecoTracker.PixelSeeding.pixelTripletLargeTipEDProducer_cfi import pixelTripletLargeTipEDProducer as _pixelTripletLargeTipEDProducer
+from RecoTracker.PixelLowPtUtilities.ClusterShapeHitFilterESProducer_cfi import *
 detachedQuadStepHitQuadruplets = _caHitQuadrupletEDProducer.clone(
     doublets = 'detachedQuadStepHitDoublets',
     extraHitRPhitolerance = _pixelTripletLargeTipEDProducer.extraHitRPhitolerance,
@@ -150,14 +150,13 @@ trackingPhase2PU140.toModify(detachedQuadStepChi2Est,
 
 # TRACK BUILDING
 import RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi
-detachedQuadStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilder.clone(
-    MeasurementTrackerName = '',
+detachedQuadStepTrajectoryBuilder = RecoTracker.CkfPattern.GroupedCkfTrajectoryBuilder_cfi.GroupedCkfTrajectoryBuilderIterativeDefault.clone(
     trajectoryFilter = dict(refToPSet_ = 'detachedQuadStepTrajectoryFilter'),
     maxCand = 3,
     alwaysUseInvalidHits = True,
     estimator = 'detachedQuadStepChi2Est',
-    maxDPhiForLooperReconstruction = cms.double(2.0),
-    maxPtForLooperReconstruction = cms.double(0.7)
+    maxDPhiForLooperReconstruction = 2.0,
+    maxPtForLooperReconstruction = 0.7,
 )
 trackingNoLoopers.toModify(detachedQuadStepTrajectoryBuilder,
                            maxPtForLooperReconstruction = 0.0)
@@ -175,20 +174,20 @@ detachedQuadStepTrajectoryCleanerBySharedHits = trajectoryCleanerBySharedHits.cl
 )
 
 import RecoTracker.CkfPattern.CkfTrackCandidates_cfi
-detachedQuadStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidates.clone(
+detachedQuadStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTrackCandidatesIterativeDefault.clone(
     src = 'detachedQuadStepSeeds',
-    clustersToSkip = cms.InputTag('detachedQuadStepClusters'),
+    clustersToSkip = 'detachedQuadStepClusters',
     ### these two parameters are relevant only for the CachingSeedCleanerBySharedInput
-    numHitsForSeedCleaner = cms.int32(50),
-    onlyPixelHitsForSeedCleaner = cms.bool(True),
+    numHitsForSeedCleaner = 50,
+    onlyPixelHitsForSeedCleaner = True,
     TrajectoryBuilderPSet = dict(refToPSet_ = 'detachedQuadStepTrajectoryBuilder'),
     TrajectoryCleaner = 'detachedQuadStepTrajectoryCleanerBySharedHits',
     doSeedingRegionRebuilding = True,
-    useHitsSplitting = True
+    useHitsSplitting = True,
 )
 trackingPhase2PU140.toModify(detachedQuadStepTrackCandidates,
-    clustersToSkip       = None,
-    phase2clustersToSkip = cms.InputTag('detachedQuadStepClusters')
+    clustersToSkip = '',
+    phase2clustersToSkip = 'detachedQuadStepClusters'
 )
 
 from Configuration.ProcessModifiers.trackingMkFitDetachedQuadStep_cff import trackingMkFitDetachedQuadStep
@@ -213,6 +212,7 @@ trackingMkFitDetachedQuadStep.toReplaceWith(detachedQuadStepTrackCandidates, mkF
     mkFitSeeds = 'detachedQuadStepTrackCandidatesMkFitSeeds',
     tracks = 'detachedQuadStepTrackCandidatesMkFit',
 ))
+(pp_on_XeXe_2017 | pp_on_AA).toModify(detachedQuadStepTrackCandidatesMkFitConfig, minPt=0.9)
 
 #For FastSim phase1 tracking 
 import FastSimulation.Tracking.TrackCandidateProducer_cfi
@@ -224,13 +224,16 @@ _fastSim_detachedQuadStepTrackCandidates = FastSimulation.Tracking.TrackCandidat
 fastSim.toReplaceWith(detachedQuadStepTrackCandidates,_fastSim_detachedQuadStepTrackCandidates)
 
 # TRACK FITTING
-import RecoTracker.TrackProducer.TrackProducer_cfi
-detachedQuadStepTracks = RecoTracker.TrackProducer.TrackProducer_cfi.TrackProducer.clone(
+import RecoTracker.TrackProducer.TrackProducerIterativeDefault_cfi
+detachedQuadStepTracks = RecoTracker.TrackProducer.TrackProducerIterativeDefault_cfi.TrackProducerIterativeDefault.clone(
     AlgorithmName = 'detachedQuadStep',
     src           = 'detachedQuadStepTrackCandidates',
     Fitter        = 'FlexibleKFFittingSmoother',
 )
 fastSim.toModify(detachedQuadStepTracks,TTRHBuilder = 'WithoutRefit')
+
+from Configuration.Eras.Modifier_phase2_timing_layer_cff import phase2_timing_layer
+phase2_timing_layer.toModify(detachedQuadStepTracks, TrajectoryInEvent = True)
 
 # TRACK SELECTION AND QUALITY FLAG SETTING.
 from RecoTracker.FinalTrackSelectors.TrackMVAClassifierDetached_cfi import *
@@ -238,6 +241,10 @@ detachedQuadStep = TrackMVAClassifierDetached.clone(
     mva         = dict(GBRForestLabel = 'MVASelectorDetachedQuadStep_Phase1'),
     src         = 'detachedQuadStepTracks',
     qualityCuts = [-0.5,0.0,0.5]
+)
+pp_on_AA.toModify(detachedQuadStep, 
+        mva         = dict(GBRForestLabel = 'HIMVASelectorDetachedQuadStep_Phase1'),
+        qualityCuts = [-0.2, 0.2, 0.5],
 )
 
 from RecoTracker.FinalTrackSelectors.trackTfClassifier_cfi import *
@@ -250,10 +257,8 @@ trackdnn.toReplaceWith(detachedQuadStep, trackTfClassifier.clone(
 
 
 highBetaStar_2018.toModify(detachedQuadStep,qualityCuts = [-0.7,0.0,0.5])
-pp_on_AA.toModify(detachedQuadStep, 
-        mva         = dict(GBRForestLabel = 'HIMVASelectorDetachedQuadStep_Phase1'),
-        qualityCuts = [-0.2, 0.2, 0.5],
-)
+
+(pp_on_AA & trackdnn).toModify(detachedQuadStep, qualityCuts =  [-0.63, 0.5, 0.94] )
 
 fastSim.toModify(detachedQuadStep,vertices = 'firstStepPrimaryVerticesBeforeMixing')
 

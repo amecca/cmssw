@@ -9,7 +9,6 @@
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/isFinite.h"
@@ -35,7 +34,6 @@
 
 #include "SimG4Core/Notification/interface/G4TrackToParticleID.h"
 #include "SimG4Core/Notification/interface/Observer.h"
-#include "SimG4Core/Notification/interface/BeginOfJob.h"
 #include "SimG4Core/Notification/interface/BeginOfRun.h"
 #include "SimG4Core/Notification/interface/BeginOfEvent.h"
 #include "SimG4Core/Notification/interface/EndOfEvent.h"
@@ -67,7 +65,6 @@
 #include <vector>
 
 class CaloSteppingAction : public SimProducer,
-                           public Observer<const BeginOfJob*>,
                            public Observer<const BeginOfRun*>,
                            public Observer<const BeginOfEvent*>,
                            public Observer<const EndOfEvent*>,
@@ -76,13 +73,14 @@ public:
   CaloSteppingAction(const edm::ParameterSet& p);
   ~CaloSteppingAction() override;
 
+  void registerConsumes(edm::ConsumesCollector) override;
   void produce(edm::Event&, const edm::EventSetup&) override;
+  void beginRun(edm::EventSetup const&) override;
 
 private:
   void fillHits(edm::PCaloHitContainer& cc, int type);
   void fillPassiveHits(edm::PassiveHitContainer& cc);
   // observer classes
-  void update(const BeginOfJob* job) override;
   void update(const BeginOfRun* run) override;
   void update(const BeginOfEvent* evt) override;
   void update(const G4Step* step) override;
@@ -102,41 +100,46 @@ private:
   std::unique_ptr<EcalEndcapNumberingScheme> eeNumberingScheme_;
   std::unique_ptr<HcalNumberingFromPS> hcNumberingPS_;
 #ifdef HcalNumberingTest
+  edm::ESGetToken<HcalDDDSimConstants, HcalSimNumberingRecord> ddconsToken_;
   std::unique_ptr<HcalNumberingFromDDD> hcNumbering_;
 #endif
   std::unique_ptr<HcalNumberingScheme> hcNumberingScheme_;
   std::unique_ptr<CaloSlaveSD> slave_[nSD_];
 
-  std::vector<std::string> nameEBSD_, nameEESD_, nameHCSD_;
-  std::vector<std::string> nameHitC_;
+  const edm::ParameterSet iC_;
+  const std::vector<std::string> nameEBSD_, nameEESD_, nameHCSD_;
+  const std::vector<std::string> nameHitC_;
   std::vector<const G4LogicalVolume*> volEBSD_, volEESD_, volHCSD_;
   std::map<const G4LogicalVolume*, double> xtalMap_;
   std::map<const G4LogicalVolume*, std::string> mapLV_;
-  int allSteps_, count_, eventID_;
-  double slopeLY_, birkC1EC_, birkSlopeEC_;
-  double birkCutEC_, birkC1HC_, birkC2HC_;
-  double birkC3HC_, timeSliceUnit_;
+  const int allSteps_;
+  const double slopeLY_, birkC1EC_, birkSlopeEC_;
+  const double birkCutEC_, birkC1HC_, birkC2HC_;
+  const double birkC3HC_, timeSliceUnit_;
+  int count_, eventID_;
   std::map<std::pair<int, CaloHitID>, CaloGVHit> hitMap_[nSD_];
   typedef std::tuple<const G4LogicalVolume*, uint32_t, int, int, double, double, double, double, double, double, double>
       PassiveData;
   std::vector<PassiveData> store_;
 };
 
-CaloSteppingAction::CaloSteppingAction(const edm::ParameterSet& p) : count_(0) {
+CaloSteppingAction::CaloSteppingAction(const edm::ParameterSet& p)
+    : iC_(p.getParameter<edm::ParameterSet>("CaloSteppingAction")),
+      nameEBSD_(iC_.getParameter<std::vector<std::string> >("EBSDNames")),
+      nameEESD_(iC_.getParameter<std::vector<std::string> >("EESDNames")),
+      nameHCSD_(iC_.getParameter<std::vector<std::string> >("HCSDNames")),
+      nameHitC_(iC_.getParameter<std::vector<std::string> >("HitCollNames")),
+      allSteps_(iC_.getParameter<int>("AllSteps")),
+      slopeLY_(iC_.getParameter<double>("SlopeLightYield")),
+      birkC1EC_(iC_.getParameter<double>("BirkC1EC")),
+      birkSlopeEC_(iC_.getParameter<double>("BirkSlopeEC")),
+      birkCutEC_(iC_.getParameter<double>("BirkCutEC")),
+      birkC1HC_(iC_.getParameter<double>("BirkC1HC")),
+      birkC2HC_(iC_.getParameter<double>("BirkC2HC")),
+      birkC3HC_(iC_.getParameter<double>("BirkC3HC")),
+      timeSliceUnit_(iC_.getUntrackedParameter<double>("TimeSliceUnit", 1.0)),
+      count_(0) {
   edm::ParameterSet iC = p.getParameter<edm::ParameterSet>("CaloSteppingAction");
-  nameEBSD_ = iC.getParameter<std::vector<std::string> >("EBSDNames");
-  nameEESD_ = iC.getParameter<std::vector<std::string> >("EESDNames");
-  nameHCSD_ = iC.getParameter<std::vector<std::string> >("HCSDNames");
-  nameHitC_ = iC.getParameter<std::vector<std::string> >("HitCollNames");
-  allSteps_ = iC.getParameter<int>("AllSteps");
-  slopeLY_ = iC.getParameter<double>("SlopeLightYield");
-  birkC1EC_ = iC.getParameter<double>("BirkC1EC");
-  birkSlopeEC_ = iC.getParameter<double>("BirkSlopeEC");
-  birkCutEC_ = iC.getParameter<double>("BirkCutEC");
-  birkC1HC_ = iC.getParameter<double>("BirkC1HC");
-  birkC2HC_ = iC.getParameter<double>("BirkC2HC");
-  birkC3HC_ = iC.getParameter<double>("BirkC3HC");
-  timeSliceUnit_ = iC.getUntrackedParameter<double>("TimeSliceUnit", 1.0);
 
   edm::LogVerbatim("Step") << "CaloSteppingAction:: " << nameEBSD_.size() << " names for EB SD's";
   for (unsigned int k = 0; k < nameEBSD_.size(); ++k)
@@ -175,6 +178,13 @@ CaloSteppingAction::CaloSteppingAction(const edm::ParameterSet& p) : count_(0) {
 CaloSteppingAction::~CaloSteppingAction() {
   edm::LogVerbatim("Step") << "CaloSteppingAction: -------->  Total number of "
                            << "selected entries : " << count_;
+}
+
+void CaloSteppingAction::registerConsumes(edm::ConsumesCollector cc) {
+#ifdef HcalNumberingTest
+  ddconsToken_ = cc.esConsumes<HcalDDDSimConstants, HcalSimNumberingRecord, edm::Transition::BeginRun>();
+  edm::LogVerbatim("Step") << "CaloSteppingAction::Initialize ESGetToken for HcalDDDSimConstants";
+#endif
 }
 
 void CaloSteppingAction::produce(edm::Event& e, const edm::EventSetup&) {
@@ -220,14 +230,12 @@ void CaloSteppingAction::fillPassiveHits(edm::PassiveHitContainer& cc) {
   }
 }
 
-void CaloSteppingAction::update(const BeginOfJob* job) {
-  edm::LogVerbatim("Step") << "CaloSteppingAction:: Enter BeginOfJob";
+void CaloSteppingAction::beginRun(edm::EventSetup const& es) {
+  edm::LogVerbatim("Step") << "CaloSteppingAction:: Enter BeginOfRun";
 
 #ifdef HcalNumberingTest
   // Numbering From DDD
-  edm::ESHandle<HcalDDDSimConstants> hdc;
-  (*job)()->get<HcalSimNumberingRecord>().get(hdc);
-  const HcalDDDSimConstants* hcons_ = hdc.product();
+  const HcalDDDSimConstants* hcons_ = &es.getData(ddconsToken_);
   edm::LogVerbatim("Step") << "CaloSteppingAction:: Initialise "
                            << "HcalNumberingFromDDD";
   hcNumbering_ = std::make_unique<HcalNumberingFromDDD>(hcons_);

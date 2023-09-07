@@ -13,10 +13,11 @@
 #include <memory>
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDFilter.h"
+#include "FWCore/Framework/interface/stream/EDFilter.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
@@ -27,27 +28,26 @@
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/MuonDetId/interface/MuonSubdetId.h"
 
-class MuonAlignmentPreFilter : public edm::EDFilter {
+class MuonAlignmentPreFilter : public edm::stream::EDFilter<> {
 public:
   explicit MuonAlignmentPreFilter(const edm::ParameterSet&);
-  ~MuonAlignmentPreFilter() override {}
+  ~MuonAlignmentPreFilter() override = default;
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 private:
-  void beginJob() override {}
   bool filter(edm::Event&, const edm::EventSetup&) override;
-  void endJob() override {}
 
   // ----------member data ---------------------------
-
-  edm::InputTag m_tracksTag;
-  double m_minTrackPt;
-  double m_minTrackP;
-  bool m_allowTIDTEC;
-  int m_minTrackerHits;
-  int m_minDTHits;
-  int m_minCSCHits;
-  double m_minTrackEta;
-  double m_maxTrackEta;
+  const edm::InputTag m_tracksTag;
+  const double m_minTrackPt;
+  const double m_minTrackP;
+  const bool m_allowTIDTEC;
+  const int m_minTrackerHits;
+  const int m_minDTHits;
+  const int m_minCSCHits;
+  const double m_minTrackEta;
+  const double m_maxTrackEta;
+  const edm::EDGetTokenT<reco::TrackCollection> m_trackToken;
 };
 
 MuonAlignmentPreFilter::MuonAlignmentPreFilter(const edm::ParameterSet& cfg)
@@ -59,11 +59,25 @@ MuonAlignmentPreFilter::MuonAlignmentPreFilter(const edm::ParameterSet& cfg)
       m_minDTHits(cfg.getParameter<int>("minDTHits")),
       m_minCSCHits(cfg.getParameter<int>("minCSCHits")),
       m_minTrackEta(cfg.getParameter<double>("minTrackEta")),
-      m_maxTrackEta(cfg.getParameter<double>("maxTrackEta")) {}
+      m_maxTrackEta(cfg.getParameter<double>("maxTrackEta")),
+      m_trackToken(consumes<reco::TrackCollection>(m_tracksTag)) {}
+
+void MuonAlignmentPreFilter::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("tracksTag", edm::InputTag("ALCARECOMuAlCalIsolatedMu:GlobalMuon"));
+  desc.add<double>("minTrackPt", 20.);
+  desc.add<double>("minTrackP", 0.);
+  desc.add<int>("minTrackerHits", 10);
+  desc.add<int>("minDTHits", 6);
+  desc.add<int>("minCSCHits", 4);
+  desc.add<bool>("allowTIDTEC", true);
+  desc.add<double>("minTrackEta", -2.4);
+  desc.add<double>("maxTrackEta", 2.4);
+  descriptions.add("MuonAlignmentPreFilter", desc);
+}
 
 bool MuonAlignmentPreFilter::filter(edm::Event& iEvent, const edm::EventSetup& iSetup) {
-  edm::Handle<reco::TrackCollection> trackColl;
-  iEvent.getByLabel(m_tracksTag, trackColl);
+  const edm::Handle<reco::TrackCollection>& trackColl = iEvent.getHandle(m_trackToken);
 
   // check if there's at least one interesting track:
 

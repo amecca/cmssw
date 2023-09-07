@@ -87,7 +87,8 @@ using namespace gbl;
 MillePedeAlignmentAlgorithm::MillePedeAlignmentAlgorithm(const edm::ParameterSet &cfg, edm::ConsumesCollector &iC)
     : AlignmentAlgorithmBase(cfg, iC),
       topoToken_(iC.esConsumes<TrackerTopology, TrackerTopologyRcd, edm::Transition::BeginRun>()),
-      aliThrToken_(iC.esConsumes<AlignPCLThresholds, AlignPCLThresholdsRcd, edm::Transition::BeginRun>()),
+      aliThrToken_(iC.esConsumes<AlignPCLThresholdsHG, AlignPCLThresholdsHGRcd, edm::Transition::BeginRun>()),
+      geomToken_(iC.esConsumes<TrackerGeometry, TrackerDigiGeometryRecord, edm::Transition::BeginRun>()),
       theConfig(cfg),
       theMode(this->decodeMode(theConfig.getUntrackedParameter<std::string>("mode"))),
       theDir(theConfig.getUntrackedParameter<std::string>("fileDir")),
@@ -183,8 +184,13 @@ void MillePedeAlignmentAlgorithm::initialize(const edm::EventSetup &setup,
   //Retrieve the thresolds cuts from DB for the PCL
   if (runAtPCL_) {
     const auto &th = &setup.getData(aliThrToken_);
-    theThresholds = std::make_shared<AlignPCLThresholds>();
-    storeThresholds(th->getNrecords(), th->getThreshold_Map());
+    theThresholds = std::make_shared<AlignPCLThresholdsHG>();
+    storeThresholds(th->getNrecords(), th->getThreshold_Map(), th->getFloatMap());
+
+    //Retrieve tracker geometry
+    const TrackerGeometry *tGeom = &setup.getData(geomToken_);
+    //Retrieve PixelTopologyMap
+    pixelTopologyMap = std::make_shared<PixelTopologyMap>(tGeom, tTopo);
   }
 
   theAlignableNavigator = std::make_unique<AlignableNavigator>(extras, tracker, muon);
@@ -301,8 +307,10 @@ bool MillePedeAlignmentAlgorithm::addCalibrations(const std::vector<IntegratedCa
 
 //____________________________________________________
 bool MillePedeAlignmentAlgorithm::storeThresholds(const int &nRecords,
-                                                  const AlignPCLThresholds::threshold_map &thresholdMap) {
+                                                  const AlignPCLThresholdsHG::threshold_map &thresholdMap,
+                                                  const AlignPCLThresholdsHG::param_map &floatMap) {
   theThresholds->setAlignPCLThresholds(nRecords, thresholdMap);
+  theThresholds->setFloatMap(floatMap);
   return true;
 }
 
@@ -319,8 +327,10 @@ bool MillePedeAlignmentAlgorithm::processesEvents() {
 bool MillePedeAlignmentAlgorithm::storeAlignments() {
   if (isMode(myPedeReadBit)) {
     if (runAtPCL_) {
-      MillePedeFileReader mpReader(
-          theConfig.getParameter<edm::ParameterSet>("MillePedeFileReader"), thePedeLabels, theThresholds);
+      MillePedeFileReader mpReader(theConfig.getParameter<edm::ParameterSet>("MillePedeFileReader"),
+                                   thePedeLabels,
+                                   theThresholds,
+                                   pixelTopologyMap);
       mpReader.read();
       return mpReader.storeAlignments();
     } else {
@@ -480,7 +490,7 @@ void MillePedeAlignmentAlgorithm::run(const edm::EventSetup &setup, const EventI
   const auto tracksPerTraj = theTrajectoryFactory->tracksPerTrajectory();
   for (auto iRefTraj = trajectories.cbegin(), iRefTrajE = trajectories.cend(); iRefTraj != iRefTrajE;
        ++iRefTraj, ++refTrajCount) {
-    RefTrajColl::value_type refTrajPtr = *iRefTraj;
+    const RefTrajColl::value_type &refTrajPtr = *iRefTraj;
     if (theMonitor)
       theMonitor->fillRefTrajectory(refTrajPtr);
 
@@ -514,7 +524,7 @@ std::pair<unsigned int, unsigned int> MillePedeAlignmentAlgorithm::addReferenceT
              ++itPoint) {
           if (this->addGlobalData(setup, eventInfo, refTrajPtr, iHit++, *itPoint) < 0)
             return hitResultXy;
-          if (itPoint->hasMeasurement() >= 1)
+          if (itPoint->numMeasurements() >= 1)
             ++numPointsWithMeas;
         }
       }

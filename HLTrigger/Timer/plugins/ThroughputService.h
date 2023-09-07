@@ -8,7 +8,7 @@
 #include <string>
 
 // TBB headers
-#include <tbb/concurrent_vector.h>
+#include <oneapi/tbb/concurrent_vector.h>
 
 // ROOT headers
 #include <TH1F.h>
@@ -45,8 +45,8 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 private:
-  dqm::reco::MonitorElement* m_sourced_events;
-  dqm::reco::MonitorElement* m_retired_events;
+  dqm::reco::MonitorElement* m_sourced_events = nullptr;
+  dqm::reco::MonitorElement* m_retired_events = nullptr;
 
   std::chrono::system_clock::time_point m_startup;
 

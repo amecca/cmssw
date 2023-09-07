@@ -39,7 +39,7 @@ for arg in argv:
     else:
         globals()[k] = v
 
-neventsPerJob = nevents/njob
+neventsPerJob = int(nevents/njob)
 skip = job * neventsPerJob
 
 if skip>4:
@@ -79,15 +79,11 @@ process.maxEvents = cms.untracked.PSet(
 process.source = cms.Source("PoolSource",
     secondaryFileNames = cms.untracked.vstring(),
     fileNames = cms.untracked.vstring(
-        "/store/mc/RunIISummer19UL18RECO/GluGluToContinToZZTo4mu_13TeV_MCFM701_pythia8/AODSIM/106X_upgrade2018_realistic_v11_L1v1-v2/110000/664BBEBB-93A9-5B40-AD9C-DE835A79B712.root",
-        #"/store/mc/RunIISummer20UL18RECO/BuToTau_To3Mu_MuFilter_TuneCP5_13TeV-pythia8-evtgen/AODSIM/106X_upgrade2018_realistic_v11_L1v1-v1/20000/00901296-D966-DF40-AA25-5F7A959B79CA.root",
-        #"/store/mc/RunIISummer20UL18RECO/DsToTau_To3Mu_MuFilter_TuneCP5_13TeV-pythia8-evtgen/AODSIM/106X_upgrade2018_realistic_v11_L1v1-v1/00000/0003B7FD-6C1E-BF4C-8DA9-BA8A27AF0290.root",
-        #"/store/mc/RunIISummer19UL18RECO/ZZ_TuneCP5_13TeV-pythia8/AODSIM/106X_upgrade2018_realistic_v11_L1v1-v2/280000/04530FC4-E54D-D34A-950E-9F300321E037.root",
-        #"/store/mc/RunIIFall15DR76/TT_TuneCUETP8M1_13TeV-powheg-pythia8/AODSIM/25nsFlat10to25TSG_76X_mcRun2_asymptotic_v11_ext3-v1/20000/F03B8956-5D87-E511-8AE9-002590D0AFFC.root",
-        #"/store/mc/RunIISummer19UL18HLT/TTTo2L2Nu_mtop178p5_TuneCP5_13TeV-powheg-pythia8/GEN-SIM-RAW/102X_upgrade2018_realistic_v15-v2/280000/00429618-85B5-124F-9C16-0C9F07A39E73.root+"
-        #"/store/mc/PhaseIFall16DR/TT_TuneCUETP8M2T4_13TeV-powheg-pythia8/GEN-SIM-RAW/FlatPU28to62HcalNZSRAW_81X_upgrade2017_realistic_v26-v1/110000/444C2036-84FC-E611-A86D-02163E01433C.root",
-        #"/store/mc/RunIISpring16DR80/TT_TuneCUETP8M1_13TeV-powheg-pythia8/GEN-SIM-RAW/FlatPU20to70HcalNZSRAW_withHLT_80X_mcRun2_asymptotic_v14_ext3-v1/50000/D6D4CAF2-AD65-E611-9642-001EC94BA169.root",
-        #"/store/relval/CMSSW_7_6_0_pre7/RelValTTbar_13/GEN-SIM/76X_mcRun2_asymptotic_v9_realBS-v1/00000/0A812333-427C-E511-A80A-0025905964A2.root",
+        # TTbar CMSSW_13X samples
+        "/store/relval/CMSSW_13_0_0/RelValTTbar_14TeV/GEN-SIM-DIGI-RAW/130X_mcRun3_2022_realistic_v2-v1/00000/03acba5e-3c92-48ac-8a9f-f1a64e366586.root",
+        "/store/relval/CMSSW_13_0_0/RelValTTbar_14TeV/GEN-SIM-DIGI-RAW/130X_mcRun3_2022_realistic_v2-v1/00000/0d7ef730-93b6-4802-940c-6e671e273ed9.root",
+        "/store/relval/CMSSW_13_0_0/RelValTTbar_14TeV/GEN-SIM-DIGI-RAW/130X_mcRun3_2022_realistic_v2-v1/00000/1c2f6a11-ab8f-4aaf-89f2-745435227846.root",
+        "/store/relval/CMSSW_13_0_0/RelValTTbar_14TeV/GEN-SIM-DIGI-RAW/130X_mcRun3_2022_realistic_v2-v1/00000/2bd89da6-765e-42dd-bbdc-5a2d343d3086.root"
 	),
     skipEvents = cms.untracked.uint32(skip)
     )
@@ -109,13 +105,7 @@ process.TFileService.fileName = cms.string('l1t_histos.root')
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag
-## process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:upgradePLS1', '')
-#process.GlobalTag = GlobalTag(process.GlobalTag, '106X_upgrade2018_realistic_v11', '')
-process.GlobalTag = GlobalTag(process.GlobalTag, '112X_mcRun2_asymptotic_v2', '')
-## process.GlobalTag = GlobalTag(process.GlobalTag, '90X_upgrade2017_realistic_PerfectEcalIc_EGM_PFCalib', '')
-## auto:upgradePLS1
-## 81X_upgrade2017_realistic_v26
-## 80X_mcRun2_asymptotic_v14
+process.GlobalTag = GlobalTag(process.GlobalTag, '123X_mcRun3_2021_realistic_v13', '')
 
 ## ## needed until prescales go into GlobalTag ########################
 ## from CondCore.DBCommon.CondDBSetup_cfi import CondDBSetup
@@ -214,7 +204,7 @@ process.load('L1Trigger.L1TGlobal.GlobalParameters_cff')
 
 process.load("L1Trigger.L1TGlobal.TriggerMenu_cff")
 
-xmlMenu="L1Menu_test_mass_3_body_reduced_v2.xml"
+xmlMenu="L1Menu_Collisions2023_v1_0_1.xml"
 process.TriggerMenu.L1TriggerMenuFile = cms.string(xmlMenu)
 process.ESPreferL1TXML = cms.ESPrefer("L1TUtmTriggerMenuESProducer","TriggerMenu")
 
@@ -234,10 +224,10 @@ process.simGtExtFakeProd.setBptxOR    = cms.bool(True)
 
 ## Run the Stage 2 uGT emulator
 process.load('L1Trigger.L1TGlobal.simGtStage2Digis_cfi')
-process.simGtStage2Digis.PrescaleCSVFile = cms.string('prescale_L1TGlobal.csv')
 process.simGtStage2Digis.PrescaleSet = cms.uint32(1)
 process.simGtStage2Digis.ExtInputTag = cms.InputTag("simGtExtFakeProd")
 process.simGtStage2Digis.MuonInputTag = cms.InputTag("gtInput")
+process.simGtStage2Digis.MuonShowerInputTag = cms.InputTag("gtStage2Digis", "MuonShower")
 process.simGtStage2Digis.EGammaInputTag = cms.InputTag("gtInput")
 process.simGtStage2Digis.TauInputTag = cms.InputTag("gtInput")
 process.simGtStage2Digis.JetInputTag = cms.InputTag("gtInput")
@@ -295,6 +285,7 @@ process.gtStage2Raw.TauInputTag = cms.InputTag("gtInput")
 process.gtStage2Raw.JetInputTag = cms.InputTag("gtInput")
 process.gtStage2Raw.EtSumInputTag = cms.InputTag("gtInput")
 process.gtStage2Raw.MuonInputTag = cms.InputTag("gtInput")
+process.gtStage2Raw.MuonShowerInputTag = cms.InputTag("gtInput")
 
 process.load('EventFilter.L1TRawToDigi.gtStage2Digis_cfi')
 process.newGtStage2Digis = process.gtStage2Digis.clone()
@@ -311,7 +302,8 @@ process.dumpRaw = cms.EDAnalyzer(
 
 process.newDumpGTRecord = cms.EDAnalyzer("l1t::GtRecordDump",
                 egInputTag    = cms.InputTag("newGtStage2Digis","EGamma"),
-		muInputTag    = cms.InputTag("newGtStage2Digis","Muon"),
+                muInputTag    = cms.InputTag("newGtStage2Digis","Muon"),
+                muShowerInputTag    = cms.InputTag("newGtStage2Digis","MuonShower"),
 		tauInputTag   = cms.InputTag("newGtStage2Digis","Tau"),
 		jetInputTag   = cms.InputTag("newGtStage2Digis","Jet"),
 		etsumInputTag = cms.InputTag("newGtStage2Digis","EtSum"),

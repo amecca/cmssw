@@ -53,7 +53,6 @@ namespace edm {
          ExceptionToActionTable const& actions,
          std::shared_ptr<ActivityRegistry> reg,
          StreamContext const* streamContext,
-         std::atomic<bool>* stopProcessEvent,
          PathContext::PathType pathType);
 
     Path(Path const&);
@@ -87,6 +86,7 @@ namespace edm {
     int timesFailed(size_type i) const { return workers_.at(i).timesFailed(); }
     int timesExcept(size_type i) const { return workers_.at(i).timesExcept(); }
     Worker const* getWorker(size_type i) const { return workers_.at(i).getWorker(); }
+    unsigned int bitPosition(size_type i) const { return workers_.at(i).bitPosition(); }
 
     void setEarlyDeleteHelpers(std::map<const Worker*, EarlyDeleteHelper*> const&);
 
@@ -98,6 +98,7 @@ namespace edm {
     int timesFailed_;
     int timesExcept_;
     //int abortWorker_;
+    std::atomic<bool> printedException_ = false;
     //When an exception happens, it is possible for multiple modules in a path to fail
     // and then try to change the state concurrently.
     std::atomic<bool> stateLock_ = false;
@@ -114,7 +115,6 @@ namespace edm {
 
     PathContext pathContext_;
     WaitingTaskList waitingTasks_;
-    std::atomic<bool>* const stopProcessingEvent_;
     std::atomic<unsigned int> modulesToRun_;
 
     PathStatusInserter* pathStatusInserter_;
@@ -122,13 +122,7 @@ namespace edm {
 
     // Helper functions
     // nwrwue = numWorkersRunWithoutUnhandledException (really!)
-    bool handleWorkerFailure(cms::Exception& e,
-                             int nwrwue,
-                             bool isEvent,
-                             bool begin,
-                             BranchType branchType,
-                             ModuleDescription const&,
-                             std::string const& id) const;
+    void handleWorkerFailure(cms::Exception& e, int nwrwue, ModuleDescription const&, std::string const& id);
     static void exceptionContext(cms::Exception& ex,
                                  bool isEvent,
                                  bool begin,
@@ -136,7 +130,7 @@ namespace edm {
                                  ModuleDescription const&,
                                  std::string const& id,
                                  PathContext const&);
-    void threadsafe_setFailedModuleInfo(int nwrwue, std::exception_ptr);
+    void threadsafe_setFailedModuleInfo(int nwrwue, bool iExceptionHappened);
     void recordStatus(int nwrwue, hlt::HLTState state);
     void updateCounters(hlt::HLTState state);
 
@@ -149,13 +143,13 @@ namespace edm {
                         ServiceToken const&,
                         StreamID const&,
                         StreamContext const*,
-                        tbb::task_group& iGroup);
+                        oneapi::tbb::task_group& iGroup);
     void runNextWorkerAsync(unsigned int iNextModuleIndex,
                             EventTransitionInfo const&,
                             ServiceToken const&,
                             StreamID const&,
                             StreamContext const*,
-                            tbb::task_group& iGroup);
+                            oneapi::tbb::task_group& iGroup);
   };
 
   namespace {

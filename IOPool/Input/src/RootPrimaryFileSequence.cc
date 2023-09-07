@@ -29,12 +29,21 @@ namespace edm {
         orderedProcessHistoryIDs_(),
         eventSkipperByID_(EventSkipperByID::create(pset).release()),
         initialNumberOfEventsToSkip_(pset.getUntrackedParameter<unsigned int>("skipEvents")),
-        noEventSort_(pset.getUntrackedParameter<bool>("noEventSort")),
+        noRunLumiSort_(pset.getUntrackedParameter<bool>("noRunLumiSort")),
+        noEventSort_(noRunLumiSort_ ? true : pset.getUntrackedParameter<bool>("noEventSort")),
         treeCacheSize_(noEventSort_ ? pset.getUntrackedParameter<unsigned int>("cacheSize") : 0U),
         duplicateChecker_(new DuplicateChecker(pset)),
         usingGoToEvent_(false),
         enablePrefetching_(false),
         enforceGUIDInFileName_(pset.getUntrackedParameter<bool>("enforceGUIDInFileName")) {
+    if (noRunLumiSort_ && (remainingEvents() >= 0 || remainingLuminosityBlocks() >= 0)) {
+      // There would need to be some Framework development work to allow stopping
+      // early with noRunLumiSort set true related to closing lumis and runs that
+      // were supposed to be continued but were not... We cannot have events written
+      // to output with no run or lumi written to output.
+      throw Exception(errors::Configuration,
+                      "Illegal to configure noRunLumiSort and limit the number of events or luminosityBlocks");
+    }
     // The SiteLocalConfig controls the TTreeCache size and the prefetching settings.
     Service<SiteLocalConfig> pSLC;
     if (pSLC.isAvailable()) {
@@ -117,7 +126,7 @@ namespace edm {
   void RootPrimaryFileSequence::closeFile_() {
     // close the currently open file, if any, and delete the RootFile object.
     if (rootFile()) {
-      auto sentry = std::make_unique<InputSource::FileCloseSentry>(input_, lfn(), usedFallback());
+      auto sentry = std::make_unique<InputSource::FileCloseSentry>(input_, lfn());
       rootFile()->close();
       if (duplicateChecker_)
         duplicateChecker_->inputFileClosed();
@@ -149,6 +158,7 @@ namespace edm {
                                       input_.treeMaxVirtualSize(),
                                       input_.processingMode(),
                                       input_.runHelper(),
+                                      noRunLumiSort_,
                                       noEventSort_,
                                       input_.productSelectorRules(),
                                       InputType::Primary,
@@ -411,6 +421,10 @@ namespace edm {
             "Note 1: Events within the same lumi will always be processed contiguously.\n"
             "Note 2: Lumis within the same run will always be processed contiguously.\n"
             "Note 3: Any sorting occurs independently in each input file (no sorting across input files).");
+    desc.addUntracked<bool>("noRunLumiSort", false)
+        ->setComment(
+            "True:  Process runs, lumis and events in the order they appear in the file.\n"
+            "False: Follow settings based on 'noEventSort' setting.");
     desc.addUntracked<unsigned int>("cacheSize", roottree::defaultCacheSize)
         ->setComment("Size of ROOT TTree prefetch cache.  Affects performance.");
     std::string defaultString("permissive");

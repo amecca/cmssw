@@ -59,7 +59,7 @@ namespace edm {
 
     typedef PrincipalGetAdapter Base;
     // AUX functions are defined in RunBase
-    RunAuxiliary const& runAuxiliary() const override { return aux_; }
+    RunAuxiliary const& runAuxiliary() const final;
     // AUX functions.
     //     RunID const& id() const {return aux_.id();}
     //     RunNumber_t run() const {return aux_.run();}
@@ -100,9 +100,6 @@ namespace edm {
 
     template <typename PROD>
     PROD const& get(EDGetTokenT<PROD> token) const noexcept(false);
-
-    template <typename PROD>
-    void getManyByType(std::vector<Handle<PROD>>& results) const;
 
     ///Put a new product.
     template <typename PROD>
@@ -159,7 +156,7 @@ namespace edm {
     // Override version from RunBase class
     BasicHandle getByLabelImpl(std::type_info const& iWrapperType,
                                std::type_info const& iProductType,
-                               InputTag const& iTag) const override;
+                               InputTag const& iTag) const final;
 
     template <typename PROD>
     void putImpl(EDPutToken::value_type token, std::unique_ptr<PROD> product);
@@ -358,14 +355,6 @@ namespace edm {
     }
     BasicHandle bh = provRecorder_.getByToken_(TypeID(typeid(PROD)), PRODUCT_TYPE, token, moduleCallingContext_);
     return *convert_handle<PROD>(std::move(bh));
-  }
-
-  template <typename PROD>
-  void Run::getManyByType(std::vector<Handle<PROD>>& results) const {
-    if (!provRecorder_.checkIfComplete<PROD>()) {
-      principal_get_adapter_detail::throwOnPrematureRead("Run", TypeID(typeid(PROD)));
-    }
-    return provRecorder_.getManyByType(results, moduleCallingContext_);
   }
 
   // Free functions to retrieve a collection from the Run.

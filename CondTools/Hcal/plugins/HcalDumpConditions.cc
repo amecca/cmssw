@@ -16,7 +16,7 @@ September 21, 2009  Added HcalLutMetadata - Gena Kukartsev
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 
@@ -35,7 +35,7 @@ September 21, 2009  Added HcalLutMetadata - Gena Kukartsev
 #include "CondFormats/HcalObjects/interface/AllObjects.h"
 
 namespace edmtest {
-  class HcalDumpConditions : public edm::EDAnalyzer {
+  class HcalDumpConditions : public edm::one::EDAnalyzer<> {
   public:
     explicit HcalDumpConditions(edm::ParameterSet const& p) {
       front = p.getUntrackedParameter<std::string>("outFilePrefix", "Dump");
@@ -54,6 +54,7 @@ namespace edmtest {
           esConsumes<HcalPedestalWidths, HcalPedestalWidthsRcd>(edm::ESInputTag("", "effective"));
       tok_Gains = esConsumes<HcalGains, HcalGainsRcd>();
       tok_GainWidths = esConsumes<HcalGainWidths, HcalGainWidthsRcd>();
+      tok_PFCuts = esConsumes<HcalPFCuts, HcalPFCutsRcd>();
       tok_ChannelQuality = esConsumes<HcalChannelQuality, HcalChannelQualityRcd>();
       tok_RespCorrs = esConsumes<HcalRespCorrs, HcalRespCorrsRcd>();
       tok_ZSThresholds = esConsumes<HcalZSThresholds, HcalZSThresholdsRcd>();
@@ -112,6 +113,7 @@ namespace edmtest {
     edm::ESGetToken<HcalPedestalWidths, HcalPedestalWidthsRcd> tok_PedestalWidths_effective;
     edm::ESGetToken<HcalGains, HcalGainsRcd> tok_Gains;
     edm::ESGetToken<HcalGainWidths, HcalGainWidthsRcd> tok_GainWidths;
+    edm::ESGetToken<HcalPFCuts, HcalPFCutsRcd> tok_PFCuts;
     edm::ESGetToken<HcalChannelQuality, HcalChannelQualityRcd> tok_ChannelQuality;
     edm::ESGetToken<HcalRespCorrs, HcalRespCorrsRcd> tok_RespCorrs;
     edm::ESGetToken<HcalZSThresholds, HcalZSThresholdsRcd> tok_ZSThresholds;
@@ -204,6 +206,7 @@ namespace edmtest {
         mDumpRequest, e, context, "EffectivePedestalWidths", topo, tok_PedestalWidths_effective);
     dumpIt<HcalGains, HcalGainsRcd>(mDumpRequest, e, context, "Gains", topo, tok_Gains);
     dumpIt<HcalGainWidths, HcalGainWidthsRcd>(mDumpRequest, e, context, "GainWidths", topo, tok_GainWidths);
+    dumpIt<HcalPFCuts, HcalPFCutsRcd>(mDumpRequest, e, context, "PFCuts", topo, tok_PFCuts);
     dumpIt<HcalChannelQuality, HcalChannelQualityRcd>(
         mDumpRequest, e, context, "ChannelQuality", topo, tok_ChannelQuality);
     dumpIt<HcalRespCorrs, HcalRespCorrsRcd>(mDumpRequest, e, context, "RespCorrs", topo, tok_RespCorrs);

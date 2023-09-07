@@ -26,7 +26,7 @@
 #include <string>
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESWatcher.h"
 
 #include "FWCore/Framework/interface/Event.h"
@@ -66,7 +66,7 @@
 // class decleration
 //
 
-class APVShotsAnalyzer : public edm::EDAnalyzer {
+class APVShotsAnalyzer : public edm::one::EDAnalyzer<edm::one::SharedResources, edm::one::WatchRuns> {
 public:
   explicit APVShotsAnalyzer(const edm::ParameterSet&);
   ~APVShotsAnalyzer() override;
@@ -153,6 +153,7 @@ APVShotsAnalyzer::APVShotsAnalyzer(const edm::ParameterSet& iConfig)
       _nevents(0),
       _rhm(consumesCollector()) {
   //now do what ever initialization is needed
+  usesResource(TFileService::kSharedResource);
 
   if (!_zs)
     _suffix += "_notZS";
@@ -323,7 +324,7 @@ void APVShotsAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& 
 
         const std::vector<const FedChannelConnection*>& conns = _detCabling->getConnections(det);
 
-        if (!(conns.size()))
+        if (conns.empty())
           continue;
         uint16_t lFedId = 0;
         for (uint32_t ch = 0; ch < conns.size(); ch++) {

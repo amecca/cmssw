@@ -2,6 +2,7 @@ import FWCore.ParameterSet.Config as cms
 
 from RecoEgamma.PhotonIdentification.isolationCalculator_cfi import *
 from RecoEgamma.PhotonIdentification.mipVariable_cfi import *
+from RecoEgamma.PhotonIdentification.mvaHaloVariable_cfi import *
 from RecoEcal.EgammaClusterProducers.hybridSuperClusters_cfi import *
 from RecoEcal.EgammaClusterProducers.multi5x5BasicClusters_cfi import *
 from RecoEgamma.EgammaIsolationAlgos.egammaHBHERecHitThreshold_cff import egammaHBHERecHit
@@ -30,6 +31,7 @@ photons = cms.EDProducer("GEDPhotonProducer",
     candidateP4type = cms.string("fromEcalEnergy"),                     
     isolationSumsCalculatorSet = cms.PSet(isolationSumsCalculator),
     mipVariableSet = cms.PSet(mipVariable), 
+    mvaBasedHaloVariableSet = cms.PSet(mvaHaloVariable), 
     usePrimaryVertex = cms.bool(True),
     primaryVertexProducer = cms.InputTag('offlinePrimaryVerticesWithBS'),
     posCalc_t0_endcPresh = cms.double(3.6),
@@ -42,6 +44,7 @@ photons = cms.EDProducer("GEDPhotonProducer",
     endcapEcalHits = cms.InputTag("ecalRecHit","EcalRecHitsEE"),
     preshowerHits = cms.InputTag("ecalPreshowerRecHit","EcalRecHitsES"),
     runMIPTagger = cms.bool(True),
+    runMVABasedHaloTagger = cms.bool(False),
     highEt  = cms.double(100.),                       
     minR9Barrel = cms.double(0.94),
     minR9Endcap = cms.double(0.95),
@@ -93,15 +96,15 @@ photons = cms.EDProducer("GEDPhotonProducer",
     PhotonDNNPFid = cms.PSet(
         enabled = cms.bool(False),
         inputTensorName = cms.string("FirstLayer_input"),
-        outputTensorName = cms.string("sequential/LastLayer/Softmax"),
+        outputTensorName = cms.string("sequential/FinalLayer/Sigmoid"),
         modelsFiles = cms.vstring(
-                                'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/model_barrel.pb',
-                                'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/model_endcap.pb'),
+                                'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/v1/EB/EB_modelDNN.pb',
+                                'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/v1/EE/EE_modelDNN.pb'),
         scalersFiles = cms.vstring(
-                    'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/PhotonDNNScaler.txt',
-                    'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/PhotonDNNScaler.txt'
+                    'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/v1/EB/EB_scaler.txt',
+                    'RecoEgamma/PhotonIdentification/data/Photon_PFID_dnn/v1/EE/EE_scaler.txt'
         ),
-        outputDim = cms.uint32(1),
+        outputDim = cms.vuint32(1,1),
         useEBModelInGap = cms.bool(True)
     ),
     pfECALClusIsolCfg = cms.PSet(
@@ -161,6 +164,7 @@ islandPhotons = cms.EDProducer("PhotonProducer",
     hbheModule = cms.string('hbhereco'),
     endcapEcalHits = cms.InputTag("ecalRecHit","EcalRecHitsEE"),
     runMIPTagger = cms.bool(True),
+    runMVABasedHaloTagger = cms.bool(False),
     highEt  = cms.double(100.),
     minR9Barrel = cms.double(10.0),
     minR9Endcap = cms.double(10.0),

@@ -5,13 +5,13 @@
  *  author: Gautier Hamel De Monchenault - CEA/Saclay
  */
 
-#include <TAxis.h>
-#include <TH1.h>
-#include <TProfile.h>
-#include <TTree.h>
-#include <TChain.h>
-#include <TFile.h>
-#include <TMath.h>
+#include "TAxis.h"
+#include "TH1.h"
+#include "TProfile.h"
+#include "TTree.h"
+#include "TChain.h"
+#include "TFile.h"
+#include "TMath.h"
 
 #include "CalibCalorimetry/EcalLaserAnalyzer/plugins/EcalLaserAnalyzer.h"
 
@@ -19,28 +19,28 @@
 #include <fstream>
 #include <iomanip>
 
-#include <FWCore/MessageLogger/interface/MessageLogger.h>
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 
-#include <FWCore/Framework/interface/EventSetup.h>
+#include "FWCore/Framework/interface/EventSetup.h"
 
-#include <FWCore/Framework/interface/Event.h>
-#include <FWCore/Framework/interface/MakerMacros.h>
-#include <FWCore/ParameterSet/interface/ParameterSet.h>
-#include <DataFormats/EcalDetId/interface/EcalElectronicsId.h>
-#include <DataFormats/EcalDetId/interface/EcalDetIdCollections.h>
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "DataFormats/EcalDetId/interface/EcalElectronicsId.h"
+#include "DataFormats/EcalDetId/interface/EcalDetIdCollections.h"
 
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TShapeAnalysis.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TPNFit.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TMom.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TAPD.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TAPDPulse.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TPN.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TPNPulse.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TPNCor.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/TMem.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/PulseFitWithFunction.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/ME.h>
-#include <CalibCalorimetry/EcalLaserAnalyzer/interface/MEGeom.h>
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TShapeAnalysis.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TPNFit.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TMom.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TAPD.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TAPDPulse.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TPN.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TPNPulse.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TPNCor.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/TMem.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/PulseFitWithFunction.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/ME.h"
+#include "CalibCalorimetry/EcalLaserAnalyzer/interface/MEGeom.h"
 
 //========================================================================
 EcalLaserAnalyzer::EcalLaserAnalyzer(const edm::ParameterSet& iConfig)
@@ -919,10 +919,8 @@ void EcalLaserAnalyzer::endJob() {
     // Loop on events
     //================
 
-    Long64_t nbytes = 0, nb = 0;
     for (Long64_t jentry = 0; jentry < ADCtrees[iCry]->GetEntriesFast(); jentry++) {
-      nb = ADCtrees[iCry]->GetEntry(jentry);
-      nbytes += nb;
+      ADCtrees[iCry]->GetEntry(jentry);
 
       // Get back color
 
@@ -1169,10 +1167,8 @@ void EcalLaserAnalyzer::endJob() {
     // Final loop on events
     //=======================
 
-    Long64_t nbytes = 0, nb = 0;
     for (Long64_t jentry = 0; jentry < APDtrees[iCry]->GetEntriesFast(); jentry++) {
-      nb = APDtrees[iCry]->GetEntry(jentry);
-      nbytes += nb;
+      APDtrees[iCry]->GetEntry(jentry);
 
       double pnmean;
       if (pn0 < 10 && pn1 > 10) {

@@ -1,15 +1,16 @@
 import FWCore.ParameterSet.Config as cms
 
 from Configuration.Eras.Era_Phase2_cff import Phase2
-process = cms.Process('SIM',Phase2)
+from Configuration.Eras.Modifier_hgcaltb_cff import hgcaltb
+process = cms.Process('SIM',Phase2,hgcaltb)
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
-process.load('Geometry.HGCalCommonData.hgcalNumberingInitialization_cfi')
-process.load('Geometry.HGCalCommonData.hgcalParametersInitialization_cfi')
+process.load('Geometry.HGCalTBCommonData.hgcalTBNumberingInitialization_cfi')
+process.load('Geometry.HGCalTBCommonData.hgcalTBParametersInitialization_cfi')
 process.load('Geometry.HcalTestBeamData.hcalTB06Parameters_cff')
 process.load('Configuration.StandardSequences.MagneticField_0T_cff')
 process.load('Configuration.StandardSequences.Generator_cff')
@@ -97,10 +98,6 @@ process.VtxSmeared.MaxY =  0
 process.HGCalTBAnalyzer.doDigis = False
 process.HGCalTBAnalyzer.doRecHits = False
 process.g4SimHits.StackingAction.TrackNeutrino = True
-process.g4SimHits.OnlySDs = ['AHcalSensitiveDetector',
-                             'HGCSensitiveDetector',
-                             'HGCalTB1601SensitiveDetector',
-                             'HcalTB06BeamDetector']
 
 # Path and EndPath definitions
 process.generation_step = cms.Path(process.pgen)

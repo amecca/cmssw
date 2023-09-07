@@ -57,7 +57,7 @@ globalPrevalidationTracking = cms.Sequence(
 globalPrevalidation = cms.Sequence(
     globalPrevalidationTracking
   * photonPrevalidationSequence
-  * produceDenoms
+  #* produceDenoms
   * prebTagSequenceMC
 )
 
@@ -102,7 +102,6 @@ globalValidation = cms.Sequence(   trackerHitsValidation
                                  + L1Validator
                                  + bdHadronTrackValidationSeq
 )
-
 
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
 fastSim.toReplaceWith(globalValidation, globalValidation.copyAndExclude([
@@ -172,6 +171,8 @@ globalValidationECALOnly = cms.Sequence(
     + ecalRecHitsValidationSequence
     + pfClusterCaloOnlyValidationSequence
 )
+from Configuration.Eras.Modifier_phase2_ecal_devel_cff import phase2_ecal_devel
+phase2_ecal_devel.toReplaceWith(ecalRecHitsValidationSequence, ecalRecHitsValidationSequencePhase2)
 
 # HCAL local reconstruction
 globalPrevalidationHCAL = cms.Sequence()

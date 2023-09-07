@@ -34,10 +34,10 @@ std::vector<tensorflow::Session*> PhotonDNNEstimator::getSessions() const { retu
 const std::vector<std::string> PhotonDNNEstimator::dnnAvaibleInputs = {{"pt",
                                                                         "eta",
                                                                         "hadTowOverEm",
-                                                                        "TrkSumPtHollow",
+                                                                        "trkSumPtHollowConeDR03",
                                                                         "EcalRecHit",
                                                                         "SigmaIetaIeta",
-                                                                        "SigmaIEtaIEtaFull5x5",
+                                                                        "SigmaIetaIetaFull5x5",
                                                                         "SigmaIEtaIPhiFull5x5",
                                                                         "EcalPFClusterIso",
                                                                         "HcalPFClusterIso",
@@ -51,10 +51,10 @@ std::map<std::string, float> PhotonDNNEstimator::getInputsVars(const reco::Photo
   variables["pt"] = photon.pt();
   variables["eta"] = photon.eta();
   variables["hadTowOverEm"] = photon.hadTowOverEmValid() ? photon.hadTowOverEm() : 0;
-  variables["TrkSumPtHollow"] = photon.trkSumPtHollowConeDR03();
+  variables["trkSumPtHollowConeDR03"] = photon.trkSumPtHollowConeDR03();
   variables["EcalRecHit"] = photon.ecalRecHitSumEtConeDR03();
   variables["SigmaIetaIeta"] = photon.sigmaIetaIeta();
-  variables["SigmaIEtaIEtaFull5x5"] = photon.full5x5_sigmaIetaIeta();
+  variables["SigmaIetaIetaFull5x5"] = photon.full5x5_sigmaIetaIeta();
   variables["SigmaIEtaIPhiFull5x5"] = photon.full5x5_showerShapeVariables().sigmaIetaIphi;
   variables["EcalPFClusterIso"] = photon.ecalPFClusterIso();
   variables["HcalPFClusterIso"] = photon.hcalPFClusterIso();
@@ -66,8 +66,8 @@ std::map<std::string, float> PhotonDNNEstimator::getInputsVars(const reco::Photo
   return variables;
 }
 
-std::vector<std::vector<float>> PhotonDNNEstimator::evaluate(const reco::PhotonCollection& photons,
-                                                             const std::vector<tensorflow::Session*>& sessions) const {
+std::vector<std::pair<uint, std::vector<float>>> PhotonDNNEstimator::evaluate(
+    const reco::PhotonCollection& photons, const std::vector<tensorflow::Session*>& sessions) const {
   // Collect the map of variables for each candidate and call the dnnHelper
   // Scaling, model selection and running is performed in the helper
   std::vector<std::map<std::string, float>> inputs;

@@ -18,7 +18,7 @@
 
 class ExceptionHandler : public G4VExceptionHandler {
 public:
-  explicit ExceptionHandler(double th);
+  explicit ExceptionHandler(double th, bool tr);
   ~ExceptionHandler() override;
 
   int operator==(const ExceptionHandler &right) const { return (this == &right); }
@@ -34,6 +34,8 @@ public:
 
 private:
   double m_eth;
+  int m_number{0};
+  bool m_trace;
 };
 
 #endif

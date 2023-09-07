@@ -42,6 +42,9 @@ dqmFileConfig = loadDQMRunConfigFromFile()
 dqmRunConfigType = "userarea"
 if dqmFileConfig.has_option("host", "type"):
     dqmRunConfigType = dqmFileConfig.get("host", "type")
+    
+isDqmPlayback = cms.PSet( value = cms.untracked.bool( dqmRunConfigType == "playback" ) )
+isDqmProduction = cms.PSet( value = cms.untracked.bool( dqmRunConfigType == "production" ) )
 
 dqmRunConfig = dqmRunConfigDefaults[dqmRunConfigType]
 
@@ -52,11 +55,10 @@ if dqmFileConfig.has_option("host", "collectorPort"):
 if dqmFileConfig.has_option("host", "collectorHost"):
     dqmRunConfig.collectorHost = dqmFileConfig.get("host", "collectorHost")
 
-
 # now start the actual configuration
 print("dqmRunConfig:", dqmRunConfig)
 
-from DQMServices.Core.DQMStore_cfi import *
+from DQMServices.Core.DQMStore_Online_cfi import *
 
 DQM = cms.Service("DQM",
                   debug = cms.untracked.bool(False),

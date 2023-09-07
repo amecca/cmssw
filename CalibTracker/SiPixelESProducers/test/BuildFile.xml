@@ -8,3 +8,5 @@
 <library file="*.cc" name="testCalibTrackerSiPixelESProducers">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<test name="testSiPixelFakeLorentzAngleESSource" command="testSiPixelFakeLorentzAngleESSource.sh"/>

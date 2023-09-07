@@ -66,7 +66,6 @@
 #include "FWCore/Framework/interface/OccurrenceTraits.h"
 #include "FWCore/Framework/interface/UnscheduledCallProducer.h"
 #include "FWCore/Framework/interface/WorkerManager.h"
-#include "FWCore/Framework/interface/EDProducer.h"
 #include "FWCore/Framework/interface/Path.h"
 #include "FWCore/Framework/interface/TransitionInfoTypes.h"
 #include "FWCore/Framework/interface/maker/Worker.h"
@@ -95,6 +94,7 @@
 #include <vector>
 #include <sstream>
 #include <atomic>
+#include <unordered_set>
 
 namespace edm {
 
@@ -112,6 +112,8 @@ namespace edm {
   class EndPathStatusInserter;
   class PreallocationConfiguration;
   class WaitingTaskHolder;
+
+  class ConditionalTaskHelper;
 
   namespace service {
     class TriggerNamesService;
@@ -171,11 +173,9 @@ namespace edm {
                    service::TriggerNamesService const& tns,
                    PreallocationConfiguration const& prealloc,
                    ProductRegistry& pregistry,
-                   BranchIDListHelper& branchIDListHelper,
                    ExceptionToActionTable const& actions,
                    std::shared_ptr<ActivityRegistry> areg,
-                   std::shared_ptr<ProcessConfiguration> processConfiguration,
-                   bool allowEarlyDelete,
+                   std::shared_ptr<ProcessConfiguration const> processConfiguration,
                    StreamID streamID,
                    ProcessContext const* processContext);
 
@@ -233,14 +233,6 @@ namespace edm {
     /// (N.B. totalEventsFailed() + totalEventsPassed() == totalEvents()
     int totalEventsFailed() const { return totalEvents() - totalEventsPassed(); }
 
-    /// Turn end_paths "off" if "active" is false;
-    /// turn end_paths "on" if "active" is true.
-    void enableEndPaths(bool active);
-
-    /// Return true if end_paths are active, and false if they are
-    /// inactive.
-    bool endPathsEnabled() const;
-
     /// Return the trigger report information on paths,
     /// modules-in-path, modules-in-endpath, and modules.
     void getTriggerReport(TriggerReport& rep) const;
@@ -254,12 +246,26 @@ namespace edm {
     /// Delete the module with label iLabel
     void deleteModule(std::string const& iLabel);
 
+    void initializeEarlyDelete(ModuleRegistry& modReg,
+                               std::vector<std::string> const& branchesToDeleteEarly,
+                               std::multimap<std::string, std::string> const& referencesToBranches,
+                               std::vector<std::string> const& modulesToSkip,
+                               edm::ProductRegistry const& preg);
+
     /// returns the collection of pointers to workers
     AllWorkers const& allWorkers() const { return workerManager_.allWorkers(); }
 
+    AllWorkers const& unscheduledWorkers() const { return workerManager_.unscheduledWorkers(); }
     unsigned int numberOfUnscheduledModules() const { return number_of_unscheduled_modules_; }
 
     StreamContext const& context() const { return streamContext_; }
+
+    struct AliasInfo {
+      std::string friendlyClassName;
+      std::string instanceLabel;
+      std::string originalInstanceLabel;
+      std::string originalModuleLabel;
+    };
 
   private:
     //Sentry class to only send a signal if an
@@ -293,6 +299,15 @@ namespace edm {
 
     void reportSkipped(EventPrincipal const& ep) const;
 
+    std::vector<Worker*> tryToPlaceConditionalModules(
+        Worker*,
+        std::unordered_set<std::string>& conditionalModules,
+        std::unordered_multimap<std::string, edm::BranchDescription const*> const& conditionalModuleBranches,
+        std::unordered_multimap<std::string, AliasInfo> const& aliasMap,
+        ParameterSet& proc_pset,
+        ProductRegistry& preg,
+        PreallocationConfiguration const* prealloc,
+        std::shared_ptr<ProcessConfiguration const> processConfiguration);
     void fillWorkers(ParameterSet& proc_pset,
                      ProductRegistry& preg,
                      PreallocationConfiguration const* prealloc,
@@ -300,7 +315,8 @@ namespace edm {
                      std::string const& name,
                      bool ignoreFilters,
                      PathWorkers& out,
-                     std::vector<std::string> const& endPathNames);
+                     std::vector<std::string> const& endPathNames,
+                     ConditionalTaskHelper const& conditionalTaskHelper);
     void fillTrigPath(ParameterSet& proc_pset,
                       ProductRegistry& preg,
                       PreallocationConfiguration const* prealloc,
@@ -308,22 +324,20 @@ namespace edm {
                       int bitpos,
                       std::string const& name,
                       TrigResPtr,
-                      std::vector<std::string> const& endPathNames);
+                      std::vector<std::string> const& endPathNames,
+                      ConditionalTaskHelper const& conditionalTaskHelper);
     void fillEndPath(ParameterSet& proc_pset,
                      ProductRegistry& preg,
                      PreallocationConfiguration const* prealloc,
                      std::shared_ptr<ProcessConfiguration const> processConfiguration,
                      int bitpos,
                      std::string const& name,
-                     std::vector<std::string> const& endPathNames);
+                     std::vector<std::string> const& endPathNames,
+                     ConditionalTaskHelper const& conditionalTaskHelper);
 
     void addToAllWorkers(Worker* w);
 
     void resetEarlyDelete();
-    void initializeEarlyDelete(ModuleRegistry& modReg,
-                               edm::ParameterSet const& opts,
-                               edm::ProductRegistry const& preg,
-                               bool allowEarlyDelete);
 
     TrigResConstPtr results() const { return get_underlying_safe(results_); }
     TrigResPtr& results() { return get_underlying_safe(results_); }
@@ -368,8 +382,6 @@ namespace edm {
 
     StreamID streamID_;
     StreamContext streamContext_;
-    volatile bool endpathsAreActive_;
-    std::atomic<bool> skippingEvent_;
   };
 
   void inline StreamSchedule::reportSkipped(EventPrincipal const& ep) const {
@@ -455,7 +467,7 @@ namespace edm {
         task->execute();
       });
     } else {
-      tbb::task_arena arena{tbb::task_arena::attach()};
+      oneapi::tbb::task_arena arena{oneapi::tbb::task_arena::attach()};
       arena.enqueue([task]() {
         TaskSentry s{task};
         task->execute();

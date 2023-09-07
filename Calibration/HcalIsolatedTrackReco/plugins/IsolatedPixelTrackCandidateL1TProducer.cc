@@ -181,25 +181,21 @@ void IsolatedPixelTrackCandidateL1TProducer::produce(edm::Event& theEvent, const
   std::vector<reco::TrackRef> pixelTrackRefs;
 
   for (unsigned int iPix = 0; iPix < toks_pix_.size(); iPix++) {
-    edm::Handle<reco::TrackCollection> iPixCol;
-    theEvent.getByToken(toks_pix_[iPix], iPixCol);
+    const edm::Handle<reco::TrackCollection>& iPixCol = theEvent.getHandle(toks_pix_[iPix]);
     for (reco::TrackCollection::const_iterator pit = iPixCol->begin(); pit != iPixCol->end(); pit++) {
       pixelTrackRefs.push_back(reco::TrackRef(iPixCol, pit - iPixCol->begin()));
     }
   }
 
-  edm::Handle<l1t::TauBxCollection> l1eTauJets;
-  theEvent.getByToken(tok_l1_, l1eTauJets);
+  const edm::Handle<l1t::TauBxCollection>& l1eTauJets = theEvent.getHandle(tok_l1_);
 
-  edm::Handle<reco::VertexCollection> pVert;
-  theEvent.getByToken(tok_vert_, pVert);
+  const edm::Handle<reco::VertexCollection>& pVert = theEvent.getHandle(tok_vert_);
 
   double ptTriggered = -10;
   double etaTriggered = -100;
   double phiTriggered = -100;
 
-  edm::Handle<trigger::TriggerFilterObjectWithRefs> l1trigobj;
-  theEvent.getByToken(tok_hlt_, l1trigobj);
+  const edm::Handle<trigger::TriggerFilterObjectWithRefs>& l1trigobj = theEvent.getHandle(tok_hlt_);
 
   std::vector<edm::Ref<l1t::TauBxCollection> > l1tauobjref;
   std::vector<edm::Ref<l1t::JetBxCollection> > l1jetobjref;
@@ -228,7 +224,9 @@ void IsolatedPixelTrackCandidateL1TProducer::produce(edm::Event& theEvent, const
                                << ":" << etaTriggered << ":" << phiTriggered;
 #endif
   double drMaxL1Track_ = tauAssocCone_;
+#ifdef EDM_ML_DEBUG
   int ntr = 0;
+#endif
   std::vector<seedAtEC> VecSeedsatEC;
   //loop to select isolated tracks
   for (unsigned iS = 0; iS < pixelTrackRefs.size(); iS++) {
@@ -353,7 +351,9 @@ void IsolatedPixelTrackCandidateL1TProducer::produce(edm::Event& theEvent, const
           pixelTrackRefs[iSeed], l1t::TauRef(l1eTauJets, selj - l1eTauJets->begin()), maxP, sumP);
       newCandidate.setEtaPhiEcal(VecSeedsatEC[i].eta, VecSeedsatEC[i].phi);
       trackCollection->push_back(newCandidate);
+#ifdef EDM_ML_DEBUG
       ntr++;
+#endif
     }
   }
 #ifdef EDM_ML_DEBUG

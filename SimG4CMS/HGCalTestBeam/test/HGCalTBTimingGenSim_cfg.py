@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Modifier_hgcaltb_cff import hgcaltb
 
-process = cms.Process('SIM')
+process = cms.Process('SIM', hgcaltb)
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
@@ -8,8 +9,8 @@ process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
 process.load('SimGeneral.MixingModule.mixNoPU_cfi')
 process.load('SimG4CMS.HGCalTestBeam.HGCalTB161TimingLayerXML_cfi')
-process.load('Geometry.HGCalCommonData.hgcalNumberingInitialization_cfi')
-process.load('Geometry.HGCalCommonData.hgcalParametersInitialization_cfi')
+process.load('Geometry.HGCalTBCommonData.hgcalTBNumberingInitialization_cfi')
+process.load('Geometry.HGCalTBCommonData.hgcalTBParametersInitialization_cfi')
 process.load('Geometry.HcalTestBeamData.hcalTB06Parameters_cff')
 process.load('Configuration.StandardSequences.MagneticField_0T_cff')
 process.load('Configuration.StandardSequences.Generator_cff')
@@ -22,7 +23,7 @@ process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 process.load('SimG4CMS.HGCalTestBeam.HGCalTimingAnalyzer_cfi')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(1)
+        input = cms.untracked.int32(10)
 )
 
 process.MessageLogger = cms.Service("MessageLogger",
@@ -102,8 +103,7 @@ process.VtxSmeared.MinY = -7.5
 process.VtxSmeared.MaxY =  7.5
 process.g4SimHits.HGCSD.StoreAllG4Hits = True
 process.HGCalTimingAnalyzer.GroupHits = False
-process.g4SimHits.OnlySDs = ['HGCSensitiveDetector',
-                             'HcalTB06BeamDetector']
+
 process.g4SimHits.HGCSD.Detectors = 1
 process.g4SimHits.HGCSD.UseDetector = 1
 

@@ -1,5 +1,6 @@
 #include "RecoLocalTracker/SiStripZeroSuppression/interface/SiStripAPVRestorer.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 
@@ -8,7 +9,10 @@
 #include <algorithm>
 
 SiStripAPVRestorer::SiStripAPVRestorer(const edm::ParameterSet& conf, edm::ConsumesCollector iC)
-    : qualityToken_(iC.esConsumes<SiStripQuality, SiStripQualityRcd>()),
+    : siStripRawDigiToken_(iC.consumes<edm::DetSetVector<SiStripRawDigi>>(edm::InputTag("siStripDigis", "VirginRaw"))),
+      siStripProcessedRawDigiToken_(
+          iC.consumes<edm::DetSetVector<SiStripProcessedRawDigi>>(edm::InputTag("MEANAPVCM"))),
+      qualityToken_(iC.esConsumes<SiStripQuality, SiStripQualityRcd>()),
       noiseToken_(iC.esConsumes<SiStripNoises, SiStripNoisesRcd>()),
       pedestalToken_(iC.esConsumes<SiStripPedestals, SiStripPedestalsRcd>()),
       forceNoRestore_(conf.getParameter<bool>("ForceNoRestore")),
@@ -969,11 +973,11 @@ bool SiStripAPVRestorer::checkBaseline(const digivector_t& baseline) const {
 void SiStripAPVRestorer::loadMeanCMMap(const edm::Event& iEvent) {
   if (useRealMeanCM_) {
     edm::Handle<edm::DetSetVector<SiStripRawDigi>> input;
-    iEvent.getByLabel("siStripDigis", "VirginRaw", input);
+    iEvent.getByToken(siStripRawDigiToken_, input);
     createCMMapRealPed(*input);
   } else {
     edm::Handle<edm::DetSetVector<SiStripProcessedRawDigi>> inputCM;
-    iEvent.getByLabel("MEANAPVCM", inputCM);
+    iEvent.getByToken(siStripProcessedRawDigiToken_, inputCM);
     createCMMapCMstored(*inputCM);
   }
 }
@@ -1232,4 +1236,34 @@ void SiStripAPVRestorer::derivativeFollowerRestore(uint16_t apvN, uint16_t first
       }
     }
   }
+}
+
+void SiStripAPVRestorer::fillDescriptions(edm::ParameterSetDescription& desc) {
+  desc.add("ForceNoRestore", false);
+  desc.add<std::string>("APVInspectMode", "BaselineFollower");
+  desc.add<std::string>("APVRestoreMode", "");
+  desc.add("useRealMeanCM", false);
+  desc.add("MeanCM", 0);
+  desc.add("DeltaCMThreshold", 20U);
+  desc.add("Fraction", 0.2);
+  desc.add("Deviation", 25U);
+  desc.add("restoreThreshold", 0.5);
+  desc.add("nSaturatedStrip", 2U);
+  desc.add("nSigmaNoiseDerTh", 4U);
+  desc.add("consecThreshold", 5U);
+  desc.add("nSmooth", 9U);
+  desc.add("distortionThreshold", 20U);
+  desc.add("ApplyBaselineCleaner", true);
+  desc.add("CleaningSequence", 1U);
+  desc.add("slopeX", 3);
+  desc.add("slopeY", 4);
+  desc.add("hitStripThreshold", 40U);
+  desc.add("minStripsToFit", 4U);
+  desc.add("ApplyBaselineRejection", true);
+  desc.add("filteredBaselineMax", 6.0);
+  desc.add("filteredBaselineDerivativeSumSquare", 30.0);
+  desc.add("discontinuityThreshold", 12);
+  desc.add("lastGradient", 10);
+  desc.add("sizeWindow", 1);
+  desc.add("widthCluster", 64);
 }

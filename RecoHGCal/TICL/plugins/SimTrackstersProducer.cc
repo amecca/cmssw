@@ -41,6 +41,17 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
   void produce(edm::Event&, const edm::EventSetup&) override;
+  void addTrackster(const int& index,
+                    const std::vector<std::pair<edm::Ref<reco::CaloClusterCollection>, std::pair<float, float>>>& lcVec,
+                    const std::vector<float>& inputClusterMask,
+                    const float& fractionCut_,
+                    const float& energy,
+                    const int& pdgId,
+                    const int& charge,
+                    const edm::ProductID& seed,
+                    const Trackster::IterationIndex iter,
+                    std::vector<float>& output_mask,
+                    std::vector<Trackster>& result);
 
 private:
   std::string detector_;
@@ -85,8 +96,8 @@ void SimTrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& des
   // hgcalMultiClusters
   edm::ParameterSetDescription desc;
   desc.add<std::string>("detector", "HGCAL");
-  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
-  desc.add<edm::InputTag>("time_layerclusters", edm::InputTag("hgcalLayerClusters", "timeLayerCluster"));
+  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
+  desc.add<edm::InputTag>("time_layerclusters", edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("filtered_mask", edm::InputTag("filteredLayerClustersSimTracksters", "ticlSimTracksters"));
   desc.add<edm::InputTag>("simclusters", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("caloparticles", edm::InputTag("mix", "MergedCaloTruth"));
@@ -97,6 +108,43 @@ void SimTrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& des
   desc.add<double>("fractionCut", 0.);
 
   descriptions.addWithDefaultLabel(desc);
+}
+
+void SimTrackstersProducer::addTrackster(
+    const int& index,
+    const std::vector<std::pair<edm::Ref<reco::CaloClusterCollection>, std::pair<float, float>>>& lcVec,
+    const std::vector<float>& inputClusterMask,
+    const float& fractionCut_,
+    const float& energy,
+    const int& pdgId,
+    const int& charge,
+    const edm::ProductID& seed,
+    const Trackster::IterationIndex iter,
+    std::vector<float>& output_mask,
+    std::vector<Trackster>& result) {
+  if (lcVec.empty())
+    return;
+
+  Trackster tmpTrackster;
+  tmpTrackster.zeroProbabilities();
+  tmpTrackster.vertices().reserve(lcVec.size());
+  tmpTrackster.vertex_multiplicity().reserve(lcVec.size());
+  for (auto const& [lc, energyScorePair] : lcVec) {
+    if (inputClusterMask[lc.index()] > 0) {
+      double fraction = energyScorePair.first / lc->energy();
+      if (fraction < fractionCut_)
+        continue;
+      tmpTrackster.vertices().push_back(lc.index());
+      output_mask[lc.index()] -= fraction;
+      tmpTrackster.vertex_multiplicity().push_back(1. / fraction);
+    }
+  }
+
+  tmpTrackster.setIdProbability(tracksterParticleTypeFromPdgId(pdgId, charge), 1.f);
+  tmpTrackster.setRegressedEnergy(energy);
+  tmpTrackster.setIteration(iter);
+  tmpTrackster.setSeed(seed, index);
+  result.emplace_back(tmpTrackster);
 }
 
 void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
@@ -144,6 +192,7 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
                    cp.pdgId(),
                    cp.charge(),
                    key.id(),
+                   ticl::Trackster::SIM,
                    *output_mask,
                    *result);
     } else {
@@ -163,6 +212,7 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
                      sc.pdgId(),
                      sc.charge(),
                      scRef.id(),
+                     ticl::Trackster::SIM,
                      *output_mask,
                      *result);
 
@@ -185,6 +235,7 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
                  cp.pdgId(),
                  cp.charge(),
                  key.id(),
+                 ticl::Trackster::SIM_CP,
                  *output_mask_fromCP,
                  *result_fromCP);
 

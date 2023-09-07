@@ -86,7 +86,7 @@ void popcon::EcalTPGFineGrainStripEEHandler::getNewObjects() {
 
   readFromFile("last_tpg_fgrStripEE_settings.txt");
 
-  unsigned int min_run = m_i_run_number + 1;
+  unsigned int min_run;
 
   if (m_firstRun < m_i_run_number) {
     min_run = m_i_run_number + 1;
@@ -179,8 +179,6 @@ void popcon::EcalTPGFineGrainStripEEHandler::getNewObjects() {
             EcalLogicID ecid_xt;
             FEConfigFgrEEStripDat rd_fgr;
 
-            int icells = 0;
-
             for (CIfefgr p = dataset_TpgFineGrainStripEE.begin(); p != dataset_TpgFineGrainStripEE.end(); p++) {
               ecid_xt = p->first;
               rd_fgr = p->second;
@@ -206,7 +204,6 @@ void popcon::EcalTPGFineGrainStripEEHandler::getNewObjects() {
 
                 fgrStripEE->setValue(stripEBId, item);
 
-                ++icells;
               } else if (ecid_name == "ECAL_readout_strip") {
                 // EE data
                 // fed
@@ -239,8 +236,6 @@ void popcon::EcalTPGFineGrainStripEEHandler::getNewObjects() {
                 } else {
                   std::cout << " these may be the additional towers TCC/TT " << id1 << "/" << id2 << std::endl;
                 }
-
-                ++icells;
               }
             }
 

@@ -4,21 +4,18 @@ import FWCore.ParameterSet.Config as cms
 # Define here the BeamSpotOnline record name,
 # it will be used both in FakeBeamMonitor setup and in payload creation/upload
 BSOnlineRecordName = 'BeamSpotOnlineHLTObjectsRcd'
-BSOnlineTag = 'BeamSpotOnlineHLT'
-BSOnlineJobName = 'BeamSpotOnlineHLT'
-BSOnlineOmsServiceUrl = 'http://cmsoms-services.cms:9949/urn:xdaq-application:lid=100/getRunAndLumiSection'
+BSOnlineTag = 'BeamSpotOnlineFakeHLT'
+BSOnlineJobName = 'BeamSpotOnlineFakeHLT'
+BSOnlineOmsServiceUrl = 'http://cmsoms-eventing.cms:9949/urn:xdaq-application:lid=100/getRunAndLumiSection'
 useLockRecords = True
 
 import sys
-from Configuration.Eras.Era_Run2_2018_cff import Run2_2018
-process = cms.Process("FakeBeamMonitor", Run2_2018)
-
-# Configure tag and jobName if running Playback system
-if "dqm_cmssw/playback" in str(sys.argv[1]):
-  BSOnlineTag = BSOnlineTag + 'Playback'
-  BSOnlineJobName = BSOnlineJobName + 'Playback'
-  BSOnlineOmsServiceUrl = ''
-  useLockRecords = False
+if 'runkey=hi_run' in sys.argv:
+  from Configuration.Eras.Era_Run3_pp_on_PbPb_approxSiStripClusters_cff import Run3_pp_on_PbPb_approxSiStripClusters
+  process = cms.Process("FakeBeamMonitorHLT", Run3_pp_on_PbPb_approxSiStripClusters)
+else:
+  from Configuration.Eras.Era_Run3_cff import Run3
+  process = cms.Process("FakeBeamMonitorHLT", Run3)
 
 # switch
 live = True # FIXME
@@ -66,6 +63,13 @@ process.dqmSaver.runNumber     = options.runNumber
 process.dqmSaverPB.tag         = 'FakeBeamMonitorHLT'
 process.dqmSaverPB.runNumber   = options.runNumber
 
+# Configure tag and jobName if running Playback system
+if process.isDqmPlayback.value :
+  BSOnlineTag = BSOnlineTag + 'Playback'
+  BSOnlineJobName = BSOnlineJobName + 'Playback'
+  BSOnlineOmsServiceUrl = ''
+  useLockRecords = False
+
 #---------------
 """
 # Conditions
@@ -74,7 +78,7 @@ if (live):
 else:
   process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
   from Configuration.AlCa.GlobalTag import GlobalTag as gtCustomise
-  process.GlobalTag = gtCustomise(process.GlobalTag, 'auto:run2_data', '')
+  process.GlobalTag = gtCustomise(process.GlobalTag, 'auto:run3_data', '')
   # you may need to set manually the GT in the line below
   #process.GlobalTag.globaltag = '100X_upgrade2018_realistic_v10'
 """
@@ -127,7 +131,6 @@ if unitTest == False:
       preLoadConnectionString = cms.untracked.string('frontier://FrontierProd/CMS_CONDITIONS'),
       runNumber = cms.untracked.uint64(options.runNumber),
       omsServiceUrl = cms.untracked.string(BSOnlineOmsServiceUrl),
-      writeTransactionDelay = cms.untracked.uint32(options.transDelay),
       latency = cms.untracked.uint32(2),
       autoCommit = cms.untracked.bool(True),
       saveLogsOnDB = cms.untracked.bool(True),
@@ -149,12 +152,11 @@ else:
                             ),
 
     # Upload to CondDB
-    connect = cms.string('sqlite_file:BeamSpotOnlineHLT.db'),
-    preLoadConnectionString = cms.untracked.string('sqlite_file:BeamSpotOnlineHLT.db'),
+    connect = cms.string('sqlite_file:BeamSpotOnlineFakeHLT.db'),
+    preLoadConnectionString = cms.untracked.string('sqlite_file:BeamSpotOnlineFakeHLT.db'),
 
     runNumber = cms.untracked.uint64(options.runNumber),
     lastLumiFile = cms.untracked.string('last_lumi.txt'),
-    writeTransactionDelay = cms.untracked.uint32(options.transDelay),
     latency = cms.untracked.uint32(2),
     autoCommit = cms.untracked.bool(True),
     toPut = cms.VPSet(cms.PSet(

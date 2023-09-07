@@ -10,12 +10,13 @@ from DQM.SiPixelCommon.SiPixelOfflineDQM_client_cff import *
 from DQM.DTMonitorClient.dtDQMOfflineClients_cff import *
 from DQM.RPCMonitorClient.RPCTier0Client_cff import *
 from DQM.CSCMonitorModule.csc_dqm_offlineclient_collisions_cff import *
-from DQMOffline.Muon.gem_dqm_offline_client_cff import *
+from DQM.GEM.gem_dqm_offline_client_cff import *
 from DQMOffline.Hcal.HcalDQMOfflinePostProcessor_cff import *
 from DQM.HcalTasks.OfflineHarvestingSequence_pp import *
 from DQMServices.Components.DQMFEDIntegrityClient_cff import *
 from DQMOffline.L1Trigger.L1TriggerDqmOffline_cff import *
 from DQM.SiTrackerPhase2.Phase2TrackerDQMHarvesting_cff import *
+from DQM.SiPixelHeterogeneous.SiPixelHeterogenousDQMHarvesting_cff import *
 
 DQMNone = cms.Sequence()
 
@@ -30,6 +31,11 @@ DQMOffline_SecondStepMuonDPG = cms.Sequence( dtClients *
                                              rpcTier0Client *
                                              cscOfflineCollisionsClients )
 
+DQMOffline_SecondStepMuonDPGExpress = cms.Sequence( rpcTier0Client *
+                                                    cscOfflineCollisionsClients*
+                                                    gemClients )
+
+
 from Configuration.Eras.Modifier_run3_GEM_cff import run3_GEM
 _run3_GEM_DQMOffline_SecondStepMuonDPG = DQMOffline_SecondStepMuonDPG.copy()
 _run3_GEM_DQMOffline_SecondStepMuonDPG += gemClients
@@ -43,7 +49,9 @@ DQMOffline_SecondStepFED = cms.Sequence( dqmFEDIntegrityClient )
 
 DQMOffline_SecondStepL1T = cms.Sequence( l1TriggerDqmOfflineClient )
 
-DQMOffline_SecondStep_PreDPG = cms.Sequence( 
+DQMOffline_SecondStepL1TPhase2 = cms.Sequence( Phase2l1TriggerDqmOfflineClient )
+
+DQMOffline_SecondStep_PreDPG = cms.Sequence(
                                              DQMOffline_SecondStepEcal *
                                              DQMOffline_SecondStepTrackerStrip *
 					     DQMOffline_SecondStepTrackerPixel *
@@ -53,10 +61,25 @@ DQMOffline_SecondStep_PreDPG = cms.Sequence(
                                              DQMOffline_SecondStepFED *
 					     DQMOffline_SecondStepL1T )
 
+
+DQMOffline_SecondStep_PreDPG_Express = cms.Sequence(
+                                             DQMOffline_SecondStepEcal *
+                                             DQMOffline_SecondStepTrackerStrip *
+                                             DQMOffline_SecondStepTrackerPixel *
+                                             DQMOffline_SecondStepMuonDPGExpress *
+                                             #DQMOffline_SecondStepHcal *
+                                             #DQMOffline_SecondStepHcal2 *
+                                             DQMOffline_SecondStepFED 
+                                             #DQMOffline_SecondStepL1T 
+)
+
 DQMOffline_SecondStepDPG = cms.Sequence(
                                          DQMOffline_SecondStep_PreDPG *
                                          DQMMessageLoggerClientSeq )
 
+DQMOffline_SecondStepDPG_Express = cms.Sequence(
+                                         DQMOffline_SecondStep_PreDPG_Express *
+                                         DQMMessageLoggerClientSeq )
 
 from DQM.TrackingMonitorClient.TrackingClientConfig_Tier0_cff import *
 from DQMOffline.Muon.muonQualityTests_cff import *
@@ -90,12 +113,25 @@ DQMOffline_SecondStep_PrePOG = cms.Sequence( DQMOffline_SecondStepTracking *
                                              DQMOffline_SecondStepBeam *
                                              DQMOffline_SecondStepJetMET )
 
+
+DQMOffline_SecondStep_PrePOG_Express = cms.Sequence( DQMOffline_SecondStepTracking *
+                                             DQMOffline_SecondStepMUO *
+                                             #DQMOffline_SecondStepEGamma *
+                                             DQMOffline_SecondStepTrigger *
+                                             DQMOffline_SecondStepBTag *
+                                             DQMOffline_SecondStepBeam 
+                                             #Dqmoffline_SecondStepJetMET 
+)
+
+
 DQMOffline_SecondStepPOG = cms.Sequence(
                                          DQMOffline_SecondStep_PrePOG *
                                          DQMMessageLoggerClientSeq )
 
 
-HLTMonitoringClient = cms.Sequence(trackingMonitorClientHLT * trackingForDisplacedJetMonitorClientHLT)
+
+
+HLTMonitoringClient = cms.Sequence(trackingMonitorClientHLT * trackEfficiencyMonitoringClientHLT * trackingForDisplacedJetMonitorClientHLT)
 HLTMonitoringClientPA= cms.Sequence(trackingMonitorClientHLT * PAtrackingMonitorClientHLT)
 
 DQMOffline_SecondStep = cms.Sequence(
@@ -104,6 +140,14 @@ DQMOffline_SecondStep = cms.Sequence(
                                       HLTMonitoringClient *
                                       DQMMessageLoggerClientSeq *
                                       dqmFastTimerServiceClient)
+
+DQMOffline_SecondStep_Express = cms.Sequence(
+                                      DQMOffline_SecondStep_PreDPG_Express *
+                                      DQMOffline_SecondStep_PrePOG_Express *
+                                      HLTMonitoringClient *
+                                      DQMMessageLoggerClientSeq *
+                                      dqmFastTimerServiceClient)
+
 
 DQMOffline_SecondStep_ExtraHLT = cms.Sequence( hltOfflineDQMClientExtra )
 
@@ -123,6 +167,7 @@ from DQM.CTPPS.ctppsDQM_cff import *
 from Validation.RecoTau.DQMSequences_cfi import *
 from DQM.TrackingMonitorClient.pixelTrackingEffFromHitPattern_cff import *
 from DQM.TrackingMonitorClient.pixelVertexResolutionClient_cfi import *
+from DQMOffline.Alignment.DiMuonMassBiasHarvesting_cff import *
 
 DQMHarvestTrackerStrip = cms.Sequence ( SiStripOfflineDQMClient )
 
@@ -144,6 +189,8 @@ DQMHarvestL1T = cms.Sequence( l1TriggerDqmOfflineClient )
 DQMHarvestL1TEgamma = cms.Sequence( l1TriggerEgDqmOfflineClient )
 
 DQMHarvestL1TMuon = cms.Sequence( l1TriggerMuonDqmOfflineClient )
+
+DQMHarvestL1TPhase2 = cms.Sequence( Phase2l1TriggerDqmOfflineClient )
 
 DQMHarvestCommon = cms.Sequence( DQMMessageLoggerClientSeq *
                                  DQMHarvestTrackerStrip *
@@ -181,7 +228,8 @@ DQMHarvestTrackingZeroBias = cms.Sequence( TrackingOfflineDQMClientZeroBias *
                                            dqmFastTimerServiceClient )
 
 DQMHarvestPixelTracking = cms.Sequence( pixelTrackingEffFromHitPattern *
-                                        pixelVertexResolutionClient )
+                                        pixelVertexResolutionClient *
+                                        siPixelHeterogeneousDQMHarvesting )
 
 DQMHarvestOuterTracker = cms.Sequence(
                                  OuterTrackerClient *
@@ -197,7 +245,10 @@ DQMHarvestCTPPS = cms.Sequence( ctppsDQMOfflineHarvest )
 DQMHarvestMuon = cms.Sequence( dtClients *
                                rpcTier0Client *
                                cscOfflineCollisionsClients *
-                               muonQualityTests
+                               muonQualityTests *
+                               alcaTkAlZMuMuBiasClients *
+                               alcaTkAlJpsiMuMuBiasClients *
+                               alcaTkAlUpsilonMuMuBiasClients
                                )
 
 _run3_GEM_DQMHarvestMuon = DQMHarvestMuon.copy()
@@ -220,7 +271,8 @@ DQMHarvestBTag = cms.Sequence( bTagCollectorSequenceDATA )
 
 from PhysicsTools.NanoAOD.nanoDQM_cff import *
 from Validation.RecoParticleFlow.DQMForPF_MiniAOD_cff import *
+from DQMOffline.RecoB.bTagMiniDQM_cff import *
 
-DQMHarvestMiniAOD = cms.Sequence( dataCertificationJetMETSequence * muonQualityTests_miniAOD * DQMHarvestPF )
+DQMHarvestMiniAOD = cms.Sequence( dataCertificationJetMETSequence * muonQualityTests_miniAOD * DQMHarvestPF * bTagMiniDQMHarvesting)
 DQMHarvestNanoAOD = cms.Sequence( nanoHarvest )
 

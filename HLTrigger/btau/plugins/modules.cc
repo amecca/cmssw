@@ -64,18 +64,17 @@ DEFINE_FWK_MODULE(HLTPFJetPairDzMatchFilter);
 DEFINE_FWK_MODULE(HLTPFTauPairDzMatchFilter);
 
 #include "HLTJetTag.h"
-#include "HLTJetTag.cc"
 typedef HLTJetTag<reco::CaloJet> HLTCaloJetTag;
 typedef HLTJetTag<reco::PFJet> HLTPFJetTag;
 DEFINE_FWK_MODULE(HLTCaloJetTag);
 DEFINE_FWK_MODULE(HLTPFJetTag);
 
-#include "HLTJetTagWithMatching.h"
-#include "HLTJetTagWithMatching.cc"
-typedef HLTJetTagWithMatching<reco::CaloJet> HLTCaloJetTagWithMatching;
-typedef HLTJetTagWithMatching<reco::PFJet> HLTPFJetTagWithMatching;
-DEFINE_FWK_MODULE(HLTCaloJetTagWithMatching);
-DEFINE_FWK_MODULE(HLTPFJetTagWithMatching);
+#include "HLTSumJetTag.h"
+#include "HLTSumJetTag.cc"
+typedef HLTSumJetTag<reco::CaloJet> HLTSumCaloJetTag;
+typedef HLTSumJetTag<reco::PFJet> HLTSumPFJetTag;
+DEFINE_FWK_MODULE(HLTSumCaloJetTag);
+DEFINE_FWK_MODULE(HLTSumPFJetTag);
 
 #include "HLTCollectionProducer.h"
 typedef HLTCollectionProducer<reco::CaloJet> HLTCaloJetCollectionProducer;
