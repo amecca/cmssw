@@ -7,8 +7,10 @@
  *  Python script plotBaryCentre_VS_BeamSpot.py under script dir is used to plot barycentres from alignment constants used in Prompt-Reco, End-of-Year Rereco and so-called Run-2 (Ultra)Legacy Rereco. Options of the plotting script can be found from the helper in the script.
  *
  *  $Date: 2021/01/05 $
- *  $Revision: 1.0 $
+ *  $Last Modified: 2024/09/23 $
+ *  $Revision: 1.1 $
  *  \author Tongguang Cheng - Beihang University <tongguang.cheng@cern.ch>
+ *  \author Alberto Mecca - Torino University <alberto.mecca@cern.ch>
  *
 */
 
