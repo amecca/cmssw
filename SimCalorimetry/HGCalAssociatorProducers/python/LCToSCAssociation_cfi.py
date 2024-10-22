@@ -20,3 +20,10 @@ premix_stage2.toModify(layerClusterSimClusterAssociation,
 layerClusterSimClusterAssociationHFNose = layerClusterSimClusterAssociation.clone(
     label_lcl = "hgcalLayerClustersHFNose"
 )
+
+# BARREL
+barrelLayerClusterSimClusterAssociation = cms.EDProducer("LCToSCAssociatorEDProducer",
+    associator = cms.InputTag("barrelLCToSCAssociatorByEnergyScoreProducer"),
+    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
+    label_lcl = cms.InputTag("barrelLayerClusters")
+)

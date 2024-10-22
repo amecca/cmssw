@@ -20,3 +20,10 @@ premix_stage2.toModify(layerClusterCaloParticleAssociation,
 layerClusterCaloParticleAssociationHFNose = layerClusterCaloParticleAssociation.clone(
     label_lc = "hgcalLayerClustersHFNose"
 )
+
+#@ BARREL
+barrelLayerClusterCaloParticleAssociation = cms.EDProducer("LCToCPAssociatorEDProducer",
+    associator = cms.InputTag("barrelLCToCPAssociatorByEnergyScoreProducer"),
+    label_cp = cms.InputTag("mix", "MergedCaloTruth"),
+    label_lc = cms.InputTag("barrelLayerClusters")
+)
