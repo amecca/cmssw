@@ -1,5 +1,5 @@
-#ifndef SimCalorimetry_HGCalAssociatorProducers_HitToSimClusterCaloParticleAssociatorProducer_h
-#define SimCalorimetry_HGCalAssociatorProducers_HitToSimClusterCaloParticleAssociatorProducer_h
+#ifndef SimCalorimetry_HGCalAssociatorProducers_HitToSimClusterCaloParticleAssociatorProducerT_h
+#define SimCalorimetry_HGCalAssociatorProducers_HitToSimClusterCaloParticleAssociatorProducerT_h
 
 // Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
 
@@ -17,13 +17,16 @@
 #include "DataFormats/Provenance/interface/ProductID.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/HGCalReco/interface/MultiVectorManager.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 
-class HitToSimClusterCaloParticleAssociatorProducer : public edm::global::EDProducer<> {
+
+template <typename HIT>
+class HitToSimClusterCaloParticleAssociatorProducerT : public edm::global::EDProducer<> {
 public:
-  explicit HitToSimClusterCaloParticleAssociatorProducer(const edm::ParameterSet &);
-  ~HitToSimClusterCaloParticleAssociatorProducer() override = default;
+  explicit HitToSimClusterCaloParticleAssociatorProducerT(const edm::ParameterSet &);
+  ~HitToSimClusterCaloParticleAssociatorProducerT() override = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
@@ -35,7 +38,7 @@ private:
 
   const edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
   const std::vector<edm::InputTag> hitsTags_;
-  std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
+  std::vector<edm::EDGetTokenT<std::vector<HIT>>> hitsTokens_;
 };
 
 #endif

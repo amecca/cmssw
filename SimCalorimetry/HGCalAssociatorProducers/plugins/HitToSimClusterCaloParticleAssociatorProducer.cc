@@ -15,22 +15,24 @@
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 
-HitToSimClusterCaloParticleAssociatorProducer::HitToSimClusterCaloParticleAssociatorProducer(
+template <typename HIT>
+HitToSimClusterCaloParticleAssociatorProducerT<HIT>::HitToSimClusterCaloParticleAssociatorProducerT(
     const edm::ParameterSet &pset)
     : simClusterToken_(consumes<std::vector<SimCluster>>(pset.getParameter<edm::InputTag>("simClusters"))),
       caloParticleToken_(consumes<std::vector<CaloParticle>>(pset.getParameter<edm::InputTag>("caloParticles"))),
       hitMapToken_(consumes<std::unordered_map<DetId, const unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))),
       hitsTags_(pset.getParameter<std::vector<edm::InputTag>>("hits")) {
   for (const auto &tag : hitsTags_) {
-    hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
+    hitsTokens_.push_back(consumes<std::vector<HIT>>(tag));
   }
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("hitToSimClusterMap");
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("hitToCaloParticleMap");
 }
 
-void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
-                                                            edm::Event &iEvent,
-                                                            const edm::EventSetup &iSetup) const {
+template <typename HIT>
+void HitToSimClusterCaloParticleAssociatorProducerT<HIT>::produce(edm::StreamID,
+                                                                 edm::Event &iEvent,
+                                                                 const edm::EventSetup &iSetup) const {
   using namespace edm;
 
   Handle<std::vector<CaloParticle>> caloParticlesHandle;
@@ -42,20 +44,20 @@ void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
   Handle<std::unordered_map<DetId, const unsigned int>> hitMap;
   iEvent.getByToken(hitMapToken_, hitMap);
 
-  MultiVectorManager<HGCRecHit> rechitManager;
-  // Loop over tokens with index to access corresponding InputTag
-  for (size_t i = 0; i < hitsTokens_.size(); ++i) {
-    const auto &token = hitsTokens_[i];
-    Handle<HGCRecHitCollection> hitsHandle;
+  MultiVectorManager<HIT> rechitManager;
+  size_t index = 0;
+  for (const auto &token : hitsTokens_) {
+    Handle<std::vector<HIT>> hitsHandle;
     iEvent.getByToken(token, hitsHandle);
 
     // Error handling with tag name
     if (!hitsHandle.isValid()) {
       edm::LogWarning("HitToSimClusterCaloParticleAssociatorProducer")
-          << "Missing HGCRecHitCollection for tag: " << hitsTags_[i].encode();
+          << "Missing HGCRecHitCollection for tag: " << hitsTags_[index].encode();
       continue;
     }
     rechitManager.addVector(*hitsHandle);
+    index++;
   }
 
   // Check if rechitManager is empty after processing hitsTokens_
@@ -93,18 +95,30 @@ void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
   iEvent.put(std::move(hitToCaloParticleMap), "hitToCaloParticleMap");
 }
 
-void HitToSimClusterCaloParticleAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
+template <typename HIT>
+void HitToSimClusterCaloParticleAssociatorProducerT<HIT>::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("caloParticles", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("simClusters", edm::InputTag("mix", "MergedCaloTruth"));
 
-  desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
-  desc.add<std::vector<edm::InputTag>>("hits",
-                                       {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
-                                        edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
-                                        edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});
-  descriptions.add("hitToSimClusterCaloParticleAssociator", desc);
+  if constexpr (std::is_same_v<HIT, HGCRecHit>) {
+    desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
+    desc.add<std::vector<edm::InputTag>>("hits",
+                                         {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
+                                          edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
+                                          edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});
+    descriptions.add("hitToSimClusterCaloParticleAssociator", desc);
+  } else if constexpr (std::is_same_v<HIT, reco::PFRecHit>) {
+    desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "barrelRecHitMap"));
+    desc.add<std::vector<edm::InputTag>>("hits",
+                                         {edm::InputTag("particleFlowRecHitECAL"),
+                                          edm::InputTag("particleFlowRecHitHBHE")});
+    descriptions.add("barrelHitToSimClusterCaloParticleAssociator", desc);
+  }
 }
 
 // Define this as a plug-in
+using HitToSimClusterCaloParticleAssociatorProducer = HitToSimClusterCaloParticleAssociatorProducerT<HGCRecHit>;
 DEFINE_FWK_MODULE(HitToSimClusterCaloParticleAssociatorProducer);
+using BarrelHitToSimClusterCaloParticleAssociatorProducer = HitToSimClusterCaloParticleAssociatorProducerT<reco::PFRecHit>;
+DEFINE_FWK_MODULE(BarrelHitToSimClusterCaloParticleAssociatorProducer);
