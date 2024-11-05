@@ -393,6 +393,8 @@ def Run():
     logging.basicConfig(format='%(levelname)s:%(module)s:%(funcName)s: %(message)s', level=loglevel)
 
     sys.argv = options.rootargs
+    if('-b' in options.rootargs):
+        ROOT.gROOT.SetBatch(True)
 
     inputFileName = options.inputFileName
     if os.path.isfile(inputFileName) == False :
