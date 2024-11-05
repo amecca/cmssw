@@ -108,9 +108,6 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
             pos[coord+"max_"+branch_name] = -9999
             pos[coord+"min_"+branch_name] = 9999
 
-    # y-errors
-    zeros = array('d',[])
-
     # x-axis of TGraph
     runlumi = array('d',[])
     runlumiplot = array('d',[])
@@ -154,8 +151,6 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
           else : # run-based or only one-IOV in the run
                runlumi.append(iov.run)
 
-        zeros.append(0)
-
         #10000 is to translate cm to micro-metre
         for branch_name in branch_names :
             branch = iov.GetBranch(branch_name)
@@ -185,7 +180,7 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
     v_runlumiplot_error = ROOT.TVectorD(len(runlumiplot_error),runlumiplot_error)
 
     # y-axis error
-    v_zeros = ROOT.TVectorD(len(zeros),zeros)
+    v_zeros = ROOT.TVectorD(len(v_runlumiplot), array('d', [0]*len(v_runlumiplot)))
 
     # store barycentre into a dict
     barryCentre = {}
@@ -202,7 +197,6 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
 
     barryCentre['v_runlumiplot'] = v_runlumiplot
     barryCentre['v_runlumierror'] = v_runlumiplot_error
-    barryCentre['v_zeros'] = v_zeros
 
     return barryCentre
 
