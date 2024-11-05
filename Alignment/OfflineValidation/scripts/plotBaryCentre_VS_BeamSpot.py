@@ -78,7 +78,6 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
         raise RuntimeError("Tree is null")
 
     # to store lumi sections info for each run
-    run_maxlumi = {}
     run_lumis = {}
 
     # y-axis of TGraph
@@ -86,21 +85,17 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
     runs = list(accumulatedLumiPerRun.keys())
     runs.sort()
 
-    current_run = 0
+    # First loop on the Tree to get all the lumi sections of each run
     for iov in t :
         # skip runs out-of-range
-        if(iov.run>runs[len(runs)-1] or iov.run<runs[0]):
-          continue
+        if(iov.run > runs[-1] or iov.run < runs[0]):
+            logging.warning('skipping run %d which is not in the range [%d, %d]'
+                            ' corresponding to the years specified as arguments',
+                            iov.run, runs[0], runs[-1])
+            continue
 
-        if(iov.run!=current_run) : # a new run, initialize lumi sections
-          run_lumis[iov.run] = [iov.ls]
-          run_maxlumi[iov.run] = iov.ls
-        else : # current run, append lumi sections
-          run_lumis[iov.run].append(iov.ls)
-          if(run_maxlumi[iov.run]<iov.ls):
-             run_maxlumi[iov.run] = iov.ls
-        # update current run
-        current_run = iov.run
+        # Append the list of lumi sections of this Tree Entry to the current run
+        run_lumis.setdefault(iov.run, []).append(iov.ls)
 
     # initialize store barycentre
     pos = {}
@@ -120,39 +115,39 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
     # loop over IOVs
     for iov in t :
         # skip runs out-of-range
-        if(iov.run>runs[len(runs)-1] or iov.run<runs[0]):
-          continue
-        # exclude 2018D for EOY rereco
-        if(isEOY and iov.run>=320413 and iov.run<=325175):
-          continue
+        if(iov.run > runs[-1] or iov.run < runs[0]):
+            continue
+
+        # max lumi section in the current run
+        run_maxlumi = max(run_lumis[iov.run])
 
         # if x-axis is luminosity
         if(showLumi) :
-          run_index = findRunIndex(iov.run,runs)
-          instLumi = 0
-          if(run_index==0) :
-            instLumi = accumulatedLumiPerRun[ runs[run_index] ]
-          if(run_index>0) :
-            instLumi = accumulatedLumiPerRun[ runs[run_index] ] - accumulatedLumiPerRun[ runs[run_index-1] ]
-          # remove runs with zero luminosity if x-axis is luminosity
-          if( instLumi==0 ) : #and accumulatedLumiPerRun[ runs[run_index] ]==0 ) :
-            continue
-
-          if(len(run_lumis[iov.run])>1) :  # lumi-based conditions
+            run_index = findRunIndex(iov.run,runs)
+            instLumi = 0
             if(run_index==0) :
-              runlumi.append(0.0+instLumi*iov.ls*1.0/run_maxlumi[iov.run])
-            else :
-              runlumi.append(accumulatedLumiPerRun[ runs[run_index-1] ]+instLumi*iov.ls*1.0/run_maxlumi[iov.run])
+                instLumi = accumulatedLumiPerRun[ runs[run_index] ]
+            if(run_index>0) :
+                instLumi = accumulatedLumiPerRun[ runs[run_index] ] - accumulatedLumiPerRun[ runs[run_index-1] ]
+            # remove runs with zero luminosity if x-axis is luminosity
+            if( instLumi==0 ) : #and accumulatedLumiPerRun[ runs[run_index] ]==0 ) :
+                continue
 
-          else : # run-based or only one-IOV in the run
-              runlumi.append(accumulatedLumiPerRun[ runs[run_index] ])
+            if(len(run_lumis[iov.run])>1) :  # lumi-based conditions
+                if(run_index==0) :
+                    runlumi.append(0.0+instLumi*iov.ls*1.0/run_maxlumi)
+                else :
+                    runlumi.append(accumulatedLumiPerRun[ runs[run_index-1] ]+instLumi*iov.ls*1.0/run_maxlumi)
+
+            else : # run-based or only one-IOV in the run
+                runlumi.append(accumulatedLumiPerRun[ runs[run_index] ])
 
         else: # else x-axis is run number
-          if(len(run_lumis[iov.run])>1) :#lumi-based conditions
-               runlumi.append(iov.run+iov.ls*1.0/run_maxlumi[iov.run])
+            if(len(run_lumis[iov.run])>1) :#lumi-based conditions
+                runlumi.append(iov.run+iov.ls*1.0/run_maxlumi)
 
-          else : # run-based or only one-IOV in the run
-               runlumi.append(iov.run)
+            else : # run-based or only one-IOV in the run
+                runlumi.append(iov.run)
 
         #10000 is to translate cm to micro-metre
         for branch_name in branch_names :
@@ -166,10 +161,10 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
                 pos[coord+"_"+branch_name].append(pos_[coord])
                 # max/min
                 if(pos_[coord]>pos[coord+"max_"+branch_name]) :
-                   pos[coord+"max_"+branch_name] = pos_[coord]
-                   max_run = iov.run
+                    pos[coord+"max_"+branch_name] = pos_[coord]
+                    max_run = iov.run
                 if(pos_[coord]<pos[coord+"min_"+branch_name]) :
-                   pos[coord+"min_"+branch_name] = pos_[coord]
+                    pos[coord+"min_"+branch_name] = pos_[coord]
 
     # x-axis : run/lumi or integrtated luminosity
     for iov in range(len(runlumi)-1) :
