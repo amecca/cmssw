@@ -2,7 +2,7 @@
 
 import sys, os
 from array import array
-import optparse
+import argparse
 from collections import OrderedDict
 import json
 
@@ -15,50 +15,22 @@ import Alignment.OfflineValidation.TkAlAllInOneTool.findAndChange as fnc
 # 1/lumiScaleFactor to go from 1/pb to 1/fb
 lumiScaleFactor = 1000
 
-grootargs = []
-def callback_rootargs(option, opt, value, parser):
-    grootargs.append(opt)
-
-def vararg_callback(option, opt_str, value, parser):
-    assert value is None
-    value = []
-
-    def floatable(str):
-        try:
-            float(str)
-            return True
-        except ValueError:
-            return False
-
-    for arg in parser.rargs:
-        # stop on --foo like options
-        if arg[:2] == "--" and len(arg) > 2:
-            break
-        # stop on -a, but not on -3 or -3.0
-        if arg[:1] == "-" and len(arg) > 1 and not floatable(arg):
-            break
-        value.append(arg)
-
-    del parser.rargs[:len(value)]
-    setattr(parser.values, option.dest, value)
 
 def parseOptions():
-    usage = ('usage: %prog [options]\n'
-             + '%prog -h for help')
-    parser = optparse.OptionParser(usage)
+    parser = argparse.ArgumentParser()
 
-    parser.add_option("--inputFileName", dest="inputFileName", default="PixelBaryCentre.root",help="name of the ntuple file that contains the barycentre tree")
-    parser.add_option("--plotConfigFile", dest="plotConfigFile", default="PixelBaryCentrePlotConfig.json",help="json file that configs the plotting")
+    parser.add_argument("--inputFileName", dest="inputFileName", default="PixelBaryCentre.root",help="name of the ntuple file that contains the barycentre tree")
+    parser.add_argument("--plotConfigFile", dest="plotConfigFile", default="PixelBaryCentrePlotConfig.json",help="json file that configs the plotting")
 
-    parser.add_option("--usePixelQuality",action="store_true", dest="usePixelQuality", default=False,help="whether use SiPixelQuality")
-    parser.add_option("--showLumi",action="store_true", dest="showLumi", default=False,help="whether use integrated lumi as x-axis")
-    parser.add_option("--years", dest="years", default = [2017], action="callback", callback=vararg_callback, help="years to plot")
+    parser.add_argument("--usePixelQuality",action="store_true", dest="usePixelQuality", default=False,help="whether use SiPixelQuality")
+    parser.add_argument("--showLumi",action="store_true", dest="showLumi", default=False,help="whether use integrated lumi as x-axis")
+    parser.add_argument("--years", dest="years", default = [2017], nargs="+", type=int, help="years to plot")
 
-    parser.add_option("-l",action="callback",callback=callback_rootargs)
-    parser.add_option("-q",action="callback",callback=callback_rootargs)
-    parser.add_option("-b",action="callback",callback=callback_rootargs)
+    parser.add_argument("-l",action="append_const", const="-l", dest="rootargs", default=[])
+    parser.add_argument("-q",action="append_const", const="-q", dest="rootargs")
+    parser.add_argument("-b",action="append_const", const="-b", dest="rootargs")
 
-    return parser
+    return parser.parse_args()
 
 
 def findRunIndex(run, runs) :
@@ -401,20 +373,17 @@ def plotbarycenter(bc,coord,plotConfigJson, substructure,runsPerYear,pixelLocalR
 
 # main call
 def Run():
+    options = parseOptions()
 
-    #ROOT.gSystem.Load("libFWCoreFWLite.so")
-    parser=parseOptions()
-    (options,args) = parser.parse_args()
-    sys.argv = grootargs
+    sys.argv = options.rootargs
 
     inputFileName = options.inputFileName
     if os.path.isfile(inputFileName) == False :
-       print ("File "+inputFileName+" not exist!")
+       print ("File "+inputFileName+" does not exist!")
        return -1
 
-    plotConfigFile = open(options.plotConfigFile)
-    plotConfigJson = json.load(plotConfigFile)
-    plotConfigFile.close()
+    with open(options.plotConfigFile) as plotConfigFile:
+        plotConfigJson = json.load(plotConfigFile)
 
     usePixelQuality = options.usePixelQuality
     withPixelQuality = ""
@@ -439,7 +408,7 @@ def Run():
     for year in years :
         inputLumiFile = fnc.digest_path("Alignment/OfflineValidation/data/lumiperrun"+str(year)+".txt")
         if os.path.isfile(inputLumiFile) == False :
-           print ("File "+inputLumiFile+" not exist!")
+           print ("File "+inputLumiFile+" does not exist!")
            return -1
         lumiFile = open(inputLumiFile,'r')
         lines = lumiFile.readlines()
