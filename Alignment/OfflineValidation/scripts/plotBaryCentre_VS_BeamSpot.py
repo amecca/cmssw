@@ -5,6 +5,7 @@ from array import array
 import argparse
 from collections import OrderedDict
 import json
+import logging
 
 import ROOT
 ROOT.gSystem.Load("libFWCoreFWLite.so")
@@ -44,6 +45,8 @@ def parseOptions():
     parser.add_argument("-l",action="append_const", const="-l", dest="rootargs", default=[])
     parser.add_argument("-q",action="append_const", const="-q", dest="rootargs")
     parser.add_argument("-b",action="append_const", const="-b", dest="rootargs")
+
+    parser.add_argument('--log', dest='loglevel', metavar='LEVEL', default='WARNING', help='Level for the python logging module. Can be either a mnemonic string like DEBUG, INFO or WARNING or an integer (lower means more verbose).')
 
     return parser.parse_args()
 
@@ -386,6 +389,8 @@ def plotbarycenter(bc,coord,plotConfigJson, substructure,runsPerYear,pixelLocalR
 # main call
 def Run():
     options = parseOptions()
+    loglevel = options.loglevel.upper() if not options.loglevel.isdigit() else int(args.options)
+    logging.basicConfig(format='%(levelname)s:%(module)s:%(funcName)s: %(message)s', level=loglevel)
 
     sys.argv = options.rootargs
 
@@ -487,6 +492,7 @@ def Run():
                     isEOY = True
 
             t = f.Get(tree_name)
+            logging.debug('reading tree "%s" -> %s', tree_name, t)
 
             bc[label] = readBaryCentreAnalyzerTree(t, substructures, accumulatedLumiPerRun, showLumi, isEOY)
 
