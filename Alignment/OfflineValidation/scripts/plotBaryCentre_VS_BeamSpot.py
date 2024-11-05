@@ -15,6 +15,21 @@ import Alignment.OfflineValidation.TkAlAllInOneTool.findAndChange as fnc
 # 1/lumiScaleFactor to go from 1/pb to 1/fb
 lumiScaleFactor = 1000
 
+class TFileContext(object):
+    '''
+    Context manager for ROOT TFile
+    '''
+    def __init__(self, *args):
+        self.tfile = ROOT.TFile(*args)
+        if(not (self.tfile and self.tfile.IsOpen())):
+            raise FileNotFoundError(args[0] if len(args) > 0 else '')
+
+    def __enter__(self):
+        return self.tfile
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.tfile.Close()
+
 
 def parseOptions():
     parser = argparse.ArgumentParser()
@@ -461,23 +476,22 @@ def Run():
 
     # start barycentre plotter
     bc = {}
-    try:
-       f = ROOT.TFile(inputFileName,"READ")
-       # read TTrees
-       for label in list(plotConfigJson["baryCentreLabels"].keys()) :
-           isEOY = False
-           t = ROOT.TTree()
-           if label == "" :
-              t = f.Get("PixelBaryCentreAnalyzer"+withPixelQuality+"/PixelBarycentre")
-           else :
-              t = f.Get("PixelBaryCentreAnalyzer"+withPixelQuality+"/PixelBarycentre_"+label)
-              if(label=="EOY") :
-                 isEOY = True
 
-           bc[label] = readBaryCentreAnalyzerTree(t, substructures, accumulatedLumiPerRun, showLumi, isEOY)
+    with TFileContext(inputFileName,"READ") as f:
+        # read TTrees
+        for label in list(plotConfigJson["baryCentreLabels"].keys()):
 
-    except IOError:
-       print("File "+inputFileName+" not accessible")
+            isEOY = False
+            if label == "" :
+                tree_name = "PixelBaryCentreAnalyzer"+withPixelQuality+"/PixelBarycentre"
+            else :
+                tree_name = "PixelBaryCentreAnalyzer"+withPixelQuality+"/PixelBarycentre_"+label
+                if(label=="EOY") :
+                    isEOY = True
+
+            t = f.Get(tree_name)
+
+            bc[label] = readBaryCentreAnalyzerTree(t, substructures, accumulatedLumiPerRun, showLumi, isEOY)
 
     # plot
     for substructure in substructures :
