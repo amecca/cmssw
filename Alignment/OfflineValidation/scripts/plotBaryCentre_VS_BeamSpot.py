@@ -71,6 +71,9 @@ def findRunIndex(run, runs) :
 
 
 def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi, isEOY) :
+    if(not t):
+        raise RuntimeError("Tree is null")
+
     # to store lumi sections info for each run
     run_maxlumi = {}
     run_lumis = {}
