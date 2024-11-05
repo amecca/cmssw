@@ -168,9 +168,11 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
 
         #10000 is to translate cm to micro-metre
         for branch_name in branch_names :
-            pos_ = {"x":10000*getattr(iov, branch_name).x(),
-                    "y":10000*getattr(iov, branch_name).y(),
-                    "z":10000*getattr(iov, branch_name).z()}
+            branch = iov.GetBranch(branch_name)
+            logging.debug('branch %s: %s', branch_name, branch)
+            pos_ = {"x":10000*getattr(iov, branch_name+"/x"),
+                    "y":10000*getattr(iov, branch_name+"/y"),
+                    "z":10000*getattr(iov, branch_name+"/z")}
 
             for coord in ["x","y","z"] :
                 pos[coord+"_"+branch_name].append(pos_[coord])
