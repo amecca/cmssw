@@ -44,6 +44,8 @@ TICLLayerTileProducer::TICLLayerTileProducer(const edm::ParameterSet &ps)
     produces<TICLLayerTilesHFNose>();
   } else {
     clusters_token_ = consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layer_clusters"));
+    clusters_barrel_token_ = consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("barrel_layer_clusters"));
+
     produces<TICLLayerTiles>();
     produces<TICLLayerTilesBarrel>("ticlLayerTilesBarrel");
   }
@@ -94,6 +96,19 @@ void TICLLayerTileProducer::produce(edm::Event &evt, const edm::EventSetup &) {
     }
     lcId++;
   }
+
+  edm::Handle<std::vector<reco::CaloCluster>> cluster_barrel_h;
+  evt.getByToken(clusters_barrel_token_, cluster_barrel_h);
+  const auto barrelLayerClusters = *cluster_barrel_h;
+  lcId = 0;
+  for (auto const &lc : barrelLayerClusters) {
+    const auto firstHitDetId = lc.hitsAndFractions()[0].first;
+    int layer = rhtools_.getLayerWithOffset(firstHitDetId);
+    assert(layer >= 0);
+    resultBarrel->fill(layer, lc.eta(), lc.phi(), lcId);
+    lcId++;
+  }
+
   if (doNose_)
     evt.put(std::move(resultHFNose));
   else {
