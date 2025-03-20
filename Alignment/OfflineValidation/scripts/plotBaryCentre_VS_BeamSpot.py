@@ -13,6 +13,9 @@ ROOT.gSystem.Load("libFWCoreFWLite.so")
 import CondCore.Utilities.conddblib as conddb
 import Alignment.OfflineValidation.TkAlAllInOneTool.findAndChange as fnc
 
+# The name of the record of the pixel templates in CondDB
+PIXEL_TEMPLATE_RCD = 'SiPixelTemplateDBObjectRcd'
+
 # 1/lumiScaleFactor to go from 1/pb to 1/fb
 lumiScaleFactor = 1000
 
@@ -448,22 +451,7 @@ def Run():
     accumulatedLumiPerRun = OrderedDict(sorted(accumulatedLumiPerRun.items(), key=lambda t: t[0]))
 
     #pixel local reco update (IOVs/sinces)
-    pixelLocalRecos = []
-    # connnect to ProdDB to access pixel local reco condition change
-    db = plotConfigJson["pixelDataBase"]
-    pixel_template = plotConfigJson["pixelLocalReco"]
-    db = db.replace("sqlite_file:", "").replace("sqlite:", "")
-    db = db.replace("frontier://FrontierProd/CMS_CONDITIONS", "pro")
-    db = db.replace("frontier://FrontierPrep/CMS_CONDITIONS", "dev")
-
-    con = conddb.connect(url = conddb.make_url(db))
-    session = con.session()
-    # get IOV table
-    IOV = session.get_dbtype(conddb.IOV)
-    iovs = set(session.query(IOV.since).filter(IOV.tag_name == pixel_template).all())
-    session.close()
-    pixelLocalRecos = sorted([int(item[0]) for item in iovs])
-    #pixelLocalRecos = [1, 186500, 195360, 197749, 200961, 203368, 204601, 206446, 238341, 246866, 253914, 255655, 271866, 276315, 278271, 280928, 290543, 297281, 298653, 299443, 300389, 301046, 302131, 303790, 303998, 304911, 313041, 314881, 316758, 317475, 317485, 317527, 317661, 317664, 318227, 320377, 321831, 322510, 322603, 323232, 324245]
+    pixelLocalRecos = get_pixel_template_updates(plotConfigJson)
 
     # substructures to plot
     substructures = list(plotConfigJson["substructures"].keys())
@@ -492,6 +480,83 @@ def Run():
     for substructure in substructures :
         for coord in ['x','y','z'] :
             plotbarycenter(bc,coord,plotConfigJson,substructure, runsPerYear,pixelLocalRecos,accumulatedLumiPerRun, withPixelQuality,showLumi)
+
+
+def get_pixel_template_updates(config):
+    '''
+    Returns a list of run numbers corresponding to the pixel templates updates
+    '''
+    pixelLocalRecos = []
+
+    if('pixelLocalReco' in config):
+        # The config specifies an override
+        db = config.get('pixelDataBase', None)
+        pixel_template_tag = config['pixelLocalReco']
+    else:
+        # Retrieve from config with the standard rules
+        pixel_template_info = get_pixel_template(config)
+        pixel_template_tag = pixel_template_info['tag']
+        db = pixel_template_info.get('connect')
+
+    if(db is None): db = 'pro'
+    logging.info('pixel template Tag: %s', pixel_template_tag)
+
+    # connnect to ProdDB to access pixel local reco condition change
+    db = db.replace("sqlite_file:", "").replace("sqlite:", "")
+    db = db.replace("frontier://FrontierProd/CMS_CONDITIONS", "pro")
+    db = db.replace("frontier://FrontierPrep/CMS_CONDITIONS", "dev")
+
+    connection = conddb.connect(url = conddb.make_url(db))
+    session = connection.session()
+    # get IOV table
+    IOV = session.get_dbtype(conddb.IOV)
+    iovs = set(session.query(IOV.since).filter(IOV.tag_name == pixel_template_tag).all())
+    session.close()
+    pixelLocalRecos = sorted([int(item[0]) for item in iovs])
+    logging.debug('pixelLocalRecos: %s', pixelLocalRecos)
+
+    return pixelLocalRecos
+
+
+def get_pixel_template(config):
+    '''
+    Retrieve the tag (<str>) and the connect string (<str>, nullable)
+    of the pixel templates from the config
+    '''
+    alignment  = config['alignment']
+    conditions = alignment.get('conditions', {})
+
+    # Check if a specific SiPixelTemplateDBObject was specified
+    if(PIXEL_TEMPLATE_RCD in conditions):
+        logging.debug('found %s in config conditions', PIXEL_TEMPLATE_RCD)
+        record   = conditions[PIXEL_TEMPLATE_RCD]
+        tag_name = record['tag']
+        connect  = record.get('connect')
+    else:
+        # Otherwise retrieve it from the GT
+        gt_name = alignment['globaltag']
+        logging.debug('GlobalTag from config: %s', gt_name)
+
+        connection = conddb.connect(url = conddb.make_url())
+        session = connection.session()
+
+        GlobalTagMap_dbtype = session.get_dbtype(conddb.GlobalTagMap) # The type of a GT map (GT -> record, tag, label) object in the database
+        # Query conddb to get which tag for the pixel template record is in the GT
+        query_tag = session.query(GlobalTagMap_dbtype)\
+                           .filter(GlobalTagMap_dbtype.global_tag_name == gt_name)\
+                           .filter(GlobalTagMap_dbtype.record == PIXEL_TEMPLATE_RCD)\
+                           .all()
+        logging.debug('results for the pixel template Tag (%d):', len(query_tag))
+        for r in query_tag:
+            logging.debug('  <%s> %s (label=%s)', r.record, r.tag.name, r.label)
+        if(len(query_tag) == 0):
+            raise RuntimeError('could not retrieve the tag of the record "%s" for the GT "%s"' %(PIXEL_TEMPLATE_RCD, gt_name))
+        tag_name = query_tag[0].tag.name
+        connect  = None
+
+        session.close()
+
+    return {'tag': tag_name, 'connect': connect}
 
 
 if __name__ == "__main__":
