@@ -250,15 +250,10 @@ def plotbarycenter(bc,coord,plotConfigJson, substructure,runsPerYear,pixelLocalR
            upper = max(upper, bc[label][coord+"max_"+substructure])
            lower = min(lower, bc[label][coord+"min_"+substructure])
 
-    scale = 1.1
-    if(upper>0) :
-      upper = upper * scale
-    else :
-      upper = upper / scale
-    if(lower>0) :
-      lower = lower / scale
-    else :
-      lower = lower * scale
+    # Enlarge the y range by a fraction of the original
+    extra_range = (upper - lower) * 0.1
+    upper += extra_range
+    lower -= extra_range
     range_ = upper - lower
 
     firstGraph = True
