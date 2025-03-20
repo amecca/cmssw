@@ -1,6 +1,6 @@
 {
     "pixelDataBase": "frontier://FrontierProd/CMS_CONDITIONS",
-    "pixelLocalReco": "SiPixelTemplateDBObject_38T_v16_offline",
+    "pixelLocalReco": "SiPixelTemplateDBObject_38T_v1_prompt",
     "substructures": {"BPIX":"BPIX","FPIX":"FPIX"},
     "baryCentreLabels": {"":"Default"},
     "colorScheme": {"":419, "rereco":419,"prompt":600,"EOY":632}
