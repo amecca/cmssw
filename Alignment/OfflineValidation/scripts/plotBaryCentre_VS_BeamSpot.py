@@ -99,6 +99,7 @@ def readBaryCentreAnalyzerTree(t, branch_names, accumulatedLumiPerRun, showLumi,
 
         # Append the list of lumi sections of this Tree Entry to the current run
         run_lumis.setdefault(iov.run, []).append(iov.ls)
+    logging.debug('run_lumis range: %d - %d', min(run_lumis.keys()), max(run_lumis.keys()))
 
     # initialize store barycentre
     pos = {}
@@ -323,13 +324,19 @@ def plotbarycenter(bc,coord,plotConfigJson, substructure,runsPerYear,pixelLocalR
     #pixel local reco
     line_pixels = {}
     for since in pixelLocalRecos :
+        # Skip updates outside the run range of interest
+        if(not since in range(runs[0], runs[-1])):
+           continue
+
         if showLumi :
            run_index = findRunIndex(since,runs)
            integrated_lumi = accumulatedLumiPerRun[runs[run_index]]
            line_pixels[since] = ROOT.TLine(integrated_lumi, lower, integrated_lumi, upper)
+           logging.debug('Draw line for pixel template change %d -> %.3g', since, integrated_lumi)
 
         else :
            line_pixels[since] = ROOT.TLine(since, lower, since, upper)
+           logging.debug('Draw line for pixel template change %d', since)
 
         line_pixels[since].SetLineColor(ROOT.kGray+1)
         line_pixels[since].SetLineStyle(3)
@@ -386,7 +393,7 @@ def Run():
     logging.basicConfig(format='%(levelname)s:%(module)s:%(funcName)s: %(message)s', level=loglevel)
 
     sys.argv = options.rootargs
-    if('-b' in options.rootargs):
+    if('-b' in options.rootargs or True):
         ROOT.gROOT.SetBatch(True)
 
     inputFileName = options.inputFileName
@@ -475,6 +482,13 @@ def Run():
             logging.debug('reading tree "%s" -> %s', tree_name, t)
 
             bc[label] = readBaryCentreAnalyzerTree(t, substructures, accumulatedLumiPerRun, showLumi, isEOY)
+
+    # DEBUG
+    logging.debug('bc.keys           = %s', bc.keys())
+    logging.debug('bc[""].keys       = %s', bc[""].keys())
+    logging.debug('bc[""][xmax_BPIX] = %s', bc[""]["xmax_BPIX"])
+    logging.debug('bc[""][x_BPIX]    = %s', bc[""]["x_BPIX"])
+    #logging.debug('any pixel updates in [%d, %d]? %s', )
 
     # plot
     for substructure in substructures :

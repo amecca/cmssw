@@ -4,4 +4,13 @@
     "substructures": {"BPIX":"BPIX","FPIX":"FPIX"},
     "baryCentreLabels": {"":"Default"},
     "colorScheme": {"":419, "rereco":419,"prompt":600,"EOY":632}
+    ,
+    "alignment": {
+	"_conditions": {
+	    "SiPixelTemplateDBObjectRcd": {
+		"tag": "SiPixelTemplateDBObject_38T_v1_prompt"
+	    }
+	},
+	"globaltag": "140X_dataRun3_Prompt_v4"
+    }
 }
