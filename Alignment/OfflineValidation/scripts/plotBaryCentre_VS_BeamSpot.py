@@ -38,6 +38,7 @@ class TFileContext(object):
 def parseOptions():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("config", metavar="CONFIG", nargs='?', default=None)
     parser.add_argument("--inputFileName", dest="inputFileName", default="PixelBaryCentre.root",help="name of the ntuple file that contains the barycentre tree")
     parser.add_argument("--plotConfigFile", dest="plotConfigFile", default="PixelBaryCentrePlotConfig.json",help="json file that configs the plotting")
 
@@ -396,21 +397,39 @@ def Run():
     if('-b' in options.rootargs or True):
         ROOT.gROOT.SetBatch(True)
 
-    inputFileName = options.inputFileName
+    # Load options from the config file, if provided
+    if(options.config is not None):
+        with open(options.config) as f:
+            config = json.load(f)
+        # The config contents ovverride the command line options
+        # it would be nice to have non-default CLI options override the config instead
+        inputFileName   = config.get("inputFileName"  , options.inputFileName)
+        usePixelQuality = config.get("usePixelQuality", options.usePixelQuality)
+        showLumi        = config.get("showLumi"       , options.showLumi)
+        years           = config.get("years"          , options.years)
+    else:
+        inputFileName   = options.inputFileName
+        usePixelQuality = options.usePixelQuality
+        showLumi        = options.showLumi
+        years           = options.years
+        plotConfigJson = {
+            "pixelDataBase": "frontier://FrontierProd/CMS_CONDITIONS",
+            "pixelLocalReco": "SiPixelTemplateDBObject_38T_v1_prompt",
+            "substructures": {"BPIX":"BPIX","FPIX":"FPIX"},
+            "baryCentreLabels": {"":"Default"},
+            "colorScheme": {"":419, "rereco":419,"prompt":600,"EOY":632}, #TODO take from the alignments
+        }
+
     if os.path.isfile(inputFileName) == False :
        print ("File "+inputFileName+" does not exist!")
        return -1
 
-    with open(options.plotConfigFile) as plotConfigFile:
-        plotConfigJson = json.load(plotConfigFile)
 
-    usePixelQuality = options.usePixelQuality
     withPixelQuality = ""
     if(usePixelQuality) :
        withPixelQuality = "WithPixelQuality"
-    showLumi = options.showLumi
+
     # order years from old to new
-    years = options.years
     years.sort()
 
     # runs per year
