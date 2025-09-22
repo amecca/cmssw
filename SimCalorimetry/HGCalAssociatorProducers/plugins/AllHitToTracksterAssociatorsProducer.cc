@@ -134,12 +134,12 @@ void AllHitToTracksterAssociatorsProducerT<HIT>::produce(edm::StreamID, edm::Eve
 template <typename HIT>
 void AllHitToTracksterAssociatorsProducerT<HIT>::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
   if constexpr (std::is_same_v<HIT, HGCRecHit>) {
     desc.add<std::vector<edm::InputTag>>("tracksterCollections",
                                          {edm::InputTag("ticlTrackstersCLUE3DHigh"),
                                           edm::InputTag("ticlTrackstersLinks"),
                                           edm::InputTag("ticlCandidate")});
-    desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
     desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
     desc.add<std::vector<edm::InputTag>>("hits",
                                          {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
@@ -148,8 +148,7 @@ void AllHitToTracksterAssociatorsProducerT<HIT>::fillDescriptions(edm::Configura
     descriptions.add("AllHitToTracksterAssociatorsProducer", desc);
   } else if constexpr (std::is_same_v<HIT, reco::PFRecHit>) {
     desc.add<std::vector<edm::InputTag>>("tracksterCollections",
-                                         {edm::InputTag("ticlBarrelTracksters")});
-    desc.add<edm::InputTag>("layerClusters", edm::InputTag("barrelLayerClusters"));
+                                         {edm::InputTag("ticlTrackstersCLUE3DBarrel")});
     desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "barrelRecHitMap"));
     desc.add<std::vector<edm::InputTag>>("hits",                                                 
                                          {edm::InputTag("particleFlowRecHitECAL"),
