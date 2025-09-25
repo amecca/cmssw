@@ -72,7 +72,7 @@ dumperAssociators+=dumperAssociatorsBarrel
 
 ticl_barrel.toModify(ticlDumper,
                      tracksterCollections = [*[cms.PSet(treeName=cms.string(label), inputTag=cms.InputTag(label)) for label in ticlIterLabels+ticlBarrelIterLabels],
-                        cms.PSet(                                                        
+                        cms.PSet(
                             treeName=cms.string("simtrackstersSC"),
                             inputTag=cms.InputTag("ticlSimTracksters"),
                             tracksterType=cms.string("SimTracksterSC")
@@ -94,4 +94,3 @@ ticl_barrel.toModify(ticlDumper,
                         )
                      ],
                      associators=dumperAssociators.copy())
-    
