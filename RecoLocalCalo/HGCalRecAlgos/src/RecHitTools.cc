@@ -88,7 +88,9 @@ namespace {
     CE_H_200 = 4,
     CE_H_300 = 5,
     CE_H_SCINT = 6,
-    EnumSize = 7
+    ECAL = 7,
+    HCAL = 8,
+    EnumSize = 9
   };
 
 }  // namespace
@@ -499,6 +501,12 @@ int RecHitTools::getCellType(const DetId& id) const {
     } else if (thickness == 2) {
       layerType = CE_H_300;
     }
+  }
+  if (id.det() == DetId::Detector::Ecal) {
+    layerType = ECAL;
+  }
+  else if (id.det() == DetId::Detector::Hcal) {
+    layerType = HCAL;
   }
   assert(layerType != -1);
   return layerType;
