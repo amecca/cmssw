@@ -2,13 +2,14 @@ import json
 import os
 import FWCore.ParameterSet.Config as cms
 import FWCore.PythonUtilities.LumiList as LumiList
+from Configuration.Eras.Era_Run3_2025_cff import Run3_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultMC_NoPU
 from FWCore.ParameterSet.VarParsing import VarParsing
 
 ###################################################################
 # Define process 
 ###################################################################
-process = cms.Process("GenericTrackAndVertexValidation")
+process = cms.Process("GenericTrackAndVertexValidation", Run3_2025)
 
 ###################################################################
 # Argument parsing

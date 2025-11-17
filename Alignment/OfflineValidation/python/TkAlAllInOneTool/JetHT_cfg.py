@@ -5,8 +5,9 @@ here doing refit of tracks and vertices using latest alignment
 
 # Define the process
 import FWCore.ParameterSet.Config as cms
+from Configuration.Eras.Era_Run3_2025_cff import Run3_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultData_JetHTRun2018D
-process = cms.Process("JetHTAnalyzer")
+process = cms.Process("JetHTAnalyzer", Run3_2025)
 
 # Choose whether to run with Monte Carlo or data settings based on command line argument
 import FWCore.ParameterSet.VarParsing as VarParsing

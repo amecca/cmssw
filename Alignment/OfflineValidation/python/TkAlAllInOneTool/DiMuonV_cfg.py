@@ -3,6 +3,7 @@ import FWCore.ParameterSet.Config as cms
 import FWCore.PythonUtilities.LumiList as LumiList
 import FWCore.Utilities.FileUtils as FileUtils
 from FWCore.ParameterSet.VarParsing import VarParsing
+from Configuration.Eras.Era_Run3_2025_cff import Run3_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultMC_DoubleMuon_string
 
 import sys
@@ -12,7 +13,7 @@ import os
 ###################################################################
 # Define process
 ###################################################################
-process = cms.Process("DiMuonVertexValidation")
+process = cms.Process("DiMuonVertexValidation", Run3_2025)
 
 ###################################################################
 # Argument parsing
