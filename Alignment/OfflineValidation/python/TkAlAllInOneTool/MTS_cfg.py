@@ -3,6 +3,7 @@ import yaml
 import os
 import FWCore.ParameterSet.Config as cms
 import FWCore.PythonUtilities.LumiList as LumiList
+from Configuration.Eras.Era_Run3_pp_on_PbPb_2025_cff import Run3_pp_on_PbPb_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultData_Cosmics_string
 from FWCore.ParameterSet.VarParsing import VarParsing
 from Alignment.OfflineValidation.TkAlAllInOneTool.utils import _byteify
@@ -11,7 +12,7 @@ import pdb
 ###################################################################
 # Define process
 ###################################################################
-process = cms.Process("splitter")
+process = cms.Process("splitter", Run3_pp_on_PbPb_2025)
 
 ###################################################################
 # Argument parsing

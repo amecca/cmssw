@@ -6,13 +6,14 @@ from sys import version_info
 import FWCore.ParameterSet.Config as cms
 import FWCore.PythonUtilities.LumiList as LumiList
 from FWCore.ParameterSet.VarParsing import VarParsing
+from Configuration.Eras.Era_Run3_pp_on_PbPb_2025_cff import Run3_pp_on_PbPb_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.utils import _byteify
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultMC_DoubleMuonAlCa_string
 
 ###################################################################
 # Define process
 ###################################################################
-process = cms.Process("TkAlignmentDiMuonValidation")
+process = cms.Process("TkAlignmentDiMuonValidation", Run3_pp_on_PbPb_2025)
 
 ###################################################################
 # Argument parsing

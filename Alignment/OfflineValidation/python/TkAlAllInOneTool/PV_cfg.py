@@ -1,6 +1,7 @@
 
 import FWCore.ParameterSet.Config as cms
 import FWCore.PythonUtilities.LumiList as LumiList
+from Configuration.Eras.Era_Run3_pp_on_PbPb_2025_cff import Run3_pp_on_PbPb_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultData_HLTPhys2024I
 
 from FWCore.ParameterSet.VarParsing import VarParsing
@@ -10,7 +11,7 @@ import json
 import os
 
 ##Define process
-process = cms.Process("PrimaryVertexValidation")
+process = cms.Process("PrimaryVertexValidation", Run3_pp_on_PbPb_2025)
 
 ##Argument parsing
 options = VarParsing()

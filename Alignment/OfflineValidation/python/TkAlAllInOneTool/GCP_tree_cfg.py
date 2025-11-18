@@ -2,12 +2,13 @@ import FWCore.ParameterSet.Config as cms
 #import FWCore.PythonUtilities.LumiList as LumiList
 
 from FWCore.ParameterSet.VarParsing import VarParsing
+from Configuration.Eras.Era_Run3_pp_on_PbPb_2025_cff import Run3_pp_on_PbPb_2025
 
 import json
 import os
 
 ##Define process
-process = cms.Process("validation")
+process = cms.Process("validation", Run3_pp_on_PbPb_2025)
 
 ##Argument parsing
 options = VarParsing()

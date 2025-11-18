@@ -1,8 +1,9 @@
 import FWCore.ParameterSet.Config as cms
 import os
 import json
+from Configuration.Eras.Era_Run3_pp_on_PbPb_2025_cff import Run3_pp_on_PbPb_2025
 
-process = cms.Process("READ")
+process = cms.Process("READ", Run3_pp_on_PbPb_2025)
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')

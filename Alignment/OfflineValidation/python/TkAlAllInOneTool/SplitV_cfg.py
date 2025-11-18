@@ -2,6 +2,7 @@ import json
 import os
 import FWCore.ParameterSet.Config as cms
 import FWCore.PythonUtilities.LumiList as LumiList
+from Configuration.Eras.Era_Run3_pp_on_PbPb_2025_cff import Run3_pp_on_PbPb_2025
 from Alignment.OfflineValidation.TkAlAllInOneTool.defaultInputFiles_cff import filesDefaultMC_NoPU
 from FWCore.ParameterSet.VarParsing import VarParsing
 from Alignment.OfflineValidation.TkAlAllInOneTool.utils import _byteify
@@ -9,7 +10,7 @@ from Alignment.OfflineValidation.TkAlAllInOneTool.utils import _byteify
 ###################################################################
 # Define process 
 ###################################################################
-process = cms.Process("PrimaryVertexResolution")
+process = cms.Process("PrimaryVertexResolution", Run3_pp_on_PbPb_2025)
 
 ###################################################################
 # Argument parsing
